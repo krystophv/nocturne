@@ -411,7 +411,7 @@
             props={{ spline: { "stroke-width": 3, "stroke-linecap": "round" } }}
             points={{ data: labChartPoints, x: (d) => d.date, y: (d) => d.displayValue, children: labMarkers }}
             {annotations}
-
+          >
             {#snippet tooltip({ context })}
               <Tooltip.Root {context} class="bg-popover text-popover-foreground rounded-md border p-3 shadow-lg">
                 {#snippet children({ data })}
