@@ -215,8 +215,23 @@
     }))
   );
 
+  function displayValueForChartDate(date: Date): number | null {
+    if (chartData.length === 0) return null;
+    const timestamp = date.getTime();
+    const nextIndex = chartData.findIndex((point) => point.date.getTime() >= timestamp);
+    if (nextIndex === 0) return toDisplayUnit(chartData[0].estimatedA1cPercent);
+    if (nextIndex === -1) return toDisplayUnit(chartData[chartData.length - 1].estimatedA1cPercent);
+
+    const previous = chartData[nextIndex - 1];
+    const next = chartData[nextIndex];
+    const progress = (timestamp - previous.date.getTime()) / (next.date.getTime() - previous.date.getTime());
+    const value = previous.estimatedA1cPercent +
+      (next.estimatedA1cPercent - previous.estimatedA1cPercent) * progress;
+    return toDisplayUnit(value);
+  }
+
   const displayChartData = $derived.by(() => {
-    const rows = new Map<number, { date: Date; displayValue: number | null }>();
+    const rows = new Map<number, { date: Date; displayValue: number }>();
     for (const point of chartData) {
       rows.set(point.date.getTime(), {
         date: point.date,
@@ -225,7 +240,10 @@
     }
     for (const labPoint of labChartPoints) {
       if (!rows.has(labPoint.date.getTime())) {
-        rows.set(labPoint.date.getTime(), { date: labPoint.date, displayValue: null });
+        const displayValue = displayValueForChartDate(labPoint.date);
+        if (displayValue !== null) {
+          rows.set(labPoint.date.getTime(), { date: labPoint.date, displayValue });
+        }
       }
     }
     return [...rows.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
