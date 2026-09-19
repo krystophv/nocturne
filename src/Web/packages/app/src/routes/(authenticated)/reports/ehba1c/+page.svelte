@@ -117,10 +117,6 @@
 
   const chartData = $derived(toChartPoints(pointsByYear));
 
-  const displayChartData = $derived(
-    chartData.map((p) => ({ ...p, displayValue: toDisplayUnit(p.estimatedA1cPercent) }))
-  );
-
   const latest = $derived(chartData.length > 0 ? chartData[chartData.length - 1] : undefined);
 
   const extremes = $derived.by(() => {
@@ -218,6 +214,22 @@
       note: r.note,
     }))
   );
+
+  const displayChartData = $derived.by(() => {
+    const rows = new Map<number, { date: Date; displayValue: number | null }>();
+    for (const point of chartData) {
+      rows.set(point.date.getTime(), {
+        date: point.date,
+        displayValue: toDisplayUnit(point.estimatedA1cPercent),
+      });
+    }
+    for (const labPoint of labChartPoints) {
+      if (!rows.has(labPoint.date.getTime())) {
+        rows.set(labPoint.date.getTime(), { date: labPoint.date, displayValue: null });
+      }
+    }
+    return [...rows.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+  });
 
   async function addLabResult() {
     const value = Number(newLabValue);
