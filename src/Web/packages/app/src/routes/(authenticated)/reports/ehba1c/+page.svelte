@@ -257,10 +257,29 @@
     return [new Date(Math.min(...dates)), new Date(Math.max(...dates))];
   });
 
+  function normalizeZoomDomain(start: Date, end: Date): [Date, Date] | null {
+    const startTime = start.getTime();
+    const endTime = end.getTime();
+    const fullStart = fullXDomain[0].getTime();
+    const fullEnd = fullXDomain[1].getTime();
+    if (![startTime, endTime, fullStart, fullEnd].every(Number.isFinite)) return null;
+
+    const clampedStart = Math.max(fullStart, Math.min(fullEnd, Math.min(startTime, endTime)));
+    const clampedEnd = Math.min(fullEnd, Math.max(fullStart, Math.max(startTime, endTime)));
+    if (clampedEnd <= clampedStart) return null;
+
+    const hasData = displayChartData.some((point) => {
+      const timestamp = point.date.getTime();
+      return timestamp >= clampedStart && timestamp <= clampedEnd;
+    });
+    if (!hasData) return null;
+    return [new Date(clampedStart), new Date(clampedEnd)];
+  }
+
   function handleBrush(e: { brush: { x: Array<number | Date | string | null> } }) {
     const [start, end] = e.brush.x ?? [];
     if (start != null && end != null) {
-      zoomDomain = [new Date(start), new Date(end)];
+      zoomDomain = normalizeZoomDomain(new Date(start), new Date(end));
     }
   }
 
