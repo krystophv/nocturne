@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { BrushContext, LineChart, Tooltip } from "layerchart";
-  import { scaleTime } from "d3-scale";
-  import { Loader2, Activity, Plus, Trash2, RotateCcw } from "lucide-svelte";
+  import { LineChart, Tooltip } from "layerchart";
+  import { Loader2, Activity, Plus, Trash2 } from "lucide-svelte";
   import * as Card from "$lib/components/ui/card";
   import * as ToggleGroup from "$lib/components/ui/toggle-group";
   import { Button } from "$lib/components/ui/button";
@@ -62,7 +61,6 @@
   let savingLabResult = $state(false);
   let labResultError = $state<string | null>(null);
   let pendingDeleteLabResult = $state<LabHbA1cResult | null>(null);
-  let zoomDomain = $state<[Date, Date] | null>(null);
 
   /** NGSP % to IFCC mmol/mol, the standard dual-reporting conversion for HbA1c. */
   function toIfccMmolMol(percent: number): number {
@@ -251,42 +249,6 @@
     return [...rows.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
   });
 
-  const fullXDomain = $derived.by((): [Date, Date] => {
-    const dates = displayChartData.map((point) => point.date.getTime());
-    if (dates.length === 0) return [new Date(0), new Date(0)];
-    return [new Date(Math.min(...dates)), new Date(Math.max(...dates))];
-  });
-
-  function normalizeZoomDomain(start: Date, end: Date): [Date, Date] | null {
-    const startTime = start.getTime();
-    const endTime = end.getTime();
-    const fullStart = fullXDomain[0].getTime();
-    const fullEnd = fullXDomain[1].getTime();
-    if (![startTime, endTime, fullStart, fullEnd].every(Number.isFinite)) return null;
-
-    const clampedStart = Math.max(fullStart, Math.min(fullEnd, Math.min(startTime, endTime)));
-    const clampedEnd = Math.min(fullEnd, Math.max(fullStart, Math.max(startTime, endTime)));
-    if (clampedEnd <= clampedStart) return null;
-
-    const hasData = displayChartData.some((point) => {
-      const timestamp = point.date.getTime();
-      return timestamp >= clampedStart && timestamp <= clampedEnd;
-    });
-    if (!hasData) return null;
-    return [new Date(clampedStart), new Date(clampedEnd)];
-  }
-
-  function handleBrush(e: { brush: { x: Array<number | Date | string | null> } }) {
-    const [start, end] = e.brush.x ?? [];
-    if (start != null && end != null) {
-      zoomDomain = normalizeZoomDomain(new Date(start), new Date(end));
-    }
-  }
-
-  function resetZoom() {
-    zoomDomain = null;
-  }
-
   async function addLabResult() {
     const value = Number(newLabValue);
     if (!newLabDate || !newLabValue || Number.isNaN(value)) return;
@@ -397,27 +359,11 @@
           </div>
         {/if}
 
-        <div class="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span></span>
-          {#if zoomDomain}
-            <button
-              type="button"
-              class="inline-flex items-center gap-1 text-primary hover:underline"
-              onclick={resetZoom}
-              title="Reset zoom"
-            >
-              <RotateCcw class="size-3" />
-              Reset zoom
-            </button>
-          {/if}
-        </div>
         <div class="h-[320px] w-full @md:h-[400px]">
           <LineChart
             data={displayChartData}
             x="date"
             y="displayValue"
-            xScale={scaleTime()}
-            xDomain={zoomDomain ?? fullXDomain}
             {yDomain}
             clip
             series={[
@@ -464,18 +410,6 @@
                   </div>
                 {/snippet}
               </Tooltip.Root>
-            {/snippet}
-            {#snippet children({ context })}
-              <BrushContext
-                axis="x"
-                x={zoomDomain ?? fullXDomain}
-                onChange={handleBrush}
-                onBrushEnd={handleBrush}
-                classes={{
-                  range: "bg-primary/20 border border-primary/40 rounded",
-                  handle: "bg-primary/60 hover:bg-primary/80 rounded-sm",
-                }}
-              />
             {/snippet}
           </LineChart>
         </div>
