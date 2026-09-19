@@ -365,7 +365,7 @@
                   {@const hoveredDate = context.x(data) as Date}
                   {@const hoveredDateKey = dateKey(hoveredDate)}
                   {@const eHbA1cPoint = chartData.find((point) => dateKey(point.date) === hoveredDateKey)}
-                  {@const labResult = labChartPoints.find((point) => dateKey(point.date) === hoveredDateKey)}
+                  {@const labResultsForDate = labChartPoints.filter((point) => dateKey(point.date) === hoveredDateKey)}
                   <div class="mb-2 text-sm font-semibold">{formatLongDate(hoveredDate)}</div>
                   <div class="min-w-56 space-y-1.5 text-sm">
                     {#if eHbA1cPoint}
@@ -377,7 +377,7 @@
                         <span class="font-mono font-medium tabular-nums">{formatDisplayValue(toDisplayUnit(eHbA1cPoint.estimatedA1cPercent))}</span>
                       </div>
                     {/if}
-                    {#if labResult}
+                    {#each labResultsForDate as labResult (labResult.id)}
                       <div class="grid grid-cols-[1fr_auto] items-center gap-x-4">
                         <span class="flex min-w-0 items-center gap-2 text-muted-foreground">
                           <span class="h-0 w-0 shrink-0 border-x-4 border-b-[7px] border-x-transparent border-b-foreground"></span>
@@ -388,7 +388,7 @@
                           <span class="col-span-2 truncate text-xs text-muted-foreground">{labResult.note}</span>
                         {/if}
                       </div>
-                    {/if}
+                    {/each}
                   </div>
                 {/snippet}
               </Tooltip.Root>
