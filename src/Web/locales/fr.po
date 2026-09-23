@@ -654,7 +654,6 @@ msgid "<0/> Roles"
 msgstr ""
 
 #: src/lib/components/account/UserProfileCard.svelte
-#: src/lib/components/admin/UsersTabContent.svelte
 msgid "No roles assigned"
 msgstr ""
 
@@ -824,8 +823,6 @@ msgid "Care Portal"
 msgstr ""
 
 #: src/lib/components/admin/RoleDialog.svelte
-#: src/lib/components/admin/UsersTabContent.svelte
-#: src/lib/components/admin/UsersTabContent.svelte
 #: src/lib/components/layout/UserMenu.svelte
 msgid "Admin"
 msgstr ""
@@ -1021,70 +1018,51 @@ msgstr ""
 msgid "Create Provider"
 msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Users"
-msgstr ""
+#~ msgid "Users"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "User accounts and their roles. For device access, use OAuth device authorization flow."
-msgstr ""
+#~ msgid "User accounts and their roles. For device access, use OAuth device authorization flow."
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "<0/> New User"
-msgstr ""
+#~ msgid "<0/> New User"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "No users found"
-msgstr ""
+#~ msgid "No users found"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Create your first user account to get started"
-msgstr ""
+#~ msgid "Create your first user account to get started"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Public"
-msgstr ""
+#~ msgid "Public"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "<0/> Unauthenticated Access"
-msgstr ""
+#~ msgid "<0/> Unauthenticated Access"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "<0/> Platform Admin"
-msgstr ""
+#~ msgid "<0/> Platform Admin"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Defines what unauthenticated users can access"
-msgstr ""
+#~ msgid "Defines what unauthenticated users can access"
+#~ msgstr ""
 
-#. 0: subject.roles .map((r\\: TenantMemberRoleDto) => r.name ?? "") .filter((n\\: string) => n !== "admin") .join(", ") || "Admin"
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Roles: {0}"
-msgstr ""
+#~ msgid "Roles: {0}"
+#~ msgstr ""
 
-#. 0: formatDate(subject.sysCreatedAt)
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Created: {0}"
-msgstr ""
+#~ msgid "Created: {0}"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Revoke platform admin"
-msgstr ""
+#~ msgid "Revoke platform admin"
+#~ msgstr ""
 
-#: src/lib/components/admin/UsersTabContent.svelte
-msgid "Grant platform admin"
-msgstr ""
+#~ msgid "Grant platform admin"
+#~ msgstr ""
 
-#. 0: subject.name
 #. 0: member.name
-#: src/lib/components/admin/UsersTabContent.svelte
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Revoke platform admin from {0}"
 msgstr ""
 
-#. 0: subject.name
 #. 0: member.name
-#: src/lib/components/admin/UsersTabContent.svelte
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Grant platform admin to {0}"
 msgstr ""
@@ -1779,9 +1757,6 @@ msgstr ""
 #. 0: totalCarbs
 #. 0: (snapshot.cob ?? 0).toFixed(0)
 #. 0: Math.round(d.averageDailyCarbs)
-#. 0: formatCarbDisplay(averages.avgCarbs)
-#. 0: formatCarbDisplay(averages.avgProtein)
-#. 0: formatCarbDisplay(averages.avgFat)
 #. 0: selectedDay.totalCarbs.toFixed(0)
 #. 0: d.totalCarbs.toFixed(0)
 #. 0: totalCarbs
@@ -1807,9 +1782,6 @@ msgstr ""
 #: src/lib/components/meals/MealsTable.svelte
 #: src/lib/components/reports/ApsStateCard.svelte
 #: src/lib/components/reports/GlycemicRiskIndexChart.svelte
-#: src/lib/components/reports/PeriodAverages.svelte
-#: src/lib/components/reports/PeriodAverages.svelte
-#: src/lib/components/reports/PeriodAverages.svelte
 #: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
 #: src/lib/components/treatments/TreatmentFoodBreakdown.svelte
@@ -1844,7 +1816,6 @@ msgstr ""
 #. 0: afternoon.toFixed(1)
 #. 0: evening.toFixed(1)
 #. 0: d.value.toFixed(2)
-#. 0: formatInsulinDisplay(averages.avgTotalDaily)
 #. 0: totalInsulin.toFixed(1)
 #. 0: (row.insulin ?? 0).toFixed(2)
 #: src/lib/components/calendar/CalendarDayCell.svelte
@@ -1865,7 +1836,6 @@ msgstr ""
 #: src/lib/components/reports/InsulinDeliveryChart.svelte
 #: src/lib/components/reports/InsulinDeliveryChart.svelte
 #: src/lib/components/reports/InsulinDonutChart.svelte
-#: src/lib/components/reports/PeriodAverages.svelte
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "{0}U"
@@ -2449,62 +2419,45 @@ msgstr ""
 msgid "Data deleted successfully"
 msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Connected Devices"
-msgstr ""
+#~ msgid "Connected Devices"
+#~ msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Devices and applications connected via OAuth. Users authorize devices using the device flow at /oauth/device."
-msgstr ""
+#~ msgid "Devices and applications connected via OAuth. Users authorize devices using the device flow at /oauth/device."
+#~ msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Modern OAuth Device Authorization"
-msgstr ""
+#~ msgid "Modern OAuth Device Authorization"
+#~ msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Devices connect using the OAuth Device Authorization Flow. Users visit <0>/oauth/device</0> to authorize devices with a simple code."
-msgstr ""
+#~ msgid "Devices connect using the OAuth Device Authorization Flow. Users visit <0>/oauth/device</0> to authorize devices with a simple code."
+#~ msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "This replaces manual API token generation. Devices get scoped access tokens that can be refreshed and revoked."
-msgstr ""
+#~ msgid "This replaces manual API token generation. Devices get scoped access tokens that can be refreshed and revoked."
+#~ msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "No connected devices"
-msgstr ""
+#~ msgid "No connected devices"
+#~ msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Devices will appear here after users authorize them"
-msgstr ""
+#~ msgid "Devices will appear here after users authorize them"
+#~ msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
 #: src/lib/components/patient/PatientDeviceManager.svelte
 msgid "Unknown Device"
 msgstr ""
 
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Verified"
-msgstr ""
+#~ msgid "Verified"
+#~ msgstr ""
 
-#. 0: grant.clientId
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Client: {0}"
-msgstr ""
+#~ msgid "Client: {0}"
+#~ msgstr ""
 
-#. 0: (grant.scopes ?? []).join(", ")
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Scopes: {0}"
-msgstr ""
+#~ msgid "Scopes: {0}"
+#~ msgstr ""
 
-#. 0: formatDate(grant.lastUsedAt)
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "— Last used: {0}"
-msgstr ""
+#~ msgid "— Last used: {0}"
+#~ msgstr ""
 
-#. 0: formatDate(grant.createdAt)
-#: src/lib/components/admin/DevicesTabContent.svelte
-msgid "Created: {0} <0/>"
-msgstr ""
+#~ msgid "Created: {0} <0/>"
+#~ msgstr ""
 
 #~ msgid "Failed to trigger sync"
 #~ msgstr ""
@@ -6198,53 +6151,41 @@ msgstr ""
 msgid "Based on {0} days of data ({1} recommended)"
 msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Period Averages"
-msgstr ""
+#~ msgid "Period Averages"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Glucose Management"
-msgstr ""
+#~ msgid "Glucose Management"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Time in Range average:"
-msgstr ""
+#~ msgid "Time in Range average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Tight Time in Range average:"
-msgstr ""
+#~ msgid "Tight Time in Range average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Insulin & Nutrition"
-msgstr ""
+#~ msgid "Insulin & Nutrition"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "TDD average:"
-msgstr ""
+#~ msgid "TDD average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Bolus average:"
-msgstr ""
+#~ msgid "Bolus average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Basal average:"
-msgstr ""
+#~ msgid "Basal average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "(Base basal average:"
-msgstr ""
+#~ msgid "(Base basal average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Carbs average:"
-msgstr ""
+#~ msgid "Carbs average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Protein average:"
-msgstr ""
+#~ msgid "Protein average:"
+#~ msgstr ""
 
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "Fat average:"
-msgstr ""
+#~ msgid "Fat average:"
+#~ msgstr ""
 
 #: src/lib/components/reports/ResourceGuard.svelte
 msgid "<0/> Try again"
@@ -6488,19 +6429,14 @@ msgstr ""
 msgid "Very High"
 msgstr ""
 
-#: src/lib/components/reports/TreatmentEvents.svelte
-msgid "Treatment Events"
-msgstr ""
+#~ msgid "Treatment Events"
+#~ msgstr ""
 
-#. 0: formatInsulinDisplay(treatment.insulin)
-#: src/lib/components/reports/TreatmentEvents.svelte
-msgid "• {0}U"
-msgstr ""
+#~ msgid "• {0}U"
+#~ msgstr ""
 
-#. 0: formatCarbDisplay(treatment.carbs)
-#: src/lib/components/reports/TreatmentEvents.svelte
-msgid "• {0}g carbs"
-msgstr ""
+#~ msgid "• {0}g carbs"
+#~ msgstr ""
 
 #: src/lib/components/reports/TreatmentSummary.svelte
 msgid "Overall Treatment Summary"
@@ -17972,15 +17908,11 @@ msgstr ""
 msgid "Glucose ({0})"
 msgstr ""
 
-#. 0: bgRange(thresholds.targetBottom, thresholds.targetTop)
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "TIR: {0}"
-msgstr ""
+#~ msgid "TIR: {0}"
+#~ msgstr ""
 
-#. 0: bgRange(thresholds.targetBottom, thresholds.tightTargetTop)
-#: src/lib/components/reports/PeriodAverages.svelte
-msgid "TTIR: {0}"
-msgstr ""
+#~ msgid "TTIR: {0}"
+#~ msgstr ""
 
 #. 0: bgLabel()
 #: src/lib/components/reports/ScheduleFooter.svelte
@@ -24302,4 +24234,16 @@ msgstr ""
 
 #: src/routes/(authenticated)/clock/config/[id]/+page.svelte
 msgid "Remove element"
+msgstr ""
+
+#: src/lib/components/status-pills/LoopPill.svelte
+msgid "Automatic Bolus"
+msgstr ""
+
+#: src/lib/components/status-pills/LoopPill.svelte
+msgid "Temp Basal Canceled"
+msgstr ""
+
+#: src/lib/components/status-pills/LoopPill.svelte
+msgid "Temp Basal Started"
 msgstr ""
