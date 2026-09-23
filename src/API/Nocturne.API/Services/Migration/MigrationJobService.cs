@@ -964,27 +964,58 @@ internal class MigrationJob
     /// </param>
     internal static async Task<string> ReadFromSourceAsync(
         HttpClient httpClient, string url, string label, CancellationToken ct,
-        NightscoutRead read = NightscoutRead.ImportCollection)
+        NightscoutRead read = NightscoutRead.ImportCollection) =>
+        await ReadBodyFromSourceAsync(httpClient, url, label, read, (content, token) => content.ReadAsStringAsync(token), ct);
+
+    /// <summary>Decodes as UTF-8 whatever charset the response declares.</summary>
+    internal static async Task<T[]> ReadPageFromSourceAsync<T>(
+        HttpClient httpClient, string url, string label, CancellationToken ct) =>
+        await ReadBodyFromSourceAsync(httpClient, url, label, NightscoutRead.ImportCollection, async (content, token) =>
+        {
+            await using var stream = await content.ReadAsStreamAsync(token);
+            return await System.Text.Json.JsonSerializer.DeserializeAsync<T[]>(stream, cancellationToken: token) ?? [];
+        }, ct);
+
+    private static async Task<T> ReadBodyFromSourceAsync<T>(
+        HttpClient httpClient, string url, string label, NightscoutRead read,
+        Func<HttpContent, CancellationToken, Task<T>> readBody, CancellationToken ct)
+    {
+        using var readToken = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        readToken.CancelAfter(httpClient.Timeout); // HttpClient.Timeout stops covering a headers-only send once the headers arrive
+        using var response = await SendToSourceAsync(httpClient, url, label, read, readToken.Token, ct);
+        try
+        {
+            return await readBody(response.Content, readToken.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException && !ct.IsCancellationRequested)
+        {
+            throw new MigrationSourceException(NightscoutMessages.Unreachable, MigrationFailureCause.Unreachable, ex);
+        }
+    }
+
+    private static async Task<HttpResponseMessage> SendToSourceAsync(
+        HttpClient httpClient, string url, string label, NightscoutRead read,
+        CancellationToken sendToken, CancellationToken jobToken)
     {
         HttpResponseMessage response;
         try
         {
-            response = await httpClient.GetAsync(url, ct);
+            response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, sendToken);
         }
         catch (Nocturne.Core.Models.Net.OutboundRefusedException ex)
         {
             throw new MigrationSourceException(ex.Message, MigrationFailureCause.Unreachable, ex);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !jobToken.IsCancellationRequested)
         {
             throw new MigrationSourceException(NightscoutMessages.Unreachable, MigrationFailureCause.Unreachable, ex);
         }
 
+        if (response.IsSuccessStatusCode)
+            return response;
+
         using (response)
         {
-            if (response.IsSuccessStatusCode)
-                return await response.Content.ReadAsStringAsync(ct);
-
             // 403 is worded as a refusal rather than a rejected secret, but keeps the
             // ApiSecretRejected cause. That is how Nightscout's admin routes turn down a
             // non-admin secret, which the subjects step skips over rather than failing on.
@@ -1216,8 +1247,7 @@ internal class MigrationJob
             if (currentTo.HasValue)
                 url += collection.Cursor.Filter(currentTo.Value);
 
-            var content = await ReadFromSourceAsync(httpClient, url, collection.Label, ct);
-            var page = System.Text.Json.JsonSerializer.Deserialize<T[]>(content) ?? [];
+            var page = await ReadPageFromSourceAsync<T>(httpClient, url, collection.Label, ct);
 
             if (page.Length == 0) break;
 
@@ -1268,8 +1298,7 @@ internal class MigrationJob
         var totalFailed = 0L;
         var tally = new DecompositionTally();
 
-        var content = await ReadFromSourceAsync(httpClient, "/api/v1/profile.json", collectionName, ct);
-        var profiles = System.Text.Json.JsonSerializer.Deserialize<Profile[]>(content) ?? [];
+        var profiles = await ReadPageFromSourceAsync<Profile>(httpClient, "/api/v1/profile.json", collectionName, ct);
 
         UpdateCollectionProgress(collectionName, profiles.Length, 0, 0, false);
         UpdateOverallProgress();
@@ -1327,8 +1356,7 @@ internal class MigrationJob
             ct.ThrowIfCancellationRequested();
 
             var url = $"/api/v1/food.json?count={ApiPageSize}&skip={totalSkipped}";
-            var content = await ReadFromSourceAsync(httpClient, url, collectionName, ct);
-            var foods = System.Text.Json.JsonSerializer.Deserialize<Food[]>(content) ?? [];
+            var foods = await ReadPageFromSourceAsync<Food>(httpClient, url, collectionName, ct);
 
             if (foods.Length == 0) break;
 
