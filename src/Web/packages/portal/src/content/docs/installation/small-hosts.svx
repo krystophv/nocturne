@@ -1,0 +1,140 @@
+---
+title: Running on a small host
+---
+
+<script>
+  import Callout from '@nocturne/cms/components/Callout.svelte';
+</script>
+
+# Running on a small host
+
+The bundle leaves the API's .NET runtime on its defaults. On a host with little
+memory you can opt in to the settings on this page. Each one trades something
+away, so measure first and change one thing at a time.
+
+## What the defaults do
+
+ASP.NET Core apps use Server GC by default
+([Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/performance/memory)).
+Since .NET 9, Server GC runs with DATAS turned on. DATAS starts with one heap,
+adds and removes heaps as needed, and keeps the heap roughly in proportion to the app's
+long-lived data
+([Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/datas)).
+
+The runtime sets a default heap hard limit only when the process runs under a
+memory limit, such as a container limit
+([Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector#heap-hard-limit)).
+The bundle sets no container memory limit, so the API starts with no heap limit.
+
+The runtime also turns on W^X by default. The default is `1` in .NET 10 on every
+architecture except RISC-V
+([dotnet/runtime `clrconfigvalues.h`](https://github.com/dotnet/runtime/blob/60629d14374c56f1cb51819049ad1fa529307f8d/src/coreclr/inc/clrconfigvalues.h#L640-L644)).
+With W^X on, the Linux runtime backs executable memory, such as JIT-compiled
+code, with a memfd named `doublemapper`
+([`doublemapping.cpp`](https://github.com/dotnet/runtime/blob/60629d14374c56f1cb51819049ad1fa529307f8d/src/coreclr/minipal/Unix/doublemapping.cpp#L62))
+and maps it `MAP_SHARED`, once for execution and again for writing
+([`doublemapping.cpp`](https://github.com/dotnet/runtime/blob/60629d14374c56f1cb51819049ad1fa529307f8d/src/coreclr/minipal/Unix/doublemapping.cpp#L196-L204),
+[`GetRWMapping`](https://github.com/dotnet/runtime/blob/60629d14374c56f1cb51819049ad1fa529307f8d/src/coreclr/minipal/Unix/doublemapping.cpp#L260-L264)).
+The kernel backs memfd files with shmem
+([`mm/memfd.c`](https://github.com/torvalds/linux/blob/adc218676eef25575469234709c2d87185ca223a/mm/memfd.c#L393)),
+and `/proc/<pid>/status` reports resident shmem as `RssShmem`
+([kernel docs](https://docs.kernel.org/filesystems/proc.html)). Microsoft's
+[perfcollect guide](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/trace-perfcollect-lttng)
+shows the same mapping by name, `memfd:doublemapper`.
+
+## Measure first
+
+Sample the API's runtime counters from inside the container:
+
+```bash
+case "$(uname -m)" in aarch64|arm64) rid=linux-arm64 ;; *) rid=linux-x64 ;; esac
+curl -L -o /tmp/dotnet-counters https://aka.ms/dotnet-counters/$rid
+chmod +x /tmp/dotnet-counters
+docker compose cp /tmp/dotnet-counters nocturne-api:/tmp/dotnet-counters
+docker compose exec nocturne-api /tmp/dotnet-counters collect -p 1 --counters System.Runtime \
+  --duration 00:00:00:20 --format csv -o /tmp/counters.csv
+docker compose exec nocturne-api cat /tmp/counters.csv | grep -E 'committed_size|heap.size|working_set'
+docker compose exec nocturne-api cat /proc/1/status | grep -E 'VmRSS|RssAnon|RssShmem'
+```
+
+`dotnet.gc.last_collection.memory.committed_size` is the memory the GC has
+committed. It can be larger than `dotnet.gc.last_collection.heap.size` because it
+also holds memory ready for new allocations
+([Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/built-in-metrics-runtime)).
+`VmRSS` is the sum of `RssAnon`, `RssFile` and `RssShmem`
+([kernel docs](https://docs.kernel.org/filesystems/proc.html)).
+
+## Opt-in settings
+
+Put the settings in a `docker-compose.override.yaml` next to
+`docker-compose.yaml`. When you run `docker compose up -d` with no `-f`, Compose
+loads that file on top of the base file
+([compose-go](https://github.com/compose-spec/compose-go/blob/a1350eaeeb0e74c2e7fb52acf7d567625b01bd47/cli/options.go#L484-L488)).
+Once you pass `-f`, for example for the byo-proxy override, Compose reads only the
+files you name, so add `-f docker-compose.override.yaml` as well
+([Docker docs](https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/),
+[compose-go](https://github.com/compose-spec/compose-go/blob/a1350eaeeb0e74c2e7fb52acf7d567625b01bd47/cli/options.go#L214-L216)).
+
+```yaml
+services:
+  nocturne-api:
+    environment:
+      # Hex bytes. 0x18000000 is 384 MiB.
+      DOTNET_GCHeapHardLimit: "0x18000000"
+      DOTNET_GCConserveMemory: "5"
+      DOTNET_EnableWriteXorExecute: "0"
+```
+
+### `DOTNET_GCHeapHardLimit`
+
+Sets the most memory the GC heap and its bookkeeping may commit. Environment
+variables take the value in hex
+([Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector#heap-hard-limit)).
+An allocation that would push the committed heap past the limit, even after a
+full compacting GC, throws `OutOfMemoryException`
+([dotnet/designs](https://github.com/dotnet/designs/blob/59f0fdd899978d3f0e9f5660ee3feb434ed21147/accepted/2019/support-for-memory-limits.md?plain=1#L51)).
+If large imports start failing, raise it.
+
+Setting `mem_limit` on `nocturne-api` instead also caps the heap. Under a memory
+limit the default heap hard limit is 75% of that limit, or 20 MB if that is
+larger ([Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector#heap-hard-limit-percent)).
+The limit then covers the whole container, not only the heap, and by default the
+kernel kills processes in a container that runs out of memory
+([Docker docs](https://docs.docker.com/engine/containers/resource_constraints/)).
+
+### `DOTNET_GCConserveMemory`
+
+Takes `0` to `9`. Higher values make the GC work harder to keep the heap small,
+at the cost of more frequent collections and possibly longer pauses. Any non-zero
+value also makes the GC compact the large object heap automatically if it has too
+much fragmentation
+([Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector#conserve-memory)).
+DATAS already uses `5` in its gen0 budget formula when this setting is unset
+([Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector#gen0-max-budget-settings)),
+so `5` keeps that budget and adds the large object heap compaction. Values above
+`5` shrink the budget further.
+
+### `DOTNET_EnableWriteXorExecute`
+
+`0` turns off W^X, so the runtime stops double mapping executable memory.
+
+<Callout type="warning" title="This turns off a security hardening">
+
+  With W^X on, no page of memory is writable and executable at the same time.
+  Microsoft recommends leaving it on where startup time is not critical
+  (<a href="https://devblogs.microsoft.com/dotnet/announcing-net-6-preview-7/">.NET 6 Preview 7 announcement</a>).
+  None of the sources on this page give a figure for how much memory W^X costs.
+  Compare <code>VmRSS</code> before and after, and turn it back on if the saving
+  is small.
+
+</Callout>
+
+### Workstation GC
+
+`DOTNET_gcServer=0` switches the API to Workstation GC. Microsoft's ASP.NET Core
+memory guide says Workstation GC might perform better when several containerized
+apps share a machine
+([Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/performance/memory)),
+but its comparison does not mention DATAS, which already starts Server GC with one
+heap. This page leaves it out for that reason. If you try it, measure before and
+after.

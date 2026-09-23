@@ -44,6 +44,11 @@
       title: "Bring Your Own Reverse Proxy",
       desc: "Terminate TLS with nginx, Traefik, or an existing edge instead of the bundled Caddy. Covers the forwarded headers Nocturne requires.",
     },
+    {
+      href: resolve("/docs/installation/small-hosts"),
+      title: "Running on a Small Host",
+      desc: "Opt-in .NET runtime settings that lower the API's memory use, what each one costs, and how to measure the effect.",
+    },
   ];
 
   const managedProviders = shuffle([

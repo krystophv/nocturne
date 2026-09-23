@@ -48,6 +48,23 @@ class Program
         }
 
         // ------------------------------------------------------------------
+        // Published compose defaults. Docker's own defaults are restart "no"
+        // and a json-file log with no size limit.
+        // ------------------------------------------------------------------
+        compose.ConfigureComposeFile(file =>
+        {
+            foreach (var service in file.Services.Values)
+            {
+                service.Restart ??= "unless-stopped";
+                service.Logging ??= new()
+                {
+                    Driver = "json-file",
+                    Options = { ["max-size"] = "10m", ["max-file"] = "3" },
+                };
+            }
+        });
+
+        // ------------------------------------------------------------------
         // PostgreSQL: managed local container vs external/remote DB.
         // ------------------------------------------------------------------
         var useRemoteDb = builder.Configuration.GetValue("PostgreSql:UseRemoteDatabase", false);
