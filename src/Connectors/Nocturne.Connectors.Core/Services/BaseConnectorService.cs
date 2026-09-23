@@ -1666,15 +1666,16 @@ public abstract class BaseConnectorService<TConfig> : IConnectorService<TConfig>
     }
 
     /// <summary>
-    ///     Deserializes JSON content from an HTTP response using case-insensitive options.
+    ///     Deserializes JSON content from an HTTP response using case-insensitive options. Decodes the
+    ///     body as UTF-8 whatever charset the response declares.
     /// </summary>
     protected async Task<T?> DeserializeResponseAsync<T>(
         HttpResponseMessage response,
         CancellationToken cancellationToken = default
     )
     {
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        return JsonSerializer.Deserialize<T>(content, JsonDefaults.CaseInsensitive);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await JsonSerializer.DeserializeAsync<T>(stream, JsonDefaults.CaseInsensitive, cancellationToken);
     }
 
     #endregion
