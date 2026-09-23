@@ -104,11 +104,11 @@
   function getLevelClass(level: string): string {
     switch (level) {
       case "urgent":
-        return "text-red-500 bg-red-500/10 border-red-500/20";
+        return "text-severity-urgent bg-severity-urgent/10 border-severity-urgent/20";
       case "hazard":
-        return "text-orange-500 bg-orange-500/10 border-orange-500/20";
+        return "text-severity-hazard bg-severity-hazard/10 border-severity-hazard/20";
       case "warn":
-        return "text-yellow-500 bg-yellow-500/10 border-yellow-500/20";
+        return "text-severity-warn bg-severity-warn/10 border-severity-warn/20";
       default:
         return "text-muted-foreground bg-muted border-border";
     }
@@ -222,7 +222,7 @@
         <CardHeader class="flex flex-row items-center justify-between">
           <div>
             <CardTitle class="flex items-center gap-2">
-              <Timer class="h-5 w-5 text-orange-500" />
+              <Timer class="h-5 w-5 text-severity-hazard" />
               Tracker Alerts
             </CardTitle>
             <CardDescription>
@@ -231,15 +231,13 @@
           </div>
           <div class="flex items-center gap-2">
             {#if urgentCount > 0}
-              <Badge variant="destructive">{urgentCount} urgent</Badge>
+              <Badge variant="severity-urgent">{urgentCount} urgent</Badge>
             {/if}
             {#if hazardCount > 0}
-              <Badge class="bg-orange-500 text-white hover:bg-orange-600">
-                {hazardCount} hazard
-              </Badge>
+              <Badge variant="severity-hazard">{hazardCount} hazard</Badge>
             {/if}
             {#if warnCount > 0}
-              <Badge variant="secondary">{warnCount} warning</Badge>
+              <Badge variant="severity-warn">{warnCount} warning</Badge>
             {/if}
             <a href={resolve("/settings/trackers")}>
               <Button variant="outline" size="sm">

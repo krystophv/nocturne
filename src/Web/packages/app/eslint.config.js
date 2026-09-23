@@ -89,9 +89,22 @@ export default ts.config(
             deny: HEIGHT_CLASSES,
             message: {
               layout: CONTROL_HEIGHT_HINT,
-              spacing: 'Use size="xs" or "sm" on <{{component}}>; each matches the same size on Input, SelectTrigger and ToggleGroup.',
+              spacing: 'Use size="xs" or "sm" on <{{component}}>; each matches the same size on Input, SelectTrigger and ToggleGroup. For an icon or text inside the field, use <InputGroup.Root> with an <InputGroup.Addon> and <InputGroup.Input>.',
               typography: 'Use size="xs" or "sm" on <{{component}}>; Input also has variant="code" for device codes.',
-              color: "Mark an invalid field with aria-invalid, which <{{component}}> already styles."
+              color: "Mark an invalid field with aria-invalid, which <{{component}}> already styles. On <Input>, mark a value the server accepted (e.g. an available username) with valid."
+            }
+          },
+          {
+            pattern: "^InputGroup(\\.Input|Input)$",
+            allow: ["layout", "tabular-nums", "font-mono"],
+            deny: HEIGHT_CLASSES,
+            message: "<InputGroup.Root> owns the field's border, height and padding; put icons and text in <InputGroup.Addon> (align=\"inline-start\" or \"inline-end\")."
+          },
+          {
+            pattern: "^Select(\\.Item|Item)$",
+            allow: ["layout"],
+            message: {
+              typography: 'Set size="xs" on <SelectContent> to match a size="xs" trigger; its items follow.'
             }
           },
           { pattern: "^Textarea$", allow: ["layout", "font-mono"] },
@@ -122,6 +135,7 @@ export default ts.config(
             allow: ["layout"],
             deny: HEIGHT_CLASSES,
             message: {
+              color: "\"{{className}}\" is not allowed on <Button>: pick a variant. For a colour the theme does not own (an OIDC provider's brand), use variant=\"brand\" and pass brand with its background and foreground, the foreground picked for contrast by the API.",
               layout: "\"{{className}}\" is not allowed on <Button>: its height comes from size. Use xs (h-7), sm (h-8), default (h-9), lg (h-10), xl (h-14, full-screen alarm actions), icon-xs (size-7), icon-sm (size-8), icon (size-9), icon-2xs (size-5, a round remove pip), or inline (h-auto, no padding) for a link in running text. Width stays yours.",
               typography: "\"{{className}}\" is not allowed on <Button>: it owns its type. size=\"xs\" gives text-xs and size=\"xl\" text-lg; every other size is text-sm font-medium.",
               effects: "\"{{className}}\" is not allowed on <Button>: it owns its effects. For a remove that shows on hover, set reveal: it stays hidden until its `group` is hovered or holds focus."
@@ -138,6 +152,13 @@ export default ts.config(
               color: 'Use <Item variant="outline">, "success", "muted", "dashed" or "ghost". aria-current="true" marks the current item, aria-busy a running one, and disabled dims it. <RadioGroup.Card> styles its own checked state.',
               spacing: 'Use <Item size="sm">, the default or size="lg".'
             }
+          },
+          {
+            pattern: "^Banner$",
+            allow: ["layout"],
+            message: {
+              color: 'Use <Banner variant="warning"> or variant="info"; the tints are opaque so content scrolled beneath does not show through.'
+            }
           }
         ]
       }],
@@ -147,6 +168,23 @@ export default ts.config(
       // `lead` is a hook the typography plugin styles inside `prose`.
       "shadcn/no-unknown-classes": ["warn", { allow: ["lead"] }],
       "shadcn/require-static-classes": "warn"
+    }
+  },
+  {
+    // Where notification and tracker urgency is drawn, the nearest-token hint would
+    // offer an unrelated red or amber; the ramp is its own token family.
+    files: [
+      "src/lib/components/trackers/**",
+      "src/lib/components/layout/{NotificationItem,SidebarNotifications}.svelte",
+      "src/lib/components/status-pills/TrackerPill.svelte",
+      "src/lib/components/calendar/{CalendarDayCell,TrackerPopoverContent}.svelte",
+      "src/lib/components/dashboard/widgets/TrackersWidget.svelte",
+      "src/routes/(authenticated)/notifications/**"
+    ],
+    rules: {
+      "shadcn/no-raw-colors": ["warn", {
+        message: "\"{{className}}\" is a raw colour. For urgency use the severity tokens, which order urgent > hazard > warn > info (text-severity-hazard, bg-severity-warn/10, border-severity-info/20), or <Badge variant=\"severity-hazard\"> for a solid chip; anything else takes a theme token from {{file}}."
+      }]
     }
   },
   {
