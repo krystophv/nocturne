@@ -287,6 +287,7 @@ msgstr ""
 #: src/lib/stores/alarm-state.svelte.ts
 #: src/lib/stores/alarm-state.svelte.ts
 #: src/lib/stores/alarm-state.svelte.ts
+#: src/routes/(authenticated)/food/GiLabel.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
@@ -305,6 +306,7 @@ msgstr ""
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 #: src/lib/stores/alarm-state.svelte.ts
 #: src/lib/stores/alarm-state.svelte.ts
+#: src/routes/(authenticated)/food/GiLabel.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
@@ -2242,6 +2244,7 @@ msgstr ""
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
+#: src/routes/(authenticated)/food/GiLabel.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "Medium"
@@ -2902,14 +2905,17 @@ msgid "General Uploaders"
 msgstr ""
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
+#: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "Android"
 msgstr ""
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
+#: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "Desktop"
 msgstr ""
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
+#: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "Web"
 msgstr ""
 
@@ -10284,7 +10290,6 @@ msgstr ""
 msgid "Glucose Alert"
 msgstr ""
 
-#: src/lib/components/settings/alarm-preview/AlarmActiveView.svelte
 #: src/lib/components/settings/alarm-preview/EmergencyOverlay.svelte
 msgid "Emergency Contacts"
 msgstr ""
@@ -24246,4 +24251,8 @@ msgstr ""
 
 #: src/lib/components/status-pills/LoopPill.svelte
 msgid "Temp Basal Started"
+msgstr ""
+
+#: src/lib/components/settings/alarm-preview/AlarmActiveView.svelte
+msgid "<0/> Emergency Contacts"
 msgstr ""
