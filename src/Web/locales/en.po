@@ -2794,7 +2794,7 @@ msgstr "THIS ACTION CANNOT BE UNDONE"
 msgid "You are about to permanently delete <0>all data</0> from <1/> . This includes:"
 msgstr "You are about to permanently delete <0>all data</0> from <1/> . This includes:"
 
-#. 0: formatNumber(selectedDataSource.totalEntries)
+#. 0: formatNumber( selectedDataSource.totalEntries )
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "All glucose records ({0} records)"
 msgstr "All glucose records ({0} records)"

@@ -2794,7 +2794,7 @@ msgstr "DIESE AKTION KANN NICHT RÜCKGÄNGIG GEMACHT WERDEN"
 msgid "You are about to permanently delete <0>all data</0> from <1/> . This includes:"
 msgstr "Du bist dabei, <0>alle Daten</0> von <1/> dauerhaft zu löschen. Dies umfasst:"
 
-#. 0: formatNumber(selectedDataSource.totalEntries)
+#. 0: formatNumber( selectedDataSource.totalEntries )
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "All glucose records ({0} records)"
 msgstr "Alle Glukosedatensätze (Anzahl: {0})"
