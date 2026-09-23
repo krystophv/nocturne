@@ -15984,7 +15984,7 @@ msgstr ""
 msgid "Playback speed"
 msgstr ""
 
-#. 0: opt
+#. 0: speed
 #. 0: speed
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
 #: src/lib/components/alerts/PlaybackStrip.svelte
