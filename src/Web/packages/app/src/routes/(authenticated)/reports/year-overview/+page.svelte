@@ -232,6 +232,21 @@
     carbs: "--chart-5",
   };
 
+  function metricCssVar(metric: Exclude<HeatmapMetric, "avgGlucose">): string {
+    switch (metric) {
+      case "tir":
+        return METRIC_CSS_VARS.tir;
+      case "bolus":
+        return METRIC_CSS_VARS.bolus;
+      case "basal":
+        return METRIC_CSS_VARS.basal;
+      case "tdd":
+        return METRIC_CSS_VARS.tdd;
+      case "carbs":
+        return METRIC_CSS_VARS.carbs;
+    }
+  }
+
   /** Compute max value for a metric across all loaded year data */
   function getMetricMax(metric: HeatmapMetric): number {
     let max = 0;
@@ -322,8 +337,7 @@
       return "rgb(0 0 0 / 5%)";
     }
 
-    const cssVar =
-      METRIC_CSS_VARS[selectedMetric as Exclude<HeatmapMetric, "avgGlucose">];
+    const cssVar = metricCssVar(selectedMetric);
     const baseColor = getFocusedIntensityFill(
       metricValue,
       focusRange ?? [0, metricMaxCached],
@@ -446,7 +460,7 @@
       const [y, m, d] = dateStr.split("-").map(Number);
       const date = new Date(y, m - 1, d);
       const avg = day.averageGlucoseMgdl ?? null;
-      const counts = (day.counts as Record<string, number>) ?? {};
+      const counts = day.counts ?? {};
 
       // Calculate filtered count excluding hidden types
       const filteredCount = Object.entries(counts)
@@ -496,7 +510,8 @@
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            const year = Number((entry.target as HTMLElement).dataset.year);
+            if (!(entry.target instanceof HTMLElement)) continue;
+            const year = Number(entry.target.dataset.year);
             if (!isNaN(year)) {
               loadYearData(year);
             }
