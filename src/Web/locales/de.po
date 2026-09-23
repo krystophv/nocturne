@@ -2990,6 +2990,8 @@ msgstr "<0/> Telefon-Apps"
 #: src/lib/components/treatments/TreatmentCategoryTabs.svelte
 #: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/compatibility/+page.svelte
+#: src/routes/(authenticated)/compatibility/+page.svelte
+#: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/food/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
@@ -6552,14 +6554,12 @@ msgstr "Hoch ({0})"
 msgid "No schedule entries configured."
 msgstr "Keine Zeitplaneinträge konfiguriert."
 
-#: src/lib/components/settings/AlarmPreview.svelte
 #: src/lib/components/settings/CustomSoundUpload.svelte
 msgid "Stop"
 msgstr "Stopp"
 
-#: src/lib/components/settings/AlarmPreview.svelte
-msgid "Play Preview"
-msgstr "Vorschau abspielen"
+#~ msgid "Play Preview"
+#~ msgstr "Vorschau abspielen"
 
 #. 0: profile.audio.startVolume; 1: profile.audio.maxVolume; 2: profile .audio.ascendDurationSeconds
 #: src/lib/components/settings/AlarmPreview.svelte
@@ -8024,6 +8024,7 @@ msgid "{0} of {1} row(s) selected"
 msgstr "{0} von {1} Zeile(n) ausgewählt"
 
 #: src/lib/components/treatments/DataTablePagination.svelte
+#: src/lib/components/treatments/DataTablePagination.svelte
 msgid "Rows per page"
 msgstr "Zeilen pro Seite"
 
@@ -8481,23 +8482,19 @@ msgstr "Anfragepfad"
 msgid "Method"
 msgstr "Methode"
 
-#: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/compatibility/test/+page.svelte
 msgid "GET"
 msgstr "GET"
 
-#: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/compatibility/test/+page.svelte
 msgid "POST"
 msgstr "POST"
 
-#: src/routes/(authenticated)/compatibility/+page.svelte
-msgid "PUT"
-msgstr "PUT"
+#~ msgid "PUT"
+#~ msgstr "PUT"
 
-#: src/routes/(authenticated)/compatibility/+page.svelte
-msgid "DELETE"
-msgstr "DELETE"
+#~ msgid "DELETE"
+#~ msgstr "DELETE"
 
 #: src/routes/(authenticated)/compatibility/+page.svelte
 msgid "Match Type"
@@ -8769,18 +8766,15 @@ msgid "<0/> {0} fat, protein, category..."
 msgstr "<0/> {0} Fett, Eiweiß, Kategorie..."
 
 #: src/routes/(authenticated)/food/Composer.svelte
-#: src/routes/(authenticated)/food/InlineEditor.svelte
 msgid "Fat"
 msgstr "Fett"
 
 #: src/routes/(authenticated)/food/Composer.svelte
-#: src/routes/(authenticated)/food/InlineEditor.svelte
 msgid "Protein"
 msgstr "Eiweiß"
 
 #: src/routes/(authenticated)/food/Composer.svelte
 #: src/routes/(authenticated)/food/FoodListHeader.svelte
-#: src/routes/(authenticated)/food/InlineEditor.svelte
 msgid "Energy"
 msgstr "Energie"
 
@@ -8894,14 +8888,11 @@ msgstr "Löschen <0/>? <1/>"
 #~ msgid "Portion *"
 #~ msgstr ""
 
-#: src/routes/(authenticated)/food/InlineEditor.svelte
-#: src/routes/(authenticated)/food/InlineEditor.svelte
-msgid "optional"
-msgstr "optional"
+#~ msgid "optional"
+#~ msgstr "optional"
 
-#: src/routes/(authenticated)/food/InlineEditor.svelte
-msgid "auto"
-msgstr "auto"
+#~ msgid "auto"
+#~ msgstr "auto"
 
 #: src/routes/(authenticated)/food/InlineEditor.svelte
 #: src/routes/(authenticated)/food/InlineEditor.svelte
@@ -24259,4 +24250,24 @@ msgstr ""
 
 #: ../portal/src/routes/studio/+page.svelte
 msgid "Propose"
+msgstr ""
+
+#: src/lib/components/settings/AlarmPreview.svelte
+msgid "<0/> Stop"
+msgstr ""
+
+#: src/lib/components/settings/AlarmPreview.svelte
+msgid "<0/> Play Preview"
+msgstr ""
+
+#: src/routes/(authenticated)/food/InlineEditor.svelte
+msgid "Fat <0>optional</0>"
+msgstr ""
+
+#: src/routes/(authenticated)/food/InlineEditor.svelte
+msgid "Protein <0>optional</0>"
+msgstr ""
+
+#: src/routes/(authenticated)/food/InlineEditor.svelte
+msgid "Energy <0>auto</0>"
 msgstr ""
