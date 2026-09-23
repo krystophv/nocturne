@@ -1,8 +1,8 @@
-<script lang="ts">
+<script lang="ts" generics="T extends ActogramPoint">
   import type { Snippet } from 'svelte';
   import { Chart, Svg, Spline, Circle, Tooltip } from 'layerchart';
   import { scaleTime } from 'd3-scale';
-  import type { ScaleTime } from 'd3-scale';
+  import { timeScale } from '$lib/components/charts/scale-guards';
   import { curveMonotoneX } from 'd3';
   import { bg, bgLabel, time } from '$lib/utils/formatting';
   import {
@@ -20,12 +20,12 @@
 
   interface Props {
     day: Date;
-    data: RowDataPoint<ActogramPoint>[];
+    data: RowDataPoint<T>[];
     bgData: RowDataPoint<GlucosePoint>[];
     thresholds: GlucoseThresholds | undefined;
     height: number;
-    row: Snippet<[ActogramRowContext]>;
-    tooltipValue?: Snippet<[{ point: ActogramPoint; day: Date }]>;
+    row: Snippet<[ActogramRowContext<T>]>;
+    tooltipValue?: Snippet<[{ point: T; day: Date }]>;
   }
 
   let { day, data, bgData, thresholds, height, row, tooltipValue }: Props = $props();
@@ -58,9 +58,8 @@
   tooltipContext={{ mode: "manual" }}
 >
   {#snippet children({ context })}
-    {@const rowContext: ActogramRowContext = {
-      // LayerChart types xScale as AnyScale; we know it's ScaleTime because we pass scaleTime() above
-      xScale: context.xScale as unknown as ScaleTime<number, number>,
+    {@const rowContext: ActogramRowContext<T> = {
+      xScale: timeScale(context.xScale),
       width: context.width,
       height: context.height,
       data,
@@ -121,7 +120,7 @@
           const hoursFromStart = (time.getTime() - day.getTime()) / MS_PER_HOUR;
           const nearestBg = findNearestPoint(bgData, hoursFromStart);
           const nearestData = findNearestPoint(data, hoursFromStart);
-          context.tooltip?.show(e, { time, bgPoint: nearestBg, dataPoint: nearestData } satisfies ActogramTooltipData);
+          context.tooltip?.show(e, { time, bgPoint: nearestBg, dataPoint: nearestData } satisfies ActogramTooltipData<T>);
         }}
         onpointerleave={() => context.tooltip?.hide()}
       />
@@ -131,7 +130,7 @@
       class="print:hidden bg-popover/95 text-popover-foreground rounded-lg border border-border px-2.5 py-1.5 shadow-xl"
     >
       {#snippet children({ data: tooltipData })}
-        {@const d = tooltipData as ActogramTooltipData}
+        {@const d: ActogramTooltipData<T> | undefined = tooltipData}
         {#if d}
           <div class="space-y-1 text-xs">
             <div class="font-medium tabular-nums">
