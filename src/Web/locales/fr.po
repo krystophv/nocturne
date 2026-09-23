@@ -24099,7 +24099,7 @@ msgstr ""
 msgid "Failed to clear drafts."
 msgstr ""
 
-#. 0: localeValid ? getLanguageLabel(locale as SupportedLocale) \\: ""
+#. 0: languageLabel
 #: src/routes/(authenticated)/settings/translations/[locale]/+page.svelte
 msgid "Translate {0} - Settings"
 msgstr ""
@@ -24181,7 +24181,7 @@ msgstr ""
 msgid "Clear all drafts?"
 msgstr ""
 
-#. 0: drafts.size; 1: drafts.size === 1 ? "" \\: "s"; 2: getLanguageLabel(locale as SupportedLocale)
+#. 0: drafts.size; 1: drafts.size === 1 ? "" \\: "s"; 2: languageLabel
 #: src/routes/(authenticated)/settings/translations/[locale]/+page.svelte
 msgid "All {0} draft{1} for {2} will be deleted. This cannot be undone."
 msgstr ""
