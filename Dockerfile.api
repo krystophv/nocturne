@@ -1,0 +1,21 @@
+# Test-only API image for a Komodo builder. Mirrors docker-publish.yml's API steps
+# (cargo build of the alerts cdylib, then dotnet publish) for linux-x64 only.
+# Not for upstream: CI publishes the API with SDK container support instead.
+FROM rust:1 AS alerts
+WORKDIR /src
+COPY crates crates
+RUN cd crates && cargo build --release -p nocturne-alerts-ffi
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY . .
+COPY --from=alerts /src/crates/target/release/libnocturne_alerts.so crates/target/release/
+RUN dotnet publish src/API/Nocturne.API -c Release -r linux-x64 --self-contained false \
+      -p:GenerateNSwagClient=false -o /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app .
+USER $APP_UID
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "Nocturne.API.dll"]
