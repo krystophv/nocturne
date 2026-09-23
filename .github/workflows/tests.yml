@@ -191,6 +191,8 @@ jobs:
   # svelte-check-native, which silently discovers zero files on Linux (see the note on their
   # `check` scripts) — and once pointed at a checker that does read their sources they report
   # ~880 and ~838 errors respectively. That debt has to be triaged before either can be gated.
+  # @nocturne/app's `check` is not gated yet: it still fails on the openapi-remote-codegen
+  # output (27 errors) and on #1429.
   web-typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -212,7 +214,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Typecheck library packages
         run: |
-          pnpm --filter @nightscout/glucose-chart                --filter @nocturne/coach                run check
+          pnpm --filter @nightscout/glucose-chart --filter @nocturne/coach run check
       - name: Bot unit tests
         run: pnpm --filter @nocturne/bot run test
       # Renders pages through the translation transform. The build cannot see
@@ -229,6 +231,28 @@ jobs:
           pnpm --filter @nocturne/screenshots run validate
           pnpm --filter @nocturne/screenshots run check-refs
           pnpm --filter @nocturne/screenshots run check-embeds
+
+  web-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/Web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.5.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: src/Web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # Errors fail the job, and `lint:ci` caps the warnings at today's count. Lower the cap
+      # in app/package.json as warnings are fixed; never raise it.
+      - name: Lint app
+        run: pnpm --filter @nocturne/app run lint:ci
 
   integration-db:
     runs-on: ubuntu-latest
