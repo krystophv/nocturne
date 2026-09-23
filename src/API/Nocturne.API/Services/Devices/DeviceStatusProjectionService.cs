@@ -489,7 +489,7 @@ public class DeviceStatusProjectionService
 
         if (overrideSpan.EndTimestamp.HasValue)
         {
-            ds.Override.Duration = (overrideSpan.EndTimestamp.Value - overrideSpan.StartTimestamp).TotalMinutes;
+            ds.Override.Duration = (overrideSpan.EndTimestamp.Value - overrideSpan.StartTimestamp).TotalSeconds;
         }
     }
 
