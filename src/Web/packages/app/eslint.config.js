@@ -59,7 +59,29 @@ export default ts.config(
           },
           { pattern: "^Table(Cell|Head)$", allow: ["layout", "spacing", "tabular-nums", "font-mono"] },
           { pattern: "^(Card|Dialog|Sheet|AlertDialog)Title$", allow: ["layout", "typography", "gap"] },
-          { pattern: "^(Input|SelectTrigger)$", allow: ["layout", "tabular-nums", "font-mono"] },
+          {
+            pattern: "^(Input|SelectTrigger)$",
+            allow: ["layout", "tabular-nums", "font-mono"],
+            message: {
+              spacing: 'Use size="xs" or "sm" on <{{component}}>; each matches the same size on Input, SelectTrigger and ToggleGroup.',
+              typography: 'Use size="xs" or "sm" on <{{component}}>; Input also has variant="code" for device codes.',
+              color: "Mark an invalid field with aria-invalid, which <{{component}}> already styles."
+            }
+          },
+          { pattern: "^Textarea$", allow: ["layout", "font-mono"] },
+          {
+            pattern: "^Label$",
+            allow: ["layout"],
+            message: {
+              typography: 'Use <Label size="sm"> or size="lg", or variant="option" for a checkbox, radio or switch choice.',
+              color: 'Use <Label variant="muted"> for a secondary caption.'
+            }
+          },
+          {
+            pattern: "^ToggleGroup(Item)?$",
+            allow: ["layout"],
+            message: 'Set it on <ToggleGroup>: size="xs" for a compact row, variant="segmented" for a view switcher, spacing={1} for separate chips.'
+          },
           // A placeholder takes the radius of the content it stands in for.
           { pattern: "^Skeleton$", allow: ["layout", "rounded"] },
           {
@@ -70,7 +92,7 @@ export default ts.config(
               shape: BUTTON_VARIANT_HINT,
               effects: BUTTON_VARIANT_HINT,
               motion: BUTTON_VARIANT_HINT,
-              spacing: "\"{{className}}\" is not allowed on <Button>: it owns its padding and gap. Use a size: xs (h-6, text-xs), sm, default, lg, icon-xs (size-6), icon-sm (size-8), icon (size-9), or inline (no padding, a link in running text). For space around it, use margin or gap on the parent.",
+              spacing: "\"{{className}}\" is not allowed on <Button>: it owns its padding and gap. Use a size: xs (h-7, text-xs), sm, default, lg, icon-xs (size-7), icon-sm (size-8), icon (size-9), or inline (no padding, a link in running text). For space around it, use margin or gap on the parent.",
               typography: "\"{{className}}\" is not allowed on <Button>: it owns its type. size=\"xs\" gives text-xs; every other size is text-sm font-medium."
             }
           }
