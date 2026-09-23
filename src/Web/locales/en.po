@@ -10378,32 +10378,26 @@ msgid "Close Emergency View"
 msgstr "Close Emergency View"
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
-#: src/lib/components/reports/year-overview/YearOverviewFiltersRaw.svelte
 msgid "Year Overview"
 msgstr "Year Overview"
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
-#: src/lib/components/reports/year-overview/YearOverviewFiltersRaw.svelte
 msgid "Multi-year heatmap of all your data"
 msgstr "Multi-year heatmap of all your data"
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
-#: src/lib/components/reports/year-overview/YearOverviewFiltersRaw.svelte
 msgid "All Data Sources"
 msgstr "All Data Sources"
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
-#: src/lib/components/reports/year-overview/YearOverviewFiltersRaw.svelte
 msgid "<0/> Types <1/>"
 msgstr "<0/> Types <1/>"
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
-#: src/lib/components/reports/year-overview/YearOverviewFiltersRaw.svelte
 msgid "Show data types"
 msgstr "Show data types"
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
-#: src/lib/components/reports/year-overview/YearOverviewFiltersRaw.svelte
 msgid "Show all"
 msgstr "Show all"
 
@@ -19361,9 +19355,7 @@ msgid "Insulin in window"
 msgstr "Insulin in window"
 
 #. 0: selectedDataSources.length
-#. 0: selectedDataSources.length
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
-#: src/lib/components/reports/year-overview/YearOverviewFiltersRaw.svelte
 msgid "{0} sources"
 msgstr "{0} sources"
 
