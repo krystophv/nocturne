@@ -110,7 +110,7 @@ export default ts.config(
         ]
       }],
       "shadcn/no-raw-colors": "warn",
-      "shadcn/no-arbitrary-values": ["warn", { allow: ["layout"] }],
+      "shadcn/no-arbitrary-values": ["warn", { allow: ["layout"], deny: ["text-[10px]", "text-[11px]"] }],
       "shadcn/no-inline-styles": "warn",
       // `lead` is a hook the typography plugin styles inside `prose`.
       "shadcn/no-unknown-classes": ["warn", { allow: ["lead"] }],
@@ -200,6 +200,14 @@ export default ts.config(
         {
           selector: 'SvelteElement[kind="html"][name.name="textarea"]',
           message: "Use <Textarea> instead of a raw <textarea>."
+        },
+        {
+          selector: "Literal[value=/hsl\\(var\\(--/]",
+          message: "Theme variables are oklch; use var(--x) or color-mix(in oklch, var(--x) N%, transparent), not hsl(var(--x))."
+        },
+        {
+          selector: "TemplateElement[value.raw=/hsl\\(var\\(--/]",
+          message: "Theme variables are oklch; use var(--x) or color-mix(in oklch, var(--x) N%, transparent), not hsl(var(--x))."
         }
       ]
     }

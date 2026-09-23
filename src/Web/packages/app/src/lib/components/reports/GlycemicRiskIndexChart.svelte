@@ -41,7 +41,7 @@
       const t = i / (n - 1);
       const gray = Math.round(t * 255);
       const fill = `rgb(${gray}, ${gray}, ${gray})`;
-      const stroke = gray > 200 ? "hsl(var(--border))" : fill;
+      const stroke = gray > 200 ? "var(--border)" : fill;
 
       return {
         ...period,
@@ -184,7 +184,7 @@
       <div class="flex h-24 w-24 items-center justify-center rounded-full border-4 border-muted">
         <span class="text-3xl font-bold">{Math.round(gri.score ?? 0)}</span>
       </div>
-      <p class="max-w-[120px] text-center text-[10px] leading-tight text-muted-foreground">
+      <p class="max-w-[120px] text-center text-2xs leading-tight text-muted-foreground">
         Risk is indicated in percentiles &mdash; 0 is lowest risk and 100 is
         highest risk
       </p>
@@ -229,7 +229,7 @@
                       y1={context.yScale(prev.hyper)}
                       x2={context.xScale(point.hypo)}
                       y2={context.yScale(point.hyper)}
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke="var(--muted-foreground)"
                       stroke-width="1"
                       stroke-dasharray="2,2"
                     />
@@ -342,7 +342,7 @@
         variant="swatches"
         orientation="vertical"
         classes={{
-          label: "text-[10px] text-muted-foreground",
+          label: "text-2xs text-muted-foreground",
           swatch: "rounded-sm",
         }}
       />

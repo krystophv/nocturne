@@ -230,7 +230,7 @@
     <!-- Selection info -->
     {#if hasSelection && selectedXDomain}
       <div
-        class="flex items-center justify-center gap-2 px-3 py-1 text-[10px] text-muted-foreground border-t border-border"
+        class="flex items-center justify-center gap-2 px-3 py-1 text-2xs text-muted-foreground border-t border-border"
       >
         <span>Viewing:</span>
         <span class="font-medium text-foreground">
@@ -251,8 +251,8 @@
 
 <style>
   .mini-overview-chart {
-    border-top: 1px solid hsl(var(--border));
-    background: hsl(var(--muted) / 0.3);
+    border-top: 1px solid var(--border);
+    background: color-mix(in oklch, var(--muted) 30%, transparent);
     border-radius: 0 0 var(--radius) var(--radius);
   }
 </style>
