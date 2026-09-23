@@ -1,7 +1,7 @@
 <script lang="ts">
     import { getChangelog, type ChangelogRelease } from "$lib/data/portal";
     import { Button } from "@nocturne/ui/ui/button";
-    import { marked } from "marked";
+    import { renderReleaseMarkdown } from "$lib/utils/release-markdown";
     import {
         Tag,
         ExternalLink,
@@ -49,13 +49,6 @@
             loading = false;
             loadingMore = false;
         }
-    }
-
-    marked.use({ breaks: true });
-
-    function renderMarkdown(body: string | null): string {
-        if (!body) return "";
-        return marked.parse(body, { async: false }) as string;
     }
 
     function formatDate(dateStr: string | null): string {
@@ -152,7 +145,7 @@
                             <a
                                 href={release.html_url}
                                 target="_blank"
-                                rel="noopener noreferrer"
+                                rel="external noopener noreferrer"
                                 class="text-lg font-semibold font-mono hover:text-primary transition-colors"
                             >
                                 {release.tag_name}
@@ -161,7 +154,7 @@
                                 {formatMonthYear(release.published_at)}
                             </span>
                             {#if release.prerelease}
-                                <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-600">
+                                <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-warning/15 text-warning">
                                     Pre-release
                                 </span>
                             {/if}
@@ -185,7 +178,7 @@
                                     <a
                                         href={release.author.html_url}
                                         target="_blank"
-                                        rel="noopener noreferrer"
+                                        rel="external noopener noreferrer"
                                         class="hover:text-foreground transition-colors"
                                     >
                                         {release.author.login}
@@ -196,7 +189,8 @@
 
                         {#if release.body}
                             <div class="prose prose-sm dark:prose-invert max-w-none">
-                                {@html renderMarkdown(release.body)}
+                                <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderReleaseMarkdown escapes raw HTML and unsafe URLs -->
+                                {@html renderReleaseMarkdown(release.body)}
                             </div>
                         {/if}
 
