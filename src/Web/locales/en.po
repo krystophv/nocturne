@@ -275,7 +275,6 @@ msgstr "UrgentLow"
 msgid "UrgentHigh"
 msgstr "UrgentHigh"
 
-#: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
 #: src/lib/components/calendar/CalendarHeader.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/GlucoseInspectionDialog.svelte
@@ -296,7 +295,6 @@ msgstr "UrgentHigh"
 msgid "Low"
 msgstr "Low"
 
-#: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
 #: src/lib/components/calendar/CalendarHeader.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/GlucoseInspectionDialog.svelte
@@ -363,6 +361,7 @@ msgid "Syncing"
 msgstr "Syncing"
 
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
+#: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/lib/components/treatments/edit-dialog/NoteFormFields.svelte
 #: src/lib/stores/realtime-store.svelte.ts
@@ -439,6 +438,7 @@ msgstr "N"
 #: src/lib/components/layout/AppSidebar.svelte
 #: src/lib/components/layout/AppSidebar.svelte
 #: src/lib/components/layout/AppSidebar.svelte
+#: src/lib/components/reports/print/ReportPrintHeader.svelte
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
 #: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/compatibility/[id]/+page.svelte
@@ -675,6 +675,7 @@ msgstr "<0/> Back to Settings"
 msgid "<0/> Log Out"
 msgstr "<0/> Log Out"
 
+#: src/lib/components/actogram/Actogram.svelte
 #: src/lib/components/actogram/ActogramRow.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartTooltip.svelte
 #: src/lib/components/dashboard/glucose-chart/engine/point-inspection.svelte.ts
@@ -1445,8 +1446,8 @@ msgstr "Wake Screen"
 
 #: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
 #: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
+#: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
 #: src/lib/components/reports/BasalRatePercentileChart.svelte
-#: src/lib/components/reports/HourlyGlucosePercentileChart.svelte
 #: src/lib/components/reports/SiteChangeImpactChart.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "Median"
@@ -1481,6 +1482,7 @@ msgstr "Restore"
 #: src/lib/components/schedule/ScheduleView.svelte
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/routes/(authenticated)/compatibility/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "Time"
 msgstr "Time"
@@ -1570,6 +1572,7 @@ msgstr "Search types..."
 #: src/lib/components/meals/MealsTable.svelte
 #: src/lib/components/status-pills/COBPill.svelte
 #: src/routes/(authenticated)/compatibility/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Status"
 msgstr "Status"
@@ -1877,6 +1880,7 @@ msgstr "TIR"
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartTooltip.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/GlucoseInspectionDialog.svelte
+#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 msgid "Profile"
 msgstr "Profile"
@@ -2007,7 +2011,6 @@ msgid "Last pump sync"
 msgstr "Last pump sync"
 
 #: src/lib/components/charts/BasalRateTrack.svelte
-#: src/lib/components/dashboard/glucose-chart/tracks/BasalTrack.svelte
 #: src/lib/components/reports/BasalRateChart.svelte
 msgid "BASAL"
 msgstr "BASAL"
@@ -2947,6 +2950,7 @@ msgstr "<0/> Phone Apps"
 #: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/food/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "All"
@@ -4263,6 +4267,7 @@ msgstr "PumpBatteryChange"
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
+#: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
 #: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
 #: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
@@ -4343,6 +4348,7 @@ msgstr "Snack"
 #: src/lib/components/dashboard/glucose-chart/ChartTooltip.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/GlucoseInspectionDialog.svelte
 #: src/lib/components/dashboard/glucose-chart/engine/point-inspection.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/tracks/BasalTrack.svelte
 #: src/lib/components/dashboard/widgets/TddWidget.svelte
 #: src/lib/components/entries/BasalInjectionSection.svelte
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
@@ -4870,6 +4876,7 @@ msgid "<0/> Create Link"
 msgstr "<0/> Create Link"
 
 #: src/lib/components/members/GuestLinksSection.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/settings/migration/+page.svelte
 msgid "Pending"
@@ -5758,9 +5765,11 @@ msgid "Loading data..."
 msgstr "Loading data..."
 
 #: src/lib/components/reports/BasalBolusRatioChart.svelte
+#: src/lib/components/reports/BasalBolusRatioChart.svelte
 msgid "Basal (U)"
 msgstr "Basal (U)"
 
+#: src/lib/components/reports/BasalBolusRatioChart.svelte
 #: src/lib/components/reports/BasalBolusRatioChart.svelte
 msgid "Bolus (U)"
 msgstr "Bolus (U)"
@@ -5889,9 +5898,8 @@ msgstr "{0} mg/dL"
 #~ msgid "Needs Attention"
 #~ msgstr "Needs Attention"
 
-#: src/lib/components/reports/MetricExplainer.svelte
-msgid "Target:"
-msgstr "Target:"
+#~ msgid "Target:"
+#~ msgstr "Target:"
 
 #~ msgid "<0/> Clinical context"
 #~ msgstr "<0/> Clinical context"
@@ -5961,25 +5969,20 @@ msgstr "Basal Rate (U/hr)"
 msgid "No temp basal or basal treatments found in this period"
 msgstr "No temp basal or basal treatments found in this period"
 
-#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
-msgid "Zone E (81-100)"
-msgstr "Zone E (81-100)"
+#~ msgid "Zone E (81-100)"
+#~ msgstr "Zone E (81-100)"
 
-#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
-msgid "Zone D (61-80)"
-msgstr "Zone D (61-80)"
+#~ msgid "Zone D (61-80)"
+#~ msgstr "Zone D (61-80)"
 
-#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
-msgid "Zone C (41-60)"
-msgstr "Zone C (41-60)"
+#~ msgid "Zone C (41-60)"
+#~ msgstr "Zone C (41-60)"
 
-#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
-msgid "Zone B (21-40)"
-msgstr "Zone B (21-40)"
+#~ msgid "Zone B (21-40)"
+#~ msgstr "Zone B (21-40)"
 
-#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
-msgid "Zone A (0-20)"
-msgstr "Zone A (0-20)"
+#~ msgid "Zone A (0-20)"
+#~ msgstr "Zone A (0-20)"
 
 #: src/lib/components/reports/GlycemicRiskIndexChart.svelte
 msgid "GRI"
@@ -6030,54 +6033,37 @@ msgstr "Avg bolus count"
 msgid "No bolus data"
 msgstr "No bolus data"
 
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "Hour of Day"
-msgstr "Hour of Day"
+#~ msgid "Hour of Day"
+#~ msgstr "Hour of Day"
 
-#. 0: data.max
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "Max: {0}"
-msgstr "Max: {0}"
+#~ msgid "Max: {0}"
+#~ msgstr "Max: {0}"
 
-#. 0: data.q3
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "Q3: {0}"
-msgstr "Q3: {0}"
+#~ msgid "Q3: {0}"
+#~ msgstr "Q3: {0}"
 
-#. 0: data.median
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "Median: {0}"
-msgstr "Median: {0}"
+#~ msgid "Median: {0}"
+#~ msgstr "Median: {0}"
 
-#. 0: data.q1
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "Q1: {0}"
-msgstr "Q1: {0}"
+#~ msgid "Q1: {0}"
+#~ msgstr "Q1: {0}"
 
-#. 0: data.min
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "Min: {0}"
-msgstr "Min: {0}"
+#~ msgid "Min: {0}"
+#~ msgstr "Min: {0}"
 
-#. 0: data.outliers.length
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "Outliers: {0}"
-msgstr "Outliers: {0}"
+#~ msgid "Outliers: {0}"
+#~ msgstr "Outliers: {0}"
 
 #: src/lib/components/dashboard/widgets/TirChartWidget.svelte
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-#: src/lib/components/reports/HourlyGlucosePercentileChart.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "No data available"
 msgstr "No data available"
 
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
-msgid "No glucose readings found for box plot visualization"
-msgstr "No glucose readings found for box plot visualization"
+#~ msgid "No glucose readings found for box plot visualization"
+#~ msgstr "No glucose readings found for box plot visualization"
 
-#: src/lib/components/reports/HourlyGlucosePercentileChart.svelte
-msgid "No glucose readings found for percentile visualization"
-msgstr "No glucose readings found for percentile visualization"
+#~ msgid "No glucose readings found for percentile visualization"
+#~ msgstr "No glucose readings found for percentile visualization"
 
 #: src/lib/components/reports/HourlyGlucoseDistributionChart.svelte
 msgid "Percentage"
@@ -6123,12 +6109,11 @@ msgstr "No insulin delivery data"
 msgid "No treatments found in this period"
 msgstr "No treatments found in this period"
 
-#: src/lib/components/reports/MetricExplainer.svelte
-msgid "Clinical Note:"
-msgstr "Clinical Note:"
+#~ msgid "Clinical Note:"
+#~ msgstr "Clinical Note:"
 
-#. 0: source
-#: src/lib/components/reports/MetricExplainer.svelte
+#. 0: sourceLabel
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Source: {0}"
 msgstr "Source: {0}"
 
@@ -7257,6 +7242,7 @@ msgid "Basal IOB"
 msgstr "Basal IOB"
 
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
+#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
 #: src/lib/components/status-pills/IOBPill.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Activity"
@@ -9127,16 +9113,15 @@ msgstr "Coming soon"
 #~ msgid "<0>{0} readings</0> from {0} to {1} <1/> Last updated {2}"
 #~ msgstr "<0>{0} readings</0> from {0} to {1} <1/> Last updated {2}"
 
-#. 0: params.days
+#. 0: days
 #. 0: span
 #: src/routes/(authenticated)/reports/+layout.svelte
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
 msgid "Last {0} days"
 msgstr "Last {0} days"
 
-#: src/routes/(authenticated)/reports/+layout.svelte
-msgid "Last 7 days"
-msgstr "Last 7 days"
+#~ msgid "Last 7 days"
+#~ msgstr "Last 7 days"
 
 #. 0: reportName
 #: src/routes/(authenticated)/reports/+layout.svelte
@@ -10063,6 +10048,7 @@ msgstr "Pump Mode"
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartTooltip.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/GlucoseInspectionDialog.svelte
+#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
 msgid "Override"
 msgstr "Override"
 
@@ -10310,6 +10296,7 @@ msgid "Close Emergency View"
 msgstr "Close Emergency View"
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
+#: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Year Overview"
 msgstr "Year Overview"
 
@@ -11200,13 +11187,8 @@ msgstr "<0/> Ambulatory Glucose Profile"
 msgid "Your typical daily glucose pattern — a standardized clinical report"
 msgstr "Your typical daily glucose pattern — a standardized clinical report"
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-#: src/routes/(authenticated)/reports/idp/+page.svelte
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "<0/> Print"
-msgstr "<0/> Print"
+#~ msgid "<0/> Print"
+#~ msgstr "<0/> Print"
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
 msgid "Summary <0/>"
@@ -11257,9 +11239,7 @@ msgstr "<0>The lighter shaded area</0> (10th-90th percentile) shows where you ar
 msgid "Target: ≥70%"
 msgstr "Target: ≥70%"
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
-#: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "GMI"
 msgstr "GMI"
 
@@ -11270,7 +11250,6 @@ msgid "CV"
 msgstr "CV"
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
-#: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Target: ≤33%"
 msgstr "Target: ≤33%"
 
@@ -11457,10 +11436,8 @@ msgstr "Basal Rate Range"
 msgid "Your basal rates are relatively consistent."
 msgstr "Your basal rates are relatively consistent."
 
-#. 0.0: basalStats.minRate.toFixed(2); 1.0: basalStats.maxRate.toFixed(2)
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1> . <2/>"
-msgstr "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1> . <2/>"
+#~ msgid "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1> . <2/>"
+#~ msgstr "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1> . <2/>"
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "Temp Basal Activity"
@@ -11576,10 +11553,8 @@ msgstr "Above 80%"
 msgid "Below 30%"
 msgstr "Below 30%"
 
-#. 0: stat?.warningEventCount ?? 0
-#: src/routes/(authenticated)/reports/battery/+page.svelte
-msgid "{0} warnings"
-msgstr "{0} warnings"
+#~ msgid "{0} warnings"
+#~ msgstr "{0} warnings"
 
 #: src/routes/(authenticated)/reports/battery/+page.svelte
 msgid "<0/> Recent Charge Cycles"
@@ -11635,10 +11610,14 @@ msgstr "Pending Review"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Accepted"
 msgstr "Accepted"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Dismissed"
 msgstr "Dismissed"
@@ -11648,6 +11627,7 @@ msgid "Data Quality Categories"
 msgstr "Data Quality Categories"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Compression Lows"
 msgstr "Compression Lows"
@@ -11982,9 +11962,8 @@ msgstr "A1c Estimation"
 msgid "Based on average glucose"
 msgstr "Based on average glucose"
 
-#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
-msgid "A1c (DCCT)"
-msgstr "A1c (DCCT)"
+#~ msgid "A1c (DCCT)"
+#~ msgstr "A1c (DCCT)"
 
 #~ msgid "A1c (IFCC)"
 #~ msgstr "A1c (IFCC)"
@@ -12288,15 +12267,11 @@ msgstr "Avg Total Daily Dose"
 msgid "{0} U/day"
 msgstr "{0} U/day"
 
-#. 0: avgBasal?.toFixed(1) ?? "--"; 1: basalPct.toFixed(0)
-#: src/routes/(authenticated)/reports/idp/+page.svelte
-msgid "Basal: {0} U/day ({1}%)"
-msgstr "Basal: {0} U/day ({1}%)"
+#~ msgid "Basal: {0} U/day ({1}%)"
+#~ msgstr "Basal: {0} U/day ({1}%)"
 
-#. 0: avgBolus?.toFixed(1) ?? "--"; 1: bolusPct.toFixed(0)
-#: src/routes/(authenticated)/reports/idp/+page.svelte
-msgid "Bolus: {0} U/day ({1}%)"
-msgstr "Bolus: {0} U/day ({1}%)"
+#~ msgid "Bolus: {0} U/day ({1}%)"
+#~ msgstr "Bolus: {0} U/day ({1}%)"
 
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Avg Delivered Basal"
@@ -12420,6 +12395,7 @@ msgstr "Average Sleep"
 #~ msgid "sessions"
 #~ msgstr "sessions"
 
+#: src/lib/components/reports/print/ReportPrintHeader.svelte
 #: src/routes/(authenticated)/reports/steps/+page.svelte
 msgid "Period"
 msgstr "Period"
@@ -12538,6 +12514,7 @@ msgstr "steps/day"
 msgid "<0/> Step Count Actogram"
 msgstr "<0/> Step Count Actogram"
 
+#: src/routes/(authenticated)/reports/steps/+page.svelte
 #: src/routes/(authenticated)/reports/steps/+page.svelte
 msgid "Steps"
 msgstr "Steps"
@@ -14939,9 +14916,8 @@ msgstr "Several entries occurred around this time. Select one to edit."
 msgid "{0}U/h"
 msgstr "{0}U/h"
 
-#: src/lib/components/dashboard/glucose-chart/tracks/IobCobTrack.svelte
-msgid "IOB/COB"
-msgstr "IOB/COB"
+#~ msgid "IOB/COB"
+#~ msgstr "IOB/COB"
 
 #~ msgid "Signature Secret"
 #~ msgstr "Signature Secret"
@@ -14982,21 +14958,17 @@ msgstr "IOB/COB"
 #~ msgid "Failed to save webhook settings."
 #~ msgstr "Failed to save webhook settings."
 
-#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
-msgid "MODE"
-msgstr "MODE"
+#~ msgid "MODE"
+#~ msgstr "MODE"
 
-#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
-msgid "OVERRIDE"
-msgstr "OVERRIDE"
+#~ msgid "OVERRIDE"
+#~ msgstr "OVERRIDE"
 
-#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
-msgid "PROFILE"
-msgstr "PROFILE"
+#~ msgid "PROFILE"
+#~ msgstr "PROFILE"
 
-#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
-msgid "ACTIVITY"
-msgstr "ACTIVITY"
+#~ msgid "ACTIVITY"
+#~ msgstr "ACTIVITY"
 
 #~ msgid "Webhook Settings"
 #~ msgstr "Webhook Settings"
@@ -15086,6 +15058,7 @@ msgstr "No matching results"
 msgid "Try changing your filter criteria."
 msgstr "Try changing your filter criteria."
 
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Unknown date"
 msgstr "Unknown date"
@@ -16856,10 +16829,8 @@ msgstr "{0} - {1} ({2} days)"
 msgid "Active alerts ({0})"
 msgstr "Active alerts ({0})"
 
-#. 0: params.from; 1: params.to
 #. 0: mFrom; 1: mTo
 #. 0: rFrom; 1: rTo
-#: src/routes/(authenticated)/reports/+layout.svelte
 #: src/routes/(authenticated)/settings/audit/+page.svelte
 #: src/routes/(authenticated)/settings/audit/+page.svelte
 msgid "{0} to {1}"
@@ -17893,8 +17864,6 @@ msgstr "This profile is managed by an external source (e.g., Glooko). <0/> Any c
 #~ msgstr "Avg ({0})"
 
 #. 0: bgLabel()
-#. 0: bgLabel()
-#: src/lib/components/reports/HourlyGlucoseBoxChart.svelte
 #: src/lib/components/reports/SiteChangeImpactChart.svelte
 msgid "Glucose ({0})"
 msgstr "Glucose ({0})"
@@ -18357,6 +18326,7 @@ msgstr "Battery statistics are calculated from device status reports sent by you
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
 msgid "Signal Integrity"
 msgstr "Signal Integrity"
 
@@ -18476,10 +18446,8 @@ msgstr "<0>Total Daily Dose (TDD):</0> Typically ranges from 0.4-1.0 units/kg bo
 msgid "Percentage of time in your target zone ({0})"
 msgstr "Percentage of time in your target zone ({0})"
 
-#. 0: bgOr(stats?.mean); 1: bgLabel(); 2: dayCount
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Calculated using the Nathan formula: eA1C = (GMI + 2.59) / 1.59. Based on mean glucose of {0} {1} over {2} days."
-msgstr "Calculated using the Nathan formula: eA1C = (GMI + 2.59) / 1.59. Based on mean glucose of {0} {1} over {2} days."
+#~ msgid "Calculated using the Nathan formula: eA1C = (GMI + 2.59) / 1.59. Based on mean glucose of {0} {1} over {2} days."
+#~ msgstr "Calculated using the Nathan formula: eA1C = (GMI + 2.59) / 1.59. Based on mean glucose of {0} {1} over {2} days."
 
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Target: ≤33%. Lower means steadier glucose with fewer ups and downs."
@@ -18508,6 +18476,8 @@ msgstr "Average ({0})"
 
 #. 0: bgLabel()
 #. 0: bgLabel()
+#. 0: bgLabel()
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Lowest ({0})"
@@ -18570,9 +18540,8 @@ msgstr "Failed to create record"
 msgid "{0}U basal"
 msgstr "{0}U basal"
 
-#: src/routes/(authenticated)/reports/treatments/+page.svelte
-msgid "Review and manage your insulin doses, carb entries, BG checks, notes, and device events.<0>Use filters to find specific records.</0>"
-msgstr "Review and manage your insulin doses, carb entries, BG checks, notes, and device events.<0>Use filters to find specific records.</0>"
+#~ msgid "Review and manage your insulin doses, carb entries, BG checks, notes, and device events.<0>Use filters to find specific records.</0>"
+#~ msgstr "Review and manage your insulin doses, carb entries, BG checks, notes, and device events.<0>Use filters to find specific records.</0>"
 
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
 msgid "<0/> Add Treatment"
@@ -19218,6 +19187,7 @@ msgstr "When"
 
 #: src/lib/components/reports/sensor-integrity/ClusterTable.svelte
 #: src/lib/components/reports/sensor-integrity/HypoAfterNoiseLog.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Confidence"
 msgstr "Confidence"
 
@@ -19234,6 +19204,7 @@ msgid "Windows flagged"
 msgstr "Windows flagged"
 
 #: src/lib/components/reports/sensor-integrity/DataQualityHeadline.svelte
+#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
 msgid "High confidence"
 msgstr "High confidence"
 
@@ -19460,21 +19431,17 @@ msgstr "Daily overview"
 msgid "Each row is one day. <0>Select a day to expand it.</0>"
 msgstr "Each row is one day. <0>Select a day to expand it.</0>"
 
-#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
-msgid "<0/>Low"
-msgstr "<0/>Low"
+#~ msgid "<0/>Low"
+#~ msgstr "<0/>Low"
 
-#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
-msgid "<0/>Medium"
-msgstr "<0/>Medium"
+#~ msgid "<0/>Medium"
+#~ msgstr "<0/>Medium"
 
-#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
-msgid "<0/>High"
-msgstr "<0/>High"
+#~ msgid "<0/>High"
+#~ msgstr "<0/>High"
 
-#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
-msgid "<0/>Hypo nadir"
-msgstr "<0/>Hypo nadir"
+#~ msgid "<0/>Hypo nadir"
+#~ msgstr "<0/>Hypo nadir"
 
 #: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
 msgid "Hypoglycemia after a flagged window"
@@ -19528,8 +19495,9 @@ msgstr "{0}U basal injection"
 msgid "{0}, {1} U/hr"
 msgstr "{0}, {1} U/hr"
 
-#~ msgid "U/h"
-#~ msgstr "U/h"
+#: src/lib/components/dashboard/glucose-chart/tracks/BasalTrack.svelte
+msgid "U/h"
+msgstr "U/h"
 
 #~ msgid "{0}d {1}h left"
 #~ msgstr "{0}d {1}h left"
@@ -21392,10 +21360,8 @@ msgstr "<0/> Last updated {0}"
 msgid "<0>{0} readings</0> from {0} to {1} <1/>"
 msgstr "<0>{0} readings</0> from {0} to {1} <1/>"
 
-#. 0: formatMediumDateTime(new Date())
-#: src/routes/(authenticated)/reports/+layout.svelte
-msgid "<0/>Generated {0}"
-msgstr "<0/>Generated {0}"
+#~ msgid "<0/>Generated {0}"
+#~ msgstr "<0/>Generated {0}"
 
 #~ msgid "Review people asking to join this instance."
 #~ msgstr "Review people asking to join this instance."
@@ -22195,10 +22161,8 @@ msgstr "This code is no longer valid. Start the sign-in again on your device to 
 msgid "Enter a different code"
 msgstr "Enter a different code"
 
-#. 0: bgRange(70, 180)
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-msgid "<0>Green zone</0> ({0}) is the consensus target range. The consensus target is at least 70% of time in this zone."
-msgstr "<0>Green zone</0> ({0}) is the consensus target range. The consensus target is at least 70% of time in this zone."
+#~ msgid "<0>Green zone</0> ({0}) is the consensus target range. The consensus target is at least 70% of time in this zone."
+#~ msgstr "<0>Green zone</0> ({0}) is the consensus target range. The consensus target is at least 70% of time in this zone."
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
 msgid "<0/> Measured Against Consensus Targets"
@@ -22265,6 +22229,7 @@ msgstr "higher in {0} →"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
 msgid "CGM Comparison"
 msgstr "CGM Comparison"
 
@@ -22276,7 +22241,9 @@ msgstr "How far apart two sensors run over the same window"
 msgid "<0/> Back to Previous View"
 msgstr "<0/> Back to Previous View"
 
+#. 0: targetLabel
 #. 0: target
+#: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Target {0}"
 msgstr "Target {0}"
@@ -22880,6 +22847,7 @@ msgstr "Nights in {0}"
 
 #: src/lib/components/reports/sleep/SleepCompositionChart.svelte
 #: src/lib/components/reports/sleep/single-night/StageCompositionCard.svelte
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Deep"
 msgstr "Deep"
 
@@ -22890,6 +22858,7 @@ msgstr "Sleep session on {0}"
 
 #: src/lib/components/reports/sleep/SleepCompositionChart.svelte
 #: src/lib/components/reports/sleep/single-night/StageCompositionCard.svelte
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Awake"
 msgstr "Awake"
 
@@ -22913,9 +22882,8 @@ msgstr "Typical range{0} {1}–{2}%"
 msgid "Deep sleep vs prior 7 nights: {0}{1}m"
 msgstr "Deep sleep vs prior 7 nights: {0}{1}m"
 
-#: src/lib/components/reports/sleep/SleepCompositionChart.svelte
-msgid "/* eslint-disable @typescript-eslint/consistent-type-assertions */ <0><0/> <1><0/> <1/></1></0>"
-msgstr "/* eslint-disable @typescript-eslint/consistent-type-assertions */ <0><0/> <1><0/> <1/></1></0>"
+#~ msgid "/* eslint-disable @typescript-eslint/consistent-type-assertions */ <0><0/> <1><0/> <1/></1></0>"
+#~ msgstr "/* eslint-disable @typescript-eslint/consistent-type-assertions */ <0><0/> <1><0/> <1/></1></0>"
 
 #: src/routes/(authenticated)/clock/config/[id]/+page.svelte
 msgid "Link copied. Anyone with this link can see live glucose readings, with no sign-in."
@@ -23027,10 +22995,8 @@ msgstr "The comparison could not be loaded."
 msgid "Agreement"
 msgstr "Agreement"
 
-#. 0: comparison.deviceAName; 1: comparison.deviceBName; 2: comparison.toleranceMinutes
-#: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
-msgid "{0} against {1}, readings matched within {2} minutes."
-msgstr "{0} against {1}, readings matched within {2} minutes."
+#~ msgid "{0} against {1}, readings matched within {2} minutes."
+#~ msgstr "{0} against {1}, readings matched within {2} minutes."
 
 #: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
@@ -23135,6 +23101,7 @@ msgid "<0/> Biometrics"
 msgstr "<0/> Biometrics"
 
 #: src/lib/components/reports/sleep/single-night/StageCompositionCard.svelte
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Light"
 msgstr "Light"
 
@@ -23684,9 +23651,8 @@ msgstr "Enter four strictly increasing glucose color boundaries."
 msgid "Enter valid focus line boundaries (min < max)."
 msgstr "Enter valid focus line boundaries (min < max)."
 
-#: src/lib/components/reports/year-overview/ColorFocusRange.svelte
-msgid "Enter valid color scale boundaries (min < max)."
-msgstr "Enter valid color scale boundaries (min < max)."
+#~ msgid "Enter valid color scale boundaries (min < max)."
+#~ msgstr "Enter valid color scale boundaries (min < max)."
 
 #. 0: metricLabel; 1: glucose ? "boundaries" \\: "focus"; 2: values.map(formatted).join(" / "); 3: unitLabel
 #: src/lib/components/reports/year-overview/ColorFocusRange.svelte
@@ -23749,10 +23715,8 @@ msgstr "Float"
 msgid "Default scale"
 msgstr "Default scale"
 
-#. 0: metricLabel
-#: src/lib/components/reports/year-overview/HeatmapLegend.svelte
-msgid "{0} default scale"
-msgstr "{0} default scale"
+#~ msgid "{0} default scale"
+#~ msgstr "{0} default scale"
 
 #: ../portal/src/routes/docs/installation/oracle-cloud/+page.svelte
 msgid "BASE_DOMAIN=nocturne.example.com bash <(curl -fsSL https://github.com/nightscout/nocturne/releases/latest/download/oracle-cloud-install.sh)"
@@ -24248,3 +24212,283 @@ msgstr "When the user snoozes, extend the snooze automatically while these condi
 #: src/routes/(authenticated)/alerts/[id]/+page.svelte
 msgid "With no conditions, only high and low glucose alerts are extended, and only while glucose is clearly moving back toward range. Every other alert fires again when its snooze ends."
 msgstr "With no conditions, only high and low glucose alerts are extended, and only while glucose is clearly moving back toward range. Every other alert fires again when its snooze ends."
+
+#: src/routes/(authenticated)/reports/+layout.svelte
+msgid "Print"
+msgstr "Print"
+
+#. 0: bgRange(thresholds.low, thresholds.high)
+#: src/lib/components/actogram/Actogram.svelte
+msgid "Glucose target range {0}"
+msgstr "Glucose target range {0}"
+
+#. 0: bg(FALLBACK_GLUCOSE_THRESHOLDS.low)
+#: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
+msgid "Low {0}"
+msgstr "Low {0}"
+
+#. 0: bg(FALLBACK_GLUCOSE_THRESHOLDS.high)
+#: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
+msgid "High {0}"
+msgstr "High {0}"
+
+#. 0: bgRange(FALLBACK_GLUCOSE_THRESHOLDS.low, FALLBACK_GLUCOSE_THRESHOLDS.high)
+#: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
+msgid "Target range {0}"
+msgstr "Target range {0}"
+
+#. 0: zone.label; 1: zone.range
+#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
+msgid "Zone {0} ({1})"
+msgstr "Zone {0} ({1})"
+
+#. 0: formatPeriodLabel(point.periodStart); 1: Math.round(point.gri?.score ?? 0)
+#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
+msgid "<0/> {0} · GRI {1}"
+msgstr "<0/> {0} · GRI {1}"
+
+#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
+msgid "Points beyond the axes are drawn at the edge."
+msgstr "Points beyond the axes are drawn at the edge."
+
+#. 0: totalBolus.toFixed(1)
+#: src/lib/components/reports/InsulinDonutChart.svelte
+msgid "Bolus {0}U"
+msgstr "Bolus {0}U"
+
+#. 0: scheduledBasal.toFixed(1)
+#: src/lib/components/reports/InsulinDonutChart.svelte
+msgid "Scheduled basal {0}U"
+msgstr "Scheduled basal {0}U"
+
+#. 0: additionalBasal.toFixed(1)
+#: src/lib/components/reports/InsulinDonutChart.svelte
+msgid "Additional basal {0}U"
+msgstr "Additional basal {0}U"
+
+#: src/lib/components/reports/ScheduleFooter.svelte
+msgid "<0/> Changed during this period"
+msgstr "<0/> Changed during this period"
+
+#. 0: printFilters.join("\; ")
+#: src/lib/components/treatments/TreatmentsDataTable.svelte
+msgid "Filtered by {0}"
+msgstr "Filtered by {0}"
+
+#. 0: bgRange(70, 180)
+#: src/routes/(authenticated)/reports/agp/+page.svelte
+msgid "<0>The shaded band</0> ({0}) is the consensus target range. The consensus target is at least 70% of time in this zone."
+msgstr "<0>The shaded band</0> ({0}) is the consensus target range. The consensus target is at least 70% of time in this zone."
+
+#: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/idp/+page.svelte
+msgid "From mean glucose"
+msgstr "From mean glucose"
+
+#. 0.0: basalStats.minRate.toFixed(2); 1.0: basalStats.maxRate.toFixed(2)
+#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
+msgid "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1>. <2/>"
+msgstr "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1>. <2/>"
+
+#: src/routes/(authenticated)/reports/data-quality/+page.svelte
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "All recorded nights"
+msgstr "All recorded nights"
+
+#: src/routes/(authenticated)/reports/data-quality/+page.svelte
+msgid "Compression lows by review status"
+msgstr "Compression lows by review status"
+
+#. 0: committed.a.label; 1: rangeDisplay(committed.a.from, committed.a.to); 2: committed.b.label; 3: rangeDisplay(committed.b.from, committed.b.to)
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
+msgid "{0} ({1}) vs {2} ({3})"
+msgstr "{0} ({1}) vs {2} ({3})"
+
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
+msgid "Metric"
+msgstr "Metric"
+
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
+msgid "Change"
+msgstr "Change"
+
+#. 0: filterEventType
+#: src/routes/(authenticated)/reports/day-in-review/+page.svelte
+msgid "Showing {0} only"
+msgstr "Showing {0} only"
+
+#. 0: bgOr(stats?.mean); 1: bgLabel(); 2: dayCount
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Calculated using the ADAG formula: eA1C = (mean glucose in mmol/L + 2.59) / 1.59. Based on mean glucose of {0} {1} over {2} days."
+msgstr "Calculated using the ADAG formula: eA1C = (mean glucose in mmol/L + 2.59) / 1.59. Based on mean glucose of {0} {1} over {2} days."
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "Shown in % (NGSP)"
+msgstr "Shown in % (NGSP)"
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "Shown in mmol/mol (IFCC)"
+msgstr "Shown in mmol/mol (IFCC)"
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "Lab HbA1c draws, shown as triangles on the chart above. They are not included in the eHbA1c calculation."
+msgstr "Lab HbA1c draws, shown as triangles on the chart above. They are not included in the eHbA1c calculation."
+
+#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
+msgid "Est. A1c (DCCT %)"
+msgstr "Est. A1c (DCCT %)"
+
+#: src/routes/(authenticated)/reports/heart-rate/+page.svelte
+msgid "Heart rate"
+msgstr "Heart rate"
+
+#. 0: avgBasal?.toFixed(1) ?? "--"; 1: basalPct.toFixed(0)
+#: src/routes/(authenticated)/reports/idp/+page.svelte
+msgid "<0/> Basal: {0} U/day ({1}%)"
+msgstr "<0/> Basal: {0} U/day ({1}%)"
+
+#. 0: avgBolus?.toFixed(1) ?? "--"; 1: bolusPct.toFixed(0)
+#: src/routes/(authenticated)/reports/idp/+page.svelte
+msgid "<0/> Bolus: {0} U/day ({1}%)"
+msgstr "<0/> Bolus: {0} U/day ({1}%)"
+
+#: src/routes/(authenticated)/reports/idp/+page.svelte
+msgid "Target: ≤33% <0/>"
+msgstr "Target: ≤33% <0/>"
+
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
+msgid "Asleep (unstaged)"
+msgstr "Asleep (unstaged)"
+
+#: src/routes/(authenticated)/reports/treatments/+page.svelte
+msgid "Review and manage your insulin doses, carb entries, BG checks, notes, and device events. Use filters to find specific records."
+msgstr "Review and manage your insulin doses, carb entries, BG checks, notes, and device events. Use filters to find specific records."
+
+#. 0: searchQuery.trim()
+#: src/routes/(authenticated)/reports/treatments/+page.svelte
+msgid "· matching \"{0}\""
+msgstr "· matching \"{0}\""
+
+#. 0: formatNumber(filteredRows.length); 1: formatNumber(allRows.length)
+#: src/routes/(authenticated)/reports/treatments/+page.svelte
+msgid "Showing {0} of {1} records <0/> <1/>"
+msgstr "Showing {0} of {1} records <0/> <1/>"
+
+#. 0: dashClass(texture)
+#: src/routes/(authenticated)/reports/week-to-week/+page.svelte
+msgid "{0} print:stroke-2"
+msgstr "{0} print:stroke-2"
+
+#. 0: bg(lowThreshold); 1: bg(highThreshold)
+#: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
+msgid "Range limits {0} / {1}"
+msgstr "Range limits {0} / {1}"
+
+#: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
+msgid "Fingerstick BG"
+msgstr "Fingerstick BG"
+
+#: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
+msgid "Scheduled basal"
+msgstr "Scheduled basal"
+
+#: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
+msgid "Not reported by pump"
+msgstr "Not reported by pump"
+
+#. 0: range; 1: days
+#: src/lib/components/reports/print/ReportPrintHeader.svelte
+msgid "{0} ({1} days)"
+msgstr "{0} ({1} days)"
+
+#: src/lib/components/reports/print/ReportPrintHeader.svelte
+msgid "Patient"
+msgstr "Patient"
+
+#: src/lib/components/reports/print/ReportPrintHeader.svelte
+msgid "Date of birth"
+msgstr "Date of birth"
+
+#: src/lib/components/reports/print/ReportPrintHeader.svelte
+msgid "Printed"
+msgstr "Printed"
+
+#. 0: fixedMax !== undefined ? `, up to ${fixedMax} ${unitLabel}` \\: ""
+#: src/lib/components/reports/year-overview/ColorFocusRange.svelte
+msgid "Enter valid color scale boundaries (min < max{0})."
+msgstr "Enter valid color scale boundaries (min < max{0})."
+
+#. 0: veryLow; 1: unit
+#: src/lib/components/reports/year-overview/HeatmapLegend.svelte
+msgid "Very low < {0} {1}"
+msgstr "Very low < {0} {1}"
+
+#. 0: low
+#: src/lib/components/reports/year-overview/HeatmapLegend.svelte
+msgid "Low < {0}"
+msgstr "Low < {0}"
+
+#. 0: high
+#: src/lib/components/reports/year-overview/HeatmapLegend.svelte
+msgid "High ≥ {0}"
+msgstr "High ≥ {0}"
+
+#. 0: veryHigh
+#: src/lib/components/reports/year-overview/HeatmapLegend.svelte
+msgid "Very high ≥ {0}"
+msgstr "Very high ≥ {0}"
+
+#: src/lib/components/reports/year-overview/HeatmapLegend.svelte
+msgid "Custom scale"
+msgstr "Custom scale"
+
+#. 0: comparison.deviceAName; 1: comparison.deviceBName; 2: comparison.toleranceMinutes
+#: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
+msgid "{0} against the reference {1}, readings matched within {2} minutes."
+msgstr "{0} against the reference {1}, readings matched within {2} minutes."
+
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "Pending review"
+msgstr "Pending review"
+
+#. 0: getStatusFilterLabel(statusFilter)
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "Status: {0}"
+msgstr "Status: {0}"
+
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "Night"
+msgstr "Night"
+
+#. 0: bgLabel()
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "Drop rate ({0}/min)"
+msgstr "Drop rate ({0}/min)"
+
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "Recovery (minutes)"
+msgstr "Recovery (minutes)"
+
+#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
+msgid "Low confidence"
+msgstr "Low confidence"
+
+#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
+msgid "Medium confidence"
+msgstr "Medium confidence"
+
+#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
+msgid "Overnight hypo nadir"
+msgstr "Overnight hypo nadir"
+
+#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
+msgid "Daytime hypo nadir"
+msgstr "Daytime hypo nadir"
+
+#: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
+msgid "Sleep Night Report"
+msgstr "Sleep Night Report"
+
+#: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
+msgid "Mode"
+msgstr "Mode"
