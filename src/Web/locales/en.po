@@ -1433,10 +1433,8 @@ msgstr "General"
 msgid "Timezone"
 msgstr "Timezone"
 
-#. 0: minutes
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "{0}m <0/>"
-msgstr "{0}m <0/>"
+#~ msgid "{0}m <0/>"
+#~ msgstr "{0}m <0/>"
 
 #: src/lib/components/dashboard/RecentTreatmentsCard.svelte
 #: src/lib/components/reports/sleep/SleepCompositionChart.svelte
@@ -2168,7 +2166,9 @@ msgid "Minutes ahead"
 msgstr "Minutes ahead"
 
 #. 0: element.minutesAhead || 30
+#. 0: minutes
 #: src/lib/components/clock-builder/ElementInspector.svelte
+#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
 msgid "{0}m"
 msgstr "{0}m"
 
@@ -4694,6 +4694,7 @@ msgstr "Refresh Session"
 #: src/lib/components/layout/SidebarNotifications.svelte
 #: src/lib/components/layout/SidebarNotifications.svelte
 #: src/lib/components/settings/BrowserCapabilities.svelte
+#: src/lib/components/ui/dropdown-menu/nested-in-popover.test.svelte
 #: src/routes/(authenticated)/notifications/+page.svelte
 msgid "Notifications"
 msgstr "Notifications"
@@ -8677,7 +8678,9 @@ msgstr "<0/> Add food"
 msgid "Search {0} foods..."
 msgstr "Search {0} foods..."
 
+#: src/lib/components/meals/MealsFilterBar.svelte
 #: src/routes/(authenticated)/food/+page.svelte
+#: src/routes/(authenticated)/reports/treatments/+page.svelte
 msgid "Clear search"
 msgstr "Clear search"
 
@@ -13280,12 +13283,8 @@ msgstr "<0/> Reset dates"
 msgid "Date range:"
 msgstr "Date range:"
 
-#. 0: mFrom; 1: mTo
-#. 0: rFrom; 1: rTo
-#: src/routes/(authenticated)/settings/audit/+page.svelte
-#: src/routes/(authenticated)/settings/audit/+page.svelte
-msgid "{0} to {1} <0/>"
-msgstr "{0} to {1} <0/>"
+#~ msgid "{0} to {1} <0/>"
+#~ msgstr "{0} to {1} <0/>"
 
 #: src/routes/(authenticated)/settings/audit/+page.svelte
 msgid "Read audit is not enabled"
@@ -15527,6 +15526,7 @@ msgstr "Severity: {0}"
 
 #: src/lib/components/alerts/DndPanel.svelte
 #: src/lib/components/alerts/SidebarDndToggle.svelte
+#: src/lib/components/ui/dropdown-menu/nested-in-popover.test.svelte
 msgid "Do Not Disturb"
 msgstr "Do Not Disturb"
 
@@ -16933,7 +16933,11 @@ msgid "Active alerts ({0})"
 msgstr "Active alerts ({0})"
 
 #. 0: params.from; 1: params.to
+#. 0: mFrom; 1: mTo
+#. 0: rFrom; 1: rTo
 #: src/routes/(authenticated)/reports/+layout.svelte
+#: src/routes/(authenticated)/settings/audit/+page.svelte
+#: src/routes/(authenticated)/settings/audit/+page.svelte
 msgid "{0} to {1}"
 msgstr "{0} to {1}"
 
@@ -24258,3 +24262,54 @@ msgstr "Protein <0>optional</0>"
 #: src/routes/(authenticated)/food/InlineEditor.svelte
 msgid "Energy <0>auto</0>"
 msgstr "Energy <0>auto</0>"
+
+#. 0: perm
+#. 0: item.l
+#: src/lib/components/admin/RoleDialog.svelte
+#: src/routes/(authenticated)/tools/packing/list/+page.svelte
+msgid "Remove {0}"
+msgstr "Remove {0}"
+
+#. 0: food
+#: src/lib/components/meals/MealsFilterBar.svelte
+msgid "Remove {0} filter"
+msgstr "Remove {0} filter"
+
+#. 0: i + 1
+#: src/lib/components/support/IssueCreatorDialog.svelte
+msgid "Remove screenshot {0}"
+msgstr "Remove screenshot {0}"
+
+#: src/routes/(authenticated)/clock/+page.svelte
+msgid "Delete clock face"
+msgstr "Delete clock face"
+
+#. 0: minutes
+#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
+msgid "Remove {0} minute snooze"
+msgstr "Remove {0} minute snooze"
+
+#: src/lib/components/ui/dropdown-menu/nested-in-popover.test.svelte
+msgid "30 minutes"
+msgstr "30 minutes"
+
+#: src/lib/components/ui/dropdown-menu/nested-in-popover.test.svelte
+msgid "Popover body"
+msgstr "Popover body"
+
+#: src/routes/(authenticated)/reports/treatments/+page.svelte
+msgid "Clear category filter"
+msgstr "Clear category filter"
+
+#: src/routes/(authenticated)/settings/audit/+page.svelte
+#: src/routes/(authenticated)/settings/audit/+page.svelte
+msgid "Clear date range"
+msgstr "Clear date range"
+
+#: src/routes/(authenticated)/settings/appearance/+page.svelte
+msgid "Color theme"
+msgstr "Color theme"
+
+#: src/routes/(authenticated)/clock/config/[id]/+page.svelte
+msgid "Remove element"
+msgstr "Remove element"
