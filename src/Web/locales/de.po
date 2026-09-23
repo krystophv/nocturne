@@ -6896,7 +6896,7 @@ msgid "Failed to load custom sounds"
 msgstr "Benutzerdefinierte Sounds konnten nicht geladen werden."
 
 #. 0: sound.name
-#. 0: state.name
+#. 0: editor.name
 #: src/lib/components/settings/CustomSoundUpload.svelte
 #: src/routes/(authenticated)/alerts/[id]/+page.svelte
 msgid "Delete \"{0}\"? This cannot be undone."
@@ -15752,7 +15752,7 @@ msgstr "Noch kein Alarmverlauf."
 msgid "New alert"
 msgstr "Neuer Alarm"
 
-#. 0: isNew ? "New alert" \\: state.name || "Alert"
+#. 0: isNew ? "New alert" \\: editor.name || "Alert"
 #: src/routes/(authenticated)/alerts/[id]/+page.svelte
 msgid "{0} · Nocturne"
 msgstr "{0} · Nocturne"
