@@ -2509,7 +2509,6 @@ msgstr "Created: {0} <0/>"
 #~ msgid "Failed to trigger sync"
 #~ msgstr "Failed to trigger sync"
 
-#: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/entries/CarbIntakeSection.svelte
 #: src/lib/components/meal-matching/MealMatchReviewDialog.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
@@ -7107,8 +7106,6 @@ msgid "No providers available to link."
 msgstr "No providers available to link."
 
 #: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
-#: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
-#: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
@@ -7150,7 +7147,6 @@ msgstr "Device"
 msgid "Prefix to match..."
 msgstr "Prefix to match..."
 
-#: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 #: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
@@ -18294,11 +18290,8 @@ msgstr "Create Record"
 msgid "Log carbs without creating a food entry. The note will be saved with this entry."
 msgstr "Log carbs without creating a food entry. The note will be saved with this entry."
 
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-msgid "Reading"
-msgstr "Reading"
+#~ msgid "Reading"
+#~ msgstr "Reading"
 
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
 msgid "Current level"
@@ -18308,12 +18301,8 @@ msgstr "Current level"
 msgid "Fresh fill"
 msgstr "Fresh fill"
 
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/routes/(authenticated)/settings/trackers/+page.svelte
-msgid "Fill"
-msgstr "Fill"
+#~ msgid "Fill"
+#~ msgstr "Fill"
 
 #. 0: units
 #: src/lib/components/trackers/ReservoirReportDialog.svelte

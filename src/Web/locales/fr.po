@@ -2509,7 +2509,6 @@ msgstr ""
 #~ msgid "Failed to trigger sync"
 #~ msgstr ""
 
-#: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/entries/CarbIntakeSection.svelte
 #: src/lib/components/meal-matching/MealMatchReviewDialog.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
@@ -7107,8 +7106,6 @@ msgid "No providers available to link."
 msgstr ""
 
 #: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
-#: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
-#: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
@@ -7150,7 +7147,6 @@ msgstr ""
 msgid "Prefix to match..."
 msgstr ""
 
-#: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 #: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
@@ -18297,11 +18293,8 @@ msgstr ""
 msgid "Log carbs without creating a food entry. The note will be saved with this entry."
 msgstr ""
 
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-msgid "Reading"
-msgstr ""
+#~ msgid "Reading"
+#~ msgstr ""
 
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
 msgid "Current level"
@@ -18311,12 +18304,8 @@ msgstr ""
 msgid "Fresh fill"
 msgstr ""
 
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/lib/components/trackers/ReservoirReportDialog.svelte
-#: src/routes/(authenticated)/settings/trackers/+page.svelte
-msgid "Fill"
-msgstr ""
+#~ msgid "Fill"
+#~ msgstr ""
 
 #. 0: units
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
