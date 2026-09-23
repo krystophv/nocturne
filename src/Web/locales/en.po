@@ -1381,7 +1381,6 @@ msgstr "WhatsApp"
 
 #: src/lib/components/entries/BolusSection.svelte
 #: src/lib/components/settings/alarm-profile/AlarmGeneralTab.svelte
-#: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
 msgid "Normal"
 msgstr "Normal"
 
@@ -3892,7 +3891,6 @@ msgid "No unit found."
 msgstr "No unit found."
 
 #: src/lib/components/entries/BGCheckSection.svelte
-#: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
 msgid "Finger"
 msgstr "Finger"
 
@@ -3900,7 +3898,6 @@ msgstr "Finger"
 #: src/lib/components/entries/BGCheckSection.svelte
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 #: src/lib/components/trackers/TrackerEditorDialog.svelte
-#: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Sensor"
 msgstr "Sensor"
@@ -10803,13 +10800,11 @@ msgstr "<0/> Event Type"
 msgid "Additional notes..."
 msgstr "Additional notes..."
 
-#: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
-msgid "Square"
-msgstr "Square"
+#~ msgid "Square"
+#~ msgstr "Square"
 
-#: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
-msgid "Dual"
-msgstr "Dual"
+#~ msgid "Dual"
+#~ msgstr "Dual"
 
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
 msgid "<0/> Insulin (U)"
