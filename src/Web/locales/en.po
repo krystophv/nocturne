@@ -364,7 +364,6 @@ msgstr "Syncing"
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/lib/components/treatments/edit-dialog/NoteFormFields.svelte
 #: src/lib/stores/realtime-store.svelte.ts
-#: src/lib/websocket/websocket-client.svelte.ts
 msgid "Announcement"
 msgstr "Announcement"
 
@@ -421,9 +420,8 @@ msgstr "Failed to create socket connection"
 msgid "Connection error"
 msgstr "Connection error"
 
-#: src/lib/websocket/websocket-client.svelte.ts
-msgid "Alarm"
-msgstr "Alarm"
+#~ msgid "Alarm"
+#~ msgstr "Alarm"
 
 #: src/routes/(legal)/+layout.svelte
 msgid "N"
@@ -1765,7 +1763,7 @@ msgstr "High:"
 msgid "Carbs:"
 msgstr "Carbs:"
 
-#. 0: day.totalCarbs.toFixed(0)
+#. 0: stats.totalCarbs.toFixed(0)
 #. 0: monthSummary.avgDailyCarbs.toFixed(0)
 #. 0: carbs
 #. 0: totalCarbs
@@ -1828,8 +1826,8 @@ msgstr "{0}g"
 msgid "Bolus:"
 msgstr "Bolus:"
 
-#. 0: day.totalBolus.toFixed(1)
-#. 0: day.totalBasal.toFixed(1)
+#. 0: stats.totalBolus.toFixed(1)
+#. 0: stats.totalBasal.toFixed(1)
 #. 0: monthSummary.tdd.toFixed(1)
 #. 0: units.toFixed(1)
 #. 0: insulin.toFixed(1)
@@ -2254,7 +2252,7 @@ msgstr "<0/> Remove"
 msgid "Text Style"
 msgstr "Text Style"
 
-#. 0: element.size || ELEMENT_INFO[element.type as ClockElementType]?.defaultSize || 20
+#. 0: element.size || info?.defaultSize || 20
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Size: {0}"
 msgstr "Size: {0}"
@@ -10302,7 +10300,7 @@ msgstr "No data for 90-day average"
 #~ msgid "<0/> No {0} data"
 #~ msgstr "<0/> No {0} data"
 
-#. 0: days.filter((d\\: any) => (d.totalCount ?? 0) > 0).length
+#. 0: days.filter((d) => (d.totalCount ?? 0) > 0).length
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
 msgid "{0} days with data"
 msgstr "{0} days with data"
