@@ -1424,9 +1424,8 @@ msgstr ""
 msgid "Enter"
 msgstr ""
 
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "Smart Snooze"
-msgstr ""
+#~ msgid "Smart Snooze"
+#~ msgstr ""
 
 #: src/lib/components/settings/alarm-profile/AlarmVisualTab.svelte
 msgid "Screen Flash"
@@ -5092,8 +5091,6 @@ msgstr ""
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/alerts/RuleBuilderRow.svelte
 #: src/lib/components/patient/InsulinFormFields.svelte
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
 msgid "min"
 msgstr ""
 
@@ -10628,29 +10625,23 @@ msgstr ""
 msgid "Get louder each time"
 msgstr ""
 
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "Auto-extend snooze if trending in correct direction"
-msgstr ""
+#~ msgid "Auto-extend snooze if trending in correct direction"
+#~ msgstr ""
 
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "For high alarms: extend if glucose is falling. <0/> For low alarms: extend if glucose is rising."
-msgstr ""
+#~ msgid "For high alarms: extend if glucose is falling. <0/> For low alarms: extend if glucose is rising."
+#~ msgstr ""
 
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "Min Delta"
-msgstr ""
+#~ msgid "Min Delta"
+#~ msgstr ""
 
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "mg/dL/5min"
-msgstr ""
+#~ msgid "mg/dL/5min"
+#~ msgstr ""
 
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "Extend by"
-msgstr ""
+#~ msgid "Extend by"
+#~ msgstr ""
 
-#: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
-msgid "Max Total"
-msgstr ""
+#~ msgid "Max Total"
+#~ msgstr ""
 
 #: src/lib/components/tools/packing/supply-item.svelte
 msgid "Change every"
@@ -15721,9 +15712,8 @@ msgstr ""
 msgid "Smart snooze"
 msgstr ""
 
-#: src/routes/(authenticated)/alerts/[id]/+page.svelte
-msgid "When the user snoozes, extend the snooze automatically while these conditions hold."
-msgstr ""
+#~ msgid "When the user snoozes, extend the snooze automatically while these conditions hold."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/alerts/[id]/+page.svelte
 msgid "Enable smart snooze"
@@ -24249,4 +24239,12 @@ msgstr ""
 
 #: ../portal/src/routes/scalar/+page.svelte
 msgid "Scalar"
+msgstr ""
+
+#: src/routes/(authenticated)/alerts/[id]/+page.svelte
+msgid "When the user snoozes, extend the snooze automatically while these conditions hold. Each extension counts toward the alert's snooze limit, and without a recent glucose reading the alert fires again."
+msgstr ""
+
+#: src/routes/(authenticated)/alerts/[id]/+page.svelte
+msgid "With no conditions, only high and low glucose alerts are extended, and only while glucose is clearly moving back toward range. Every other alert fires again when its snooze ends."
 msgstr ""
