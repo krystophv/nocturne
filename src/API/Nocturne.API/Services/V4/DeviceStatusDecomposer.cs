@@ -491,7 +491,8 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             State = OverrideState.Custom.ToString(),
             StartTimestamp = timestamp,
             EndTimestamp = ds.Override!.Duration is > 0
-                ? timestamp.AddMinutes(ds.Override.Duration.Value)
+                ? (ParseTimestampToDateTime(ds.Override.Timestamp) ?? timestamp)
+                    .AddSeconds(ds.Override.Duration.Value)
                 : null,
             Source = ds.Device,
             OriginalId = legacyId,
