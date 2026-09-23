@@ -16494,7 +16494,6 @@ msgstr "20 GB+"
 msgid "Docker"
 msgstr "Docker"
 
-#: ../portal/src/lib/components/CommunitySection.svelte
 #: ../portal/src/lib/components/docs/SystemRequirements.svelte
 #: ../portal/src/lib/components/docs/SystemRequirements.svelte
 msgid "Latest"
@@ -19714,7 +19713,6 @@ msgstr "Built in the open. <0>Maintained by volunteers.</0>"
 msgid "GitHub stars"
 msgstr "GitHub stars"
 
-#: ../portal/src/lib/components/CommunitySection.svelte
 #: ../portal/src/routes/+page.svelte
 msgid "Forks"
 msgstr "Forks"
@@ -20697,25 +20695,20 @@ msgstr "PikaPods"
 msgid "Vote to add Nocturne to PikaPods, a low-cost managed hosting platform for open-source apps. The more votes, the sooner it gets added."
 msgstr "Vote to add Nocturne to PikaPods, a low-cost managed hosting platform for open-source apps. The more votes, the sooner it gets added."
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Built by the Community"
-msgstr "Built by the Community"
+#~ msgid "Built by the Community"
+#~ msgstr "Built by the Community"
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Nocturne is open source and shaped by contributors from the diabetes community worldwide."
-msgstr "Nocturne is open source and shaped by contributors from the diabetes community worldwide."
+#~ msgid "Nocturne is open source and shaped by contributors from the diabetes community worldwide."
+#~ msgstr "Nocturne is open source and shaped by contributors from the diabetes community worldwide."
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Stars"
-msgstr "Stars"
+#~ msgid "Stars"
+#~ msgstr "Stars"
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Contributors"
-msgstr "Contributors"
+#~ msgid "Contributors"
+#~ msgstr "Contributors"
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "<0/> Join us on Discord"
-msgstr "<0/> Join us on Discord"
+#~ msgid "<0/> Join us on Discord"
+#~ msgstr "<0/> Join us on Discord"
 
 #. 0: label
 #: ../portal/src/lib/components/docs/PasswordGenerator.svelte
@@ -24253,3 +24246,7 @@ msgstr "Temp Basal Started"
 #: src/lib/components/settings/alarm-preview/AlarmActiveView.svelte
 msgid "<0/> Emergency Contacts"
 msgstr "<0/> Emergency Contacts"
+
+#: ../portal/src/routes/scalar/+page.svelte
+msgid "Scalar"
+msgstr "Scalar"

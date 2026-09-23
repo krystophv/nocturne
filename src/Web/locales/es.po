@@ -16494,7 +16494,6 @@ msgstr ""
 msgid "Docker"
 msgstr ""
 
-#: ../portal/src/lib/components/CommunitySection.svelte
 #: ../portal/src/lib/components/docs/SystemRequirements.svelte
 #: ../portal/src/lib/components/docs/SystemRequirements.svelte
 msgid "Latest"
@@ -19714,7 +19713,6 @@ msgstr ""
 msgid "GitHub stars"
 msgstr ""
 
-#: ../portal/src/lib/components/CommunitySection.svelte
 #: ../portal/src/routes/+page.svelte
 msgid "Forks"
 msgstr ""
@@ -20697,25 +20695,20 @@ msgstr ""
 msgid "Vote to add Nocturne to PikaPods, a low-cost managed hosting platform for open-source apps. The more votes, the sooner it gets added."
 msgstr ""
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Built by the Community"
-msgstr ""
+#~ msgid "Built by the Community"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Nocturne is open source and shaped by contributors from the diabetes community worldwide."
-msgstr ""
+#~ msgid "Nocturne is open source and shaped by contributors from the diabetes community worldwide."
+#~ msgstr ""
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Stars"
-msgstr ""
+#~ msgid "Stars"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "Contributors"
-msgstr ""
+#~ msgid "Contributors"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/CommunitySection.svelte
-msgid "<0/> Join us on Discord"
-msgstr ""
+#~ msgid "<0/> Join us on Discord"
+#~ msgstr ""
 
 #. 0: label
 #: ../portal/src/lib/components/docs/PasswordGenerator.svelte
@@ -24252,4 +24245,8 @@ msgstr ""
 
 #: src/lib/components/settings/alarm-preview/AlarmActiveView.svelte
 msgid "<0/> Emergency Contacts"
+msgstr ""
+
+#: ../portal/src/routes/scalar/+page.svelte
+msgid "Scalar"
 msgstr ""
