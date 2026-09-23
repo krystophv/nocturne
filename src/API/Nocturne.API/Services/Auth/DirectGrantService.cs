@@ -165,7 +165,6 @@ public class DirectGrantService : IDirectGrantService
             // before sending — authenticate with this same token via ApiKeyHandler's legacy path.
             LegacySecretHash = HashUtils.Sha1Hex(plaintextToken),
             ExpiresAt = expiresAt,
-            CreatedAt = DateTime.UtcNow,
         };
 
         dbContext.OAuthGrants.Add(entity);
