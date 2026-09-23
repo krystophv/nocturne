@@ -1,0 +1,10 @@
+# Replaces the root .dockerignore for Dockerfile.api only: the API csproj packs
+# docs/diagrams and docs/api-descriptions/**/*.md, which the root file excludes.
+.git/
+**/node_modules/
+**/bin/
+**/obj/
+**/target/
+.vs/
+.vscode/
+.idea/
