@@ -114,7 +114,7 @@
 
 	onMount(() => {
 		// Attach id to nodeRef
-		nodeRef = document.getElementById('resizable-container-media') as HTMLDivElement;
+		nodeRef = document.getElementById('resizable-container-media') ?? undefined;
 
 		// Mouse events
 		window.addEventListener('mousemove', resize);
@@ -135,13 +135,13 @@
 <NodeViewWrapper
 	id="resizable-container-media"
 	class={cn(
-		'relative my-4! flex flex-col rounded-md border border-transparent',
+		'relative my-4! flex w-(--media-width) flex-col rounded-md border border-transparent',
 		selected && 'ring-1',
 		node.attrs.align === 'left' && 'left-0 translate-x-0',
 		node.attrs.align === 'center' && 'left-1/2 -translate-x-1/2',
 		node.attrs.align === 'right' && 'left-full -translate-x-full'
 	)}
-	style={`width: ${node.attrs.width}`}
+	style={`--media-width: ${node.attrs.width}`}
 >
 	<div class={cn('group relative flex flex-col rounded-md', resizing && '')}>
 		{@render children()}
@@ -150,10 +150,7 @@
 				value={node.attrs.title}
 				type="text"
 				class="text-muted-foreground my-1 w-full bg-transparent text-center text-sm outline-none"
-				onchange={(e) => {
-					const target = e.target as HTMLInputElement;
-					updateAttributes({ title: target.value });
-				}}
+				onchange={(e) => updateAttributes({ title: e.currentTarget.value })}
 			/>
 		{/if}
 		{#if editor.isEditable}
@@ -161,8 +158,7 @@
 				role="button"
 				tabindex="0"
 				aria-label={strings.extension.media.back}
-				class="absolute inset-y-0 z-20 flex w-5 cursor-col-resize items-center justify-start p-2"
-				style="left: 0px"
+				class="absolute inset-y-0 left-0 z-20 flex w-5 cursor-col-resize items-center justify-start p-2"
 				onmousedown={(event: MouseEvent) => {
 					handleResizingPosition(event, 'left');
 				}}
@@ -179,8 +175,7 @@
 				role="button"
 				tabindex="0"
 				aria-label={strings.extension.media.back}
-				class="absolute inset-y-0 z-20 flex w-5 cursor-col-resize items-center justify-end p-2"
-				style="right: 0px"
+				class="absolute inset-y-0 right-0 z-20 flex w-5 cursor-col-resize items-center justify-end p-2"
 				onmousedown={(event: MouseEvent) => {
 					handleResizingPosition(event, 'right');
 				}}

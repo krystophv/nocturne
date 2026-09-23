@@ -67,8 +67,10 @@
 
 	const handleDuplicate = () => {
 		editor.commands.setNodeSelection(currentNodePos);
+		const { selection } = editor.state;
 		const selectedNode =
-			editor.state.selection.$anchor.node(1) || (editor.state.selection as NodeSelection).node;
+			selection.$anchor.node(1) || (selection instanceof NodeSelection ? selection.node : undefined);
+		if (!selectedNode) return;
 		editor
 			.chain()
 			.setMeta('hideDragHandle', true)
@@ -177,7 +179,7 @@
 									else editor.chain().setNodeSelection(currentNodePos).setColor(color.value).run();
 								}}
 							>
-								<span style={`color: ${color.value};`}
+								<span class="text-(--swatch)" style:--swatch={color.value}
 									>{strings.toolbar.color.templateCharacter}</span
 								>
 								<span class="capitalize">{color.label}</span>
@@ -204,7 +206,7 @@
 											.run();
 								}}
 							>
-								<span class="size-4 rounded-full border" style={`background-color: ${color.value};`}
+								<span class="size-4 rounded-full border bg-(--swatch)" style:--swatch={color.value}
 								></span>
 								<span class="capitalize">{color.label}</span>
 							</DropdownMenu.Item>
