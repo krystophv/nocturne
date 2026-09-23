@@ -85,6 +85,33 @@ public class ActivityDecomposerBatchTests : IDisposable
     }
 
     [Fact]
+    public async Task DecomposeBatchAsync_XDripUploads_RoutesToSensorTablesAtTimeStamp()
+    {
+        const long stepsAt = 1_780_000_000_123;
+        const long bpmAt = stepsAt + 60_000;
+        var activities = System.Text.Json.JsonSerializer.Deserialize<List<Activity>>($$"""
+            [
+              {"_id":"steps1","type":"steps-total","timeStamp":{{stepsAt}},"created_at":"2026-05-28T20:26:40Z","steps":1000},
+              {"_id":"hr1","type":"hr-bpm","timeStamp":{{bpmAt}},"created_at":"2026-05-28T20:27:40Z","bpm":60}
+            ]
+            """)!;
+
+        await _decomposer.DecomposeBatchAsync(activities, WriteOrigin.Backfill);
+
+        var steps = _context.StepCounts.Should().ContainSingle().Subject;
+        steps.Metric.Should().Be(1000);
+        steps.Timestamp.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(stepsAt).UtcDateTime);
+
+        _context.HeartRates.Should().ContainSingle().Which.Timestamp
+            .Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(bpmAt).UtcDateTime);
+
+        _stateSpanRepoMock.Verify(
+            x => x.CreateActivitiesAsStateSpansAsync(
+                It.IsAny<IEnumerable<StateSpan>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task DecomposeBatchAsync_RoutesRegularActivityToStateSpans()
     {
         // Arrange
@@ -155,6 +182,49 @@ public class ActivityDecomposerBatchTests : IDisposable
         // All records produced in one decompose share a single non-empty correlation id
         result.CorrelationId.Should().NotBeNull().And.NotBe(Guid.Empty);
     }
+
+    #region NormalizeMills
+
+    [Fact]
+    public void NormalizeMills_OnlyCreatedAt_UsesCreatedAt()
+    {
+        var activity = new Activity { Type = "exercise", CreatedAt = "2026-05-28T21:00:00Z" };
+
+        ActivityDecomposer.NormalizeMills(activity);
+
+        activity.Mills.Should().Be(DateTimeOffset.Parse("2026-05-28T21:00:00Z").ToUnixTimeMilliseconds());
+    }
+
+    [Fact]
+    public void NormalizeMills_MillsSet_KeepsMills()
+    {
+        var activity = new Activity { Mills = 1_780_000_000_000, CreatedAt = "2026-05-28T21:00:00Z" };
+
+        ActivityDecomposer.NormalizeMills(activity);
+
+        activity.Mills.Should().Be(1_780_000_000_000);
+    }
+
+    #endregion
+
+    #region IsStepCount
+
+    [Theory]
+    [InlineData("steps-total", true)]
+    [InlineData("walk", false)]
+    [InlineData(null, false)]
+    public void IsStepCount_StepsKey_TrueOnlyForStepsTotalType(string? type, bool expected)
+    {
+        var activity = new Activity
+        {
+            Type = type,
+            AdditionalProperties = new Dictionary<string, object> { ["steps"] = 1000 },
+        };
+
+        _decomposer.IsStepCount(activity).Should().Be(expected);
+    }
+
+    #endregion
 
     #region RequiredWriteScope
 

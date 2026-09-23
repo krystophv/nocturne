@@ -14,8 +14,9 @@ namespace Nocturne.API.Services.V4;
 /// <summary>
 /// Decomposes legacy <see cref="Activity"/> records into typed v4 models (<see cref="HeartRate"/> or
 /// <see cref="StepCount"/>). Detection is based on the presence of specific keys in
-/// <see cref="Activity.AdditionalProperties"/>: <c>bpm</c> indicates heart-rate data; <c>metric</c>
-/// indicates step-count data. Supports idempotent create-or-update via <c>OriginalId</c> matching.
+/// <see cref="Activity.AdditionalProperties"/>: <c>bpm</c> indicates heart-rate data, and
+/// <see cref="IsStepCount"/> identifies step-count data. Supports idempotent create-or-update via
+/// <c>OriginalId</c> matching.
 /// </summary>
 /// <seealso cref="IActivityDecomposer"/>
 /// <seealso cref="IDecomposer{T}"/>
@@ -50,16 +51,31 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
             && activity.AdditionalProperties.ContainsKey("bpm");
     }
 
-    /// <summary>
-    /// Returns <see langword="true"/> if the activity carries step-count data (identified by the
-    /// presence of a <c>metric</c> key in <see cref="Activity.AdditionalProperties"/>).
-    /// </summary>
-    /// <param name="activity">The activity to inspect.</param>
-    /// <returns><see langword="true"/> when the activity has a <c>metric</c> property; otherwise <see langword="false"/>.</returns>
+    /// <inheritdoc />
     public bool IsStepCount(Activity activity)
     {
         return activity.AdditionalProperties != null
-            && activity.AdditionalProperties.ContainsKey("metric");
+            && (activity.AdditionalProperties.ContainsKey("metric")
+                || (activity.AdditionalProperties.ContainsKey("steps")
+                    && string.Equals(activity.Type, "steps-total", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// xDrip sends no mills, and its <c>timeStamp</c> misses the case-sensitive <c>timestamp</c>
+    /// binding. It goes before <c>created_at</c>, which xDrip writes with whole seconds.
+    /// </summary>
+    internal static void NormalizeMills(Activity activity)
+    {
+        if (activity.Mills > 0)
+            return;
+
+        if (activity.Timestamp is > 0)
+            activity.Mills = activity.Timestamp.Value;
+        else if (activity.AdditionalProperties is { } props && GetLongValue(props, "timeStamp") is > 0 and var timeStamp)
+            activity.Mills = timeStamp;
+        else if (DateTimeOffset.TryParse(activity.CreatedAt, System.Globalization.CultureInfo.InvariantCulture,
+                     System.Globalization.DateTimeStyles.AssumeUniversal, out var createdAt))
+            activity.Mills = createdAt.ToUnixTimeMilliseconds();
     }
 
     /// <summary>
@@ -118,6 +134,7 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
     )
     {
         var result = new DecompositionResult { CorrelationId = Guid.CreateVersion7() };
+        NormalizeMills(activity);
 
         if (IsHeartRate(activity))
         {
@@ -157,6 +174,8 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
 
         foreach (var activity in activities)
         {
+            NormalizeMills(activity);
+
             if (IsHeartRate(activity))
                 heartRateList.Add(MapToHeartRate(activity));
             else if (IsStepCount(activity))
@@ -399,7 +418,7 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
         {
             Id = activity.Id,
             Mills = activity.Mills,
-            Metric = GetIntValue(props, "metric"),
+            Metric = props.ContainsKey("metric") ? GetIntValue(props, "metric") : GetIntValue(props, "steps"),
             // StepCount.Source is the absolute/delta bitmask, not provenance — that is DataSource.
             Source = GetIntValue(props, "source"),
             Device = GetStringValue(props, "device") ?? activity.EnteredBy,
@@ -424,6 +443,24 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
                 when je.ValueKind == System.Text.Json.JsonValueKind.Number
                 => je.GetInt32(),
             string s when int.TryParse(s, out var parsed) => parsed,
+            _ => 0,
+        };
+    }
+
+    private static long GetLongValue(Dictionary<string, object> props, string key)
+    {
+        if (!props.TryGetValue(key, out var value))
+            return 0;
+
+        return value switch
+        {
+            long l => l,
+            int i => i,
+            double d => (long)d,
+            System.Text.Json.JsonElement je
+                when je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetInt64(out var n)
+                => n,
+            string s when long.TryParse(s, out var parsed) => parsed,
             _ => 0,
         };
     }
