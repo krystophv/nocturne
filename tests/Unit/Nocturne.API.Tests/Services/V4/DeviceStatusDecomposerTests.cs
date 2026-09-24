@@ -1865,6 +1865,31 @@ public class DeviceStatusDecomposerTests : IDisposable
         aps.Timestamp.Day.Should().Be(12);
     }
 
+    [Theory]
+    [InlineData("2026-04-12T09:35:00Z", 35)]
+    [InlineData(null, 30)]
+    public async Task DecomposeAsync_LoopWithMillsZero_PrefersTheLoopCycleTimeToThePredictionStart(
+        string? loopTimestamp, int expectedMinute)
+    {
+        var ds = new DeviceStatus
+        {
+            Id = "loop-cycle-time",
+            Mills = 0,
+            CreatedAt = "2026-04-12T09:36:00.000Z",
+            Device = "loop://iPhone",
+            Loop = new LoopStatus
+            {
+                Timestamp = loopTimestamp,
+                Predicted = new LoopPredicted { StartDate = "2026-04-12T09:30:00Z" },
+            },
+        };
+
+        var result = await _decomposer.DecomposeAsync(ds, WriteOrigin.Live);
+
+        result.CreatedRecords[0].Should().BeOfType<V4Models.ApsSnapshot>()
+            .Which.Timestamp.Should().Be(new DateTime(2026, 4, 12, 9, expectedMinute, 0, DateTimeKind.Utc));
+    }
+
     #endregion
 
     #region LoopJson and AidVersion

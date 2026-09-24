@@ -864,7 +864,8 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     /// <summary>
     /// Resolves the best available timestamp for a device status record.
     /// Priority: Mills (already normalized from date) > OpenAPS IOB time >
-    /// OpenAPS enacted/suggested timestamp > Loop predicted start date > Pump clock > CreatedAt > now.
+    /// OpenAPS enacted/suggested timestamp > Loop timestamp > Loop predicted start date > Pump clock >
+    /// CreatedAt > now.
     /// </summary>
     internal static DateTime ResolveTimestamp(DeviceStatus ds)
     {
@@ -880,9 +881,12 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         if (ParseTimestampToDateTime(command?.Timestamp) is { } commandTime)
             return commandTime;
 
-        // Try Loop predicted start date
-        if (ParseTimestampToDateTime(ds.Loop?.Predicted?.StartDate) is { } loopTime)
+        if (ParseTimestampToDateTime(ds.Loop?.Timestamp) is { } loopTime)
             return loopTime;
+
+        // The latest glucose reading's time
+        if (ParseTimestampToDateTime(ds.Loop?.Predicted?.StartDate) is { } predictedTime)
+            return predictedTime;
 
         // Try pump clock
         if (ParseTimestampToDateTime(ds.Pump?.Clock) is { } pumpTime)
