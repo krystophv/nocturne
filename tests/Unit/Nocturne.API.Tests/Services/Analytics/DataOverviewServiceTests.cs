@@ -1,3 +1,6 @@
+using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -5,6 +8,7 @@ using Nocturne.API.Services.Analytics;
 using Nocturne.Core.Contracts.Analytics;
 using Nocturne.Core.Contracts.Multitenancy;
 using Nocturne.Core.Contracts.Profiles.Resolvers;
+using Nocturne.Core.Models.Services;
 using Nocturne.Infrastructure.Cache.Abstractions;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Services;
@@ -22,6 +26,9 @@ public class DataOverviewServiceTests : IDisposable
 {
     private readonly NocturneDbContext _dbContext;
     private readonly DataOverviewService _service;
+    private readonly Mock<ICacheService> _mockCacheService = new();
+    // Interceptors for the contexts the service leases; a test sets these to inject a query failure.
+    private IInterceptor[] _interceptors = [];
     private readonly string _dbName = $"data_overview_{Guid.NewGuid()}";
     private static readonly Guid TenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
@@ -51,7 +58,7 @@ public class DataOverviewServiceTests : IDisposable
         mockFactory.Setup(f => f.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() =>
             {
-                var ctx = TestDbContextFactory.CreateInMemoryContext(_dbName);
+                var ctx = TestDbContextFactory.CreateInMemoryContext(_dbName, _interceptors);
                 ctx.TenantId = TenantId;
                 return ctx;
             });
@@ -59,14 +66,13 @@ public class DataOverviewServiceTests : IDisposable
         var mockTherapySettingsResolver = new Mock<ITherapySettingsResolver>();
         mockTherapySettingsResolver.Setup(p => p.GetTimezoneAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync((string?)null);
         var mockStatisticsService = new Mock<IStatisticsService>();
-        var mockCacheService = new Mock<ICacheService>();
         var mockTenantAccessor = new Mock<ITenantAccessor>();
         mockTenantAccessor.SetupGet(a => a.Context).Returns(new TenantContext(TenantId, "test-tenant", "Test Tenant", true, false));
         _service = new DataOverviewService(
             mockFactory.Object,
             mockTherapySettingsResolver.Object,
             mockStatisticsService.Object,
-            mockCacheService.Object,
+            _mockCacheService.Object,
             mockTenantAccessor.Object,
             NullLogger<DataOverviewService>.Instance
         );
@@ -1492,6 +1498,58 @@ public class DataOverviewServiceTests : IDisposable
         var june15 = result.Days.FirstOrDefault(d => d.Date == "2024-06-15");
         june15.Should().NotBeNull();
         june15!.TimeInRangePercent.Should().BeNull();
+    }
+
+    #endregion
+
+    #region GetEHbA1cTimelineAsync Caching Tests
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetEHbA1cTimelineAsync_SourceQueryFails_ResponseNotCached()
+    {
+        _interceptors = [new SensorGlucoseQueryFailure()];
+
+        await _service.GetEHbA1cTimelineAsync(2025);
+
+        _mockCacheService.Verify(
+            c => c.SetAsync(
+                It.IsAny<string>(),
+                It.IsAny<EHbA1cTimelineResponse>(),
+                It.IsAny<DateTimeOffset>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetEHbA1cTimelineAsync_RequestCancelled_ThrowsAndCachesNothing()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var cancelled = () => _service.GetEHbA1cTimelineAsync(2025, cancellationToken: cts.Token);
+
+        await cancelled.Should().ThrowAsync<OperationCanceledException>();
+        _mockCacheService.Verify(
+            c => c.SetAsync(
+                It.IsAny<string>(),
+                It.IsAny<EHbA1cTimelineResponse>(),
+                It.IsAny<DateTimeOffset>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
+    /// Fails every SensorGlucose query at compile time, standing in for a database timeout.
+    /// </summary>
+    private sealed class SensorGlucoseQueryFailure : IQueryExpressionInterceptor
+    {
+        public Expression QueryCompilationStarting(
+            Expression queryExpression, QueryExpressionEventData eventData) =>
+            new ExpressionPrinter().PrintExpression(queryExpression).Contains(nameof(SensorGlucoseEntity))
+                ? throw new TimeoutException("simulated query timeout")
+                : queryExpression;
     }
 
     #endregion

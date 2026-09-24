@@ -419,7 +419,12 @@ public class DataOverviewService : IDataOverviewService
         var npSensorGlucoseIds = NonPrimaryRecordIds(context, RecordType.SensorGlucose);
         var allReadings = new List<(DateTime Timestamp, double Mgdl)>();
 
-        // Each source is queried independently so one failure doesn't prevent the other.
+        // Each source is queried independently so one failure doesn't prevent the other. A response
+        // missing a source is still returned but never cached, or one transient failure would blank
+        // the year until the entry expires. The catch filters let the caller's cancellation propagate.
+        // Every other exception marks the source failed, including Npgsql's command timeout (an
+        // NpgsqlException wrapping TimeoutException) and a server statement_timeout (57014).
+        var allSourcesRead = true;
         try
         {
             var sensorReadings = await context
@@ -431,8 +436,9 @@ public class DataOverviewService : IDataOverviewService
                 .ToListAsync(cancellationToken);
             allReadings.AddRange(sensorReadings.Select(r => (r.Timestamp, r.Mgdl)));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
+            allSourcesRead = false;
             _logger.LogWarning(ex, "Failed to collect SensorGlucose for eHbA1c timeline {Year}", year);
         }
 
@@ -446,8 +452,9 @@ public class DataOverviewService : IDataOverviewService
                 .ToListAsync(cancellationToken);
             allReadings.AddRange(meterReadings.Select(r => (r.Timestamp, r.Mgdl)));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
+            allSourcesRead = false;
             _logger.LogWarning(ex, "Failed to collect MeterGlucose for eHbA1c timeline {Year}", year);
         }
 
@@ -472,6 +479,9 @@ public class DataOverviewService : IDataOverviewService
         var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
         var points = BuildEHbA1cPoints(dailySum, dailyCount, localRangeStart, EHbA1cWindowDays, year, localNow.Date);
         var response = new EHbA1cTimelineResponse { Year = year, Points = points };
+
+        if (!allSourcesRead)
+            return response;
 
         var isCurrentYear = year == localNow.Year;
         // Completed years don't change (barring rare backfills), so cache them for a long time; the
