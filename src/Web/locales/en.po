@@ -23993,7 +23993,7 @@ msgstr "With no conditions, only high and low glucose alerts are extended, and o
 msgid "Print"
 msgstr "Print"
 
-#. 0: bgRange(thresholds.low, thresholds.high)
+#. 0: bgRange(target.low, target.high)
 #: src/lib/components/actogram/Actogram.svelte
 msgid "Glucose target range {0}"
 msgstr "Glucose target range {0}"
