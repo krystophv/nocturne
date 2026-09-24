@@ -140,9 +140,6 @@
     <p class="text-muted-foreground mb-8">
         The stack uses the same restart policy and log rotation as the
         <a href={resolve("/docs/installation/docker-compose")} class="text-primary hover:underline">Docker Compose bundle</a>.
-        To lower the API's memory use, add the environment variables from
-        <a href={resolve("/docs/installation/small-hosts")} class="text-primary hover:underline">Running on a small host</a>
-        to <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">nocturne-api</code> in the stack editor.
     </p>
 
     <h2 class="text-2xl font-bold mt-8 mb-4">Connectors</h2>

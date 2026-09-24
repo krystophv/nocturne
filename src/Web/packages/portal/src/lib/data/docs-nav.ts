@@ -35,7 +35,6 @@ export const DOCS_NAV_SECTIONS: DocsNavSection[] = [
             { href: "/docs/installation/oracle-cloud", label: "Oracle Cloud" },
             { href: "/docs/installation/byo-postgres", label: "Bring Your Own PostgreSQL" },
             { href: "/docs/installation/reverse-proxy", label: "Bring Your Own Reverse Proxy" },
-            { href: "/docs/installation/small-hosts", label: "Running on a Small Host" },
         ],
     },
     {
