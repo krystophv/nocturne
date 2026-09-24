@@ -11301,7 +11301,6 @@ msgstr ""
 #: ../portal/src/routes/docs/installation/docker-compose/+page.svelte
 #: ../portal/src/routes/docs/installation/oracle-cloud/+page.svelte
 #: ../portal/src/routes/docs/installation/portainer/+page.svelte
-#: src/routes/(authenticated)/reports/agp/+page.svelte
 msgid "Next Steps"
 msgstr ""
 
@@ -11350,9 +11349,8 @@ msgstr ""
 msgid "The <0>shaded bands</0> show the range of variation (10th-90th percentile)"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "Wider bands indicate more variability in your basal needs"
-msgstr ""
+#~ msgid "Wider bands indicate more variability in your basal needs"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "Avg Rate"
@@ -11399,9 +11397,8 @@ msgstr ""
 msgid "Basal Rate Range"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "Your basal rates are relatively consistent."
-msgstr ""
+#~ msgid "Your basal rates are relatively consistent."
+#~ msgstr ""
 
 #~ msgid "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1> . <2/>"
 #~ msgstr ""
@@ -11410,10 +11407,8 @@ msgstr ""
 msgid "Temp Basal Activity"
 msgstr ""
 
-#. 0: tempBasalInfo.perDay.toFixed( 1 )
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "High temp basal activity ({0}/day) suggests active automated or manual adjustments."
-msgstr ""
+#~ msgid "High temp basal activity ({0}/day) suggests active automated or manual adjustments."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "No temp basal activity recorded in this period."
@@ -12094,18 +12089,14 @@ msgstr ""
 #~ msgid "Bolus Pattern Insights"
 #~ msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "larger boluses typical for higher carb meals."
-msgstr ""
+#~ msgid "larger boluses typical for higher carb meals."
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "moderate bolus sizes."
-msgstr ""
+#~ msgid "moderate bolus sizes."
+#~ msgstr ""
 
-#. 0: (insulinStats.avgBolus ?? 0).toFixed(1)
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "Average bolus size of {0}U — <0/>"
-msgstr ""
+#~ msgid "Average bolus size of {0}U — <0/>"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "<0/> Clinical Reference"
@@ -17765,13 +17756,11 @@ msgstr ""
 #~ msgid "Are you sure you want to delete this profile? This action cannot be undone."
 #~ msgstr ""
 
-#: src/lib/components/reports/BasalBolusRatioChart.svelte
-msgid "Your basal percentage is higher than typical — consider discussing with your healthcare provider."
-msgstr ""
+#~ msgid "Your basal percentage is higher than typical — consider discussing with your healthcare provider."
+#~ msgstr ""
 
-#: src/lib/components/reports/BasalBolusRatioChart.svelte
-msgid "Your bolus percentage is higher than typical — this may indicate high carb meals or frequent corrections."
-msgstr ""
+#~ msgid "Your bolus percentage is higher than typical — this may indicate high carb meals or frequent corrections."
+#~ msgstr ""
 
 #~ msgid "<0>Typical ratios:</0> Most people with Type 1 diabetes have around 50% basal and 50% bolus. Ratios can vary based on diet, activity level, and individual needs. <1/>"
 #~ msgstr ""
@@ -18223,17 +18212,15 @@ msgstr ""
 #~ msgid "{0}% time below range. The daily view can help identify when lows occur."
 #~ msgstr ""
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-msgid "The AGP is a standardized report format recommended by diabetes organizations worldwide. It's designed to quickly show patterns that help optimize treatment."
-msgstr ""
+#~ msgid "The AGP is a standardized report format recommended by diabetes organizations worldwide. It's designed to quickly show patterns that help optimize treatment."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
 msgid "This AGP follows international consensus guidelines. The modal day view with 10th-90th percentile bands helps identify variability patterns and timing of excursions."
 msgstr ""
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-msgid "Use this report with your care team to identify specific times of day that need attention and to track progress over time."
-msgstr ""
+#~ msgid "Use this report with your care team to identify specific times of day that need attention and to track progress over time."
+#~ msgstr ""
 
 #~ msgid "Data from {0} – {1}. Last updated {2}."
 #~ msgstr ""
@@ -18286,29 +18273,24 @@ msgstr ""
 msgid "Load"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "Use this to identify times when your basal insulin may need adjustment, or to discuss temp basal patterns with your healthcare provider."
-msgstr ""
+#~ msgid "Use this to identify times when your basal insulin may need adjustment, or to discuss temp basal patterns with your healthcare provider."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "Your typical basal delivery pattern across 24 hours (like an AGP for basal rates)"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "This indicates significant variation in your basal needs throughout the day."
-msgstr ""
+#~ msgid "This indicates significant variation in your basal needs throughout the day."
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "Moderate temp basal activity — typical for automated insulin delivery systems."
-msgstr ""
+#~ msgid "Moderate temp basal activity — typical for automated insulin delivery systems."
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "Low temp basal activity — your basal rates may be well-tuned."
-msgstr ""
+#~ msgid "Low temp basal activity — your basal rates may be well-tuned."
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "<0/> zero or suspend temp basals were recorded. This often indicates low glucose prevention or manual suspensions."
-msgstr ""
+#~ msgid "<0/> zero or suspend temp basals were recorded. This often indicates low glucose prevention or manual suspensions."
+#~ msgstr ""
 
 #. 0.0: (basalStats.totalDelivered / dateInfo.dayCount).toFixed(1); 0: dateInfo.dayCount
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
@@ -18329,23 +18311,20 @@ msgstr ""
 #~ msgid "Std Dev ({0})"
 #~ msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "A typical split is around 50/50, but this can vary based on diet, activity, and individual needs. Some people do well with 40/60 or 60/40 ratios."
-msgstr ""
+#~ msgid "A typical split is around 50/50, but this can vary based on diet, activity, and individual needs. Some people do well with 40/60 or 60/40 ratios."
+#~ msgstr ""
 
 #~ msgid "More corrections than meal boluses suggests possible underbolusing for meals or basal rate adjustments needed."
 #~ msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "Low bolus frequency — typical for low-carb diets or those with significant basal coverage."
-msgstr ""
+#~ msgid "Low bolus frequency — typical for low-carb diets or those with significant basal coverage."
+#~ msgstr ""
 
 #~ msgid "High bolus frequency — may include many small corrections. Consider if larger doses with meals could reduce overall corrections."
 #~ msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "smaller boluses may indicate frequent snacking or active lifestyle."
-msgstr ""
+#~ msgid "smaller boluses may indicate frequent snacking or active lifestyle."
+#~ msgstr ""
 
 #. 1.0: (insulinStats.tdd ?? 0).toFixed(1)
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
@@ -18404,9 +18383,8 @@ msgstr ""
 msgid "steps"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "Shows glucose patterns in the hours before you changed your site. Higher glucose here may indicate absorption issues with an aging site."
-msgstr ""
+#~ msgid "Shows glucose patterns in the hours before you changed your site. Higher glucose here may indicate absorption issues with an aging site."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
 msgid "Shows glucose patterns after the fresh site is inserted. Watch for improvements in control indicating better insulin absorption."
@@ -19365,9 +19343,8 @@ msgstr ""
 msgid "Select a row to expand its day above."
 msgstr ""
 
-#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
-msgid "This is a retrospective analysis of recorded readings. A flagged window indicates a pattern that is statistically unlikely to be physiologic; it does not by itself identify the cause. Boundaries are determined after the fact from surrounding readings. Discuss any patterns with your care team."
-msgstr ""
+#~ msgid "This is a retrospective analysis of recorded readings. A flagged window indicates a pattern that is statistically unlikely to be physiologic; it does not by itself identify the cause. Boundaries are determined after the fact from surrounding readings. Discuss any patterns with your care team."
+#~ msgstr ""
 
 #~ msgid "Discord accounts linked to <0>this Nocturne instance</0>. Each one can be queried from Discord with <1/>."
 #~ msgstr ""
@@ -22022,9 +21999,8 @@ msgstr ""
 msgid "Consensus target: {0}"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-msgid "The percentile bands above show when in the day variation and excursions occur. Discuss any patterns with your care team."
-msgstr ""
+#~ msgid "The percentile bands above show when in the day variation and excursions occur. Discuss any patterns with your care team."
+#~ msgstr ""
 
 #. 0: formatMediumDateTime(new Date(lastUpdated))
 #. 0: formatMediumDateTime(new Date(lastUpdated))
@@ -22096,10 +22072,8 @@ msgstr ""
 msgid "No data for this window"
 msgstr ""
 
-#. 0: bg(70); 1: bgLabel()
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Target for time below {0} {1} is under 4%. Discuss any patterns with your care team."
-msgstr ""
+#~ msgid "Target for time below {0} {1} is under 4%. Discuss any patterns with your care team."
+#~ msgstr ""
 
 #. 0: bg(180); 1: bgLabel()
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
@@ -22133,19 +22107,14 @@ msgstr ""
 #~ msgid "A typical split is around 50/50; 40/60 and 60/40 are both common. Diet, activity and pump settings all move it."
 #~ msgstr ""
 
-#. 0: insulinStats.correctionBoluses ?? 0; 1: insulinStats.mealBoluses ?? 0
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "Correction boluses ({0}) outnumber meal boluses ({1}) in this period."
-msgstr ""
+#~ msgid "Correction boluses ({0}) outnumber meal boluses ({1}) in this period."
+#~ msgstr ""
 
-#. 0: (insulinStats.bolusesPerDay ?? 0).toFixed( 1 )
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "High bolus frequency — {0} boluses per day, which may include many small corrections."
-msgstr ""
+#~ msgid "High bolus frequency — {0} boluses per day, which may include many small corrections."
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "Bolus Pattern Observations"
-msgstr ""
+#~ msgid "Bolus Pattern Observations"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/week-to-week/+page.svelte
 msgid "Sunday"
@@ -22216,10 +22185,8 @@ msgstr ""
 msgid "{0}% before, {1}% after."
 msgstr ""
 
-#. 0: analysis.siteChangeCount ?? 0
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "These are averages across {0} site changes in this window, not a per-change result. Discuss any patterns with your care team."
-msgstr ""
+#~ msgid "These are averages across {0} site changes in this window, not a per-change result. Discuss any patterns with your care team."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "BGChecks"
@@ -24099,10 +24066,8 @@ msgstr ""
 msgid "From mean glucose"
 msgstr ""
 
-#. 0.0: basalStats.minRate.toFixed(2); 1.0: basalStats.maxRate.toFixed(2)
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1>. <2/>"
-msgstr ""
+#~ msgid "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1>. <2/>"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
@@ -24760,4 +24725,51 @@ msgstr ""
 
 #: ../portal/src/routes/docs/installation/portainer/+page.svelte
 msgid "In Portainer, go to <0>Settings › App Templates</0> and set the URL to:"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/agp/+page.svelte
+msgid "The percentile bands above show when in the day variation and excursions occur."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/agp/+page.svelte
+msgid "The AGP is a standardized report format recommended by diabetes organizations worldwide. It shows how glucose varies across a typical day."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
+msgid "Wider bands mean the delivered rate varied more at that hour"
+msgstr ""
+
+#. 0.0: basalStats.minRate.toFixed(2); 1.0: basalStats.maxRate.toFixed(2)
+#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
+msgid "Your basal rates ranged from <0>{0} U/hr</0> to <1>{0} U/hr</1>."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
+msgid "<0/> temp basals per day on average."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
+msgid "<0/> zero or suspend temp basals were recorded."
+msgstr ""
+
+#. 0: bg(70); 1: bgLabel()
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Target for time below {0} {1} is under 4%."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
+msgid "A typical split is around 50/50, and it varies with diet, activity and individual needs."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
+msgid "Shows glucose patterns in the hours before you changed your site."
+msgstr ""
+
+#. 0: analysis.siteChangeCount ?? 0
+#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
+msgid "These are averages across {0} site changes in this window, not a per-change result."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
+msgid "This is a retrospective analysis of recorded readings. A flagged window indicates a pattern that is statistically unlikely to be physiologic; it does not by itself identify the cause. Boundaries are determined after the fact from surrounding readings."
 msgstr ""
