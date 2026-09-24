@@ -5459,9 +5459,8 @@ msgstr "Zielwerte"
 msgid "Profile Name"
 msgstr "Profilname"
 
-#: src/lib/components/profile/ProfileEditDialog.svelte
-msgid "Select timezone"
-msgstr "Zeitzone auswählen"
+#~ msgid "Select timezone"
+#~ msgstr "Zeitzone auswählen"
 
 #: src/lib/components/profile/ProfileEditDialog.svelte
 msgid "Duration of Insulin Action (hours)"
