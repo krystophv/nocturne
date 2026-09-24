@@ -4268,6 +4268,7 @@ msgstr ""
 #: src/lib/components/rbac/PermissionCategorySelector.svelte
 #: src/lib/components/rbac/PermissionSummary.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Sleep"
 msgstr ""
@@ -4351,6 +4352,7 @@ msgstr ""
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 #: src/lib/components/trackers/TrackerEditorDialog.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Battery"
 msgstr ""
@@ -4524,6 +4526,7 @@ msgstr ""
 #~ msgid "Therapy"
 #~ msgstr ""
 
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/settings/data-quality/+page.svelte
 msgid "Data Quality"
@@ -5592,6 +5595,7 @@ msgstr ""
 #: src/lib/components/rbac/PermissionCategorySelector.svelte
 #: src/lib/components/rbac/PermissionSummary.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(unauthenticated)/setup/steps/ImportProgress.svelte
 msgid "Treatments"
 msgstr ""
@@ -5797,6 +5801,7 @@ msgstr ""
 msgid "Range"
 msgstr ""
 
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 #: src/routes/(authenticated)/reports/heart-rate/+page.svelte
@@ -7135,6 +7140,7 @@ msgstr ""
 #: src/lib/components/rbac/PermissionCategorySelector.svelte
 #: src/lib/components/rbac/PermissionSummary.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/heart-rate/+page.svelte
 #: src/routes/(authenticated)/reports/heart-rate/+page.svelte
 msgid "Heart Rate"
@@ -7143,6 +7149,7 @@ msgstr ""
 #: src/lib/components/rbac/PermissionCategorySelector.svelte
 #: src/lib/components/rbac/PermissionSummary.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/steps/+page.svelte
 msgid "Step Count"
 msgstr ""
@@ -10246,11 +10253,13 @@ msgid "Close Emergency View"
 msgstr ""
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Year Overview"
 msgstr ""
 
 #: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 msgid "Multi-year heatmap of all your data"
 msgstr ""
 
@@ -11409,6 +11418,7 @@ msgstr ""
 msgid "Insulin Delivery Report <0/>"
 msgstr ""
 
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
@@ -11770,6 +11780,7 @@ msgstr ""
 msgid "<0/> Glucose Statistics"
 msgstr ""
 
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "Glucose Distribution"
@@ -12134,9 +12145,8 @@ msgstr ""
 msgid "{0} bpm"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/month-to-month/+page.svelte
-msgid "Redirecting to Calendar..."
-msgstr ""
+#~ msgid "Redirecting to Calendar..."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Error Loading IDP Report"
@@ -12284,6 +12294,7 @@ msgstr ""
 msgid "Sleep pattern actogram with glucose overlay"
 msgstr ""
 
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Sleep & Overnight"
 msgstr ""
@@ -12420,6 +12431,7 @@ msgstr ""
 msgid "<0/> Step Count Actogram"
 msgstr ""
 
+#: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/steps/+page.svelte
 #: src/routes/(authenticated)/reports/steps/+page.svelte
 msgid "Steps"
@@ -16014,8 +16026,9 @@ msgstr ""
 msgid "User snooze actions cannot be replayed."
 msgstr ""
 
-#~ msgid "Hourly Patterns"
-#~ msgstr ""
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Hourly Patterns"
+msgstr ""
 
 #: ../portal/src/lib/components/SiteFooter.svelte
 #: ../portal/src/lib/components/SiteHeader.svelte
@@ -21183,31 +21196,25 @@ msgstr ""
 msgid "No events yet; playhead at start of window."
 msgstr ""
 
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
-msgid "Oct"
-msgstr ""
+#~ msgid "Oct"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
-msgid "Nov"
-msgstr ""
+#~ msgid "Nov"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
 msgid "Dec"
 msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
 msgid "Jan"
 msgstr ""
 
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
-msgid "Feb"
-msgstr ""
+#~ msgid "Feb"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
-msgid "Mar"
-msgstr ""
+#~ msgid "Mar"
+#~ msgstr ""
 
 #. 0: current.group
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
@@ -21263,13 +21270,11 @@ msgstr ""
 msgid "Sunday runs 22 mg/dL higher after lunch"
 msgstr ""
 
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
-msgid "Average glucose by month"
-msgstr ""
+#~ msgid "Average glucose by month"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/features/ReportsDemo.svelte
-msgid "down 23 mg/dL since December"
-msgstr ""
+#~ msgid "down 23 mg/dL since December"
+#~ msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
 msgid "Before vs after the basal change"
@@ -21371,6 +21376,7 @@ msgid "Average glucose"
 msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
+#: src/lib/navigation/report-navigation.svelte.ts
 msgid "Insulin Dosing Profile"
 msgstr ""
 
@@ -24743,4 +24749,172 @@ msgstr ""
 
 #: src/routes/(authenticated)/reports/+layout.svelte
 msgid "Print report"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "The Big Picture"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Your key metrics at a glance"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Executive Summary"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "All your important numbers in one place"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Glucose Profile (AGP)"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Your typical day's glucose pattern"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Time spent in each glucose zone"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Assess the reliability of your data"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Estimated HbA1c"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "How your estimated HbA1c has trended over the years"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Patterns & Trends"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Discover what affects your glucose"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Day-by-Day View"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Review each day individually"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Day in Review"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Detailed breakdown of a single day"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Week to Week"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Compare patterns across days"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Comparison"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Diff two date ranges side-by-side"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Find your best and worst hours"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Lifestyle Impact"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "How food, exercise & sleep affect you"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Daily step patterns and activity levels"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Heart rate patterns and resting estimates"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Understand your overnight patterns"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Meal Analysis"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "See how different meals affect you"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Exercise Impact"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Track activity's effect on glucose"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Treatment Insights"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Is your treatment working?"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Your insulin and carb history"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Basal Rate Analysis"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Basal Analysis"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "How your basal rates vary"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Insulin Delivery"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Basal vs bolus breakdown"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Site Change Impact"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "How site changes affect control"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Standardised insulin and glucose summary"
+msgstr ""
+
+#: src/lib/navigation/report-navigation.svelte.ts
+msgid "Pump battery trends and longevity"
 msgstr ""
