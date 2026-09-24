@@ -238,6 +238,9 @@
         displayValue: toDisplayUnit(point.estimatedA1cPercent),
       });
     }
+    // Interpolated lab-only rows give the tooltip an x-axis target and participate in the
+    // rendered spline; calculations and summary domains still use chartData. Keep measured
+    // lab values in the standalone marker layer so LineChart does not spline-connect them.
     for (const labPoint of labChartPoints) {
       if (!rows.has(labPoint.date.getTime())) {
         const displayValue = displayValueForChartDate(labPoint.date);
@@ -359,7 +362,7 @@
           </div>
         {/if}
 
-        <div class="h-[320px] w-full @md:h-[400px]">
+        <div class="h-[320px] w-full @md:h-[400px]" data-testid="ehba1c-chart">
           <LineChart
             data={displayChartData}
             x="date"
@@ -373,7 +376,7 @@
                 color: "var(--ehba1c-line)",
               },
             ]}
-            props={{ spline: { "stroke-width": 3, "stroke-linecap": "round" } }}
+            props={{ spline: { "stroke-width": 3, "stroke-linecap": "round", "data-testid": "ehba1c-line" } }}
             points={{ data: labChartPoints, x: (d) => d.date, y: (d) => d.displayValue, children: labMarkers }}
             {annotations}
           >
@@ -385,7 +388,7 @@
                   {@const eHbA1cPoint = chartData.find((point) => dateKey(point.date) === hoveredDateKey)}
                   {@const labResultsForDate = labChartPoints.filter((point) => dateKey(point.date) === hoveredDateKey)}
                   <div class="mb-2 text-sm font-semibold">{formatLongDate(hoveredDate)}</div>
-                  <div class="min-w-56 space-y-1.5 text-sm">
+                  <div class="min-w-56 space-y-1.5 text-sm" data-testid="ehba1c-tooltip">
                     {#if eHbA1cPoint}
                       <div class="grid grid-cols-[1fr_auto] items-center gap-x-4">
                         <span class="flex min-w-0 items-center gap-2 text-muted-foreground">
@@ -507,6 +510,7 @@
 {#snippet labMarkers({ points }: { points: { x: number; y: number; data: (typeof labChartPoints)[number] }[] })}
   {#each points as point (point.data.id)}
     <polygon
+      data-testid="lab-marker"
       points="{point.x},{point.y - 7} {point.x - 6},{point.y + 5} {point.x + 6},{point.y + 5}"
       class="fill-foreground stroke-background"
       stroke-width="1"
