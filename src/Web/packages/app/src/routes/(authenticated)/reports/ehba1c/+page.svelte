@@ -237,6 +237,12 @@
   function displayValueForChartDate(date: Date): number | null {
     if (chartData.length === 0) return null;
     const timestamp = date.getTime();
+    if (
+      timestamp < chartData[0].date.getTime() ||
+      timestamp > chartData[chartData.length - 1].date.getTime()
+    ) {
+      return null;
+    }
     const nextIndex = chartData.findIndex((point) => point.date.getTime() >= timestamp);
     if (nextIndex === 0) return toDisplayUnit(chartData[0].estimatedA1cPercent);
     if (nextIndex === -1) return toDisplayUnit(chartData[chartData.length - 1].estimatedA1cPercent);
@@ -257,9 +263,8 @@
         displayValue: toDisplayUnit(point.estimatedA1cPercent),
       });
     }
-    // Interpolated lab-only rows give the tooltip an x-axis target and participate in the
-    // rendered spline; calculations and summary domains still use chartData. Keep measured
-    // lab values in the standalone marker layer so LineChart does not spline-connect them.
+    // Lab-only rows may interpolate the curve only within the glucose estimate coverage.
+    // Keep measured lab values in the standalone marker layer.
     for (const labPoint of labChartPoints) {
       if (!rows.has(labPoint.date.getTime())) {
         const displayValue = displayValueForChartDate(labPoint.date);

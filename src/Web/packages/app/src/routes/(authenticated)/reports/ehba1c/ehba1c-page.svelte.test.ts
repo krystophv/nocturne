@@ -33,6 +33,12 @@ const labResults = [
     valuePercent: 6.4,
     note: "Same-day lab test",
   },
+  {
+    id: "lab-result-before-first-estimate",
+    measuredAt: "2024-12-30T12:00:00",
+    valuePercent: 6.1,
+    note: "Before glucose history",
+  },
 ];
 
 vi.mock("$api/generated/dataOverviews.generated.remote", () => ({
@@ -98,5 +104,23 @@ describe("eHbA1c chart tooltips", () => {
     expect(tooltipText).toContain("eHbA1c");
     expect(tooltipText).toContain("Lab result");
     expect(tooltipText).toContain("Same-day lab test");
+  });
+
+  it("does not extend the estimate line to a lab result before glucose history", async () => {
+    await expect.element(page.getByTestId("lab-marker").first()).toBeVisible();
+    const line = (await page.getByTestId("ehba1c-line").elements())[0] as SVGPathElement;
+    const lineStart = line.getPointAtLength(0);
+    const matrix = line.getScreenCTM();
+    if (!matrix) throw new Error("eHbA1c curve is not positioned in the chart");
+    const screenLineStart = new DOMPoint(lineStart.x, lineStart.y).matrixTransform(matrix);
+
+    const markers = await page.getByTestId("lab-marker").elements();
+    const beforeHistoryMarker = markers.find((marker) =>
+      marker.querySelector("title")?.textContent?.includes("Before glucose history"),
+    ) as SVGPolygonElement | undefined;
+    if (!beforeHistoryMarker) throw new Error("Pre-history lab marker is not rendered");
+    const markerBounds = beforeHistoryMarker.getBoundingClientRect();
+
+    expect(screenLineStart.x).toBeGreaterThan(markerBounds.right);
   });
 });
