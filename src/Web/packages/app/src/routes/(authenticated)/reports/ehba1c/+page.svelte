@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import { LineChart, Tooltip } from "layerchart";
   import { Loader2, Activity, Plus, Trash2 } from "lucide-svelte";
   import * as Card from "$lib/components/ui/card";
@@ -256,7 +257,7 @@
   }
 
   const displayChartData = $derived.by(() => {
-    const rows = new Map<number, { date: Date; displayValue: number }>();
+    const rows = new SvelteMap<number, { date: Date; displayValue: number }>();
     for (const point of chartData) {
       rows.set(point.date.getTime(), {
         date: point.date,
@@ -412,7 +413,7 @@
             {#snippet tooltip({ context })}
               <Tooltip.Root {context} class="bg-popover text-popover-foreground rounded-md border p-3 shadow-lg">
                 {#snippet children({ data })}
-                  {@const hoveredDate = context.x(data) as Date}
+                  {@const hoveredDate = context.x(data)}
                   {@const hoveredDateKey = dateKey(hoveredDate)}
                   {@const eHbA1cPoint = chartData.find((point) => dateKey(point.date) === hoveredDateKey)}
                   {@const labResultsForDate = labChartPoints.filter((point) => dateKey(point.date) === hoveredDateKey)}
@@ -421,7 +422,7 @@
                     {#if eHbA1cPoint}
                       <div class="grid grid-cols-[1fr_auto] items-center gap-x-4">
                         <span class="flex min-w-0 items-center gap-2 text-muted-foreground">
-                          <span class="h-2 w-2 shrink-0 rounded-full" style="background-color: var(--ehba1c-line)"></span>
+                          <span class="h-2 w-2 shrink-0 rounded-full bg-(--ehba1c-line)"></span>
                           <span>eHbA1c</span>
                         </span>
                         <span class="font-mono font-medium tabular-nums">{formatDisplayValue(toDisplayUnit(eHbA1cPoint.estimatedA1cPercent))}</span>
@@ -430,7 +431,7 @@
                     {#each labResultsForDate as labResult (labResult.id)}
                       <div class="grid grid-cols-[1fr_auto] items-center gap-x-4">
                         <span class="flex min-w-0 items-center gap-2 text-muted-foreground">
-                          <span class="h-0 w-0 shrink-0 border-x-4 border-b-[7px] border-x-transparent border-b-foreground"></span>
+                          <span class="h-0 w-0 shrink-0 border-x-4 border-b-8 border-x-transparent border-b-foreground"></span>
                           <span>Lab result</span>
                         </span>
                         <span class="font-mono font-medium tabular-nums">{formatA1c(labResult.valuePercent)}</span>
