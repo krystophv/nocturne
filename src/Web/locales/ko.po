@@ -24774,3 +24774,11 @@ msgstr ""
 #: src/routes/(authenticated)/reports/+layout.svelte
 msgid "Print report"
 msgstr ""
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "eHbA1c"
+msgstr "eHbA1c"
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "Lab result"
+msgstr "검사 결과"

@@ -24774,3 +24774,11 @@ msgstr "This is a retrospective analysis of recorded readings. A flagged window 
 #: src/routes/(authenticated)/reports/+layout.svelte
 msgid "Print report"
 msgstr "Print report"
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "eHbA1c"
+msgstr "eHbA1c"
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "Lab result"
+msgstr "Lab result"
