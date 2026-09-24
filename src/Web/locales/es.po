@@ -31,42 +31,42 @@ msgstr ""
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 #: src/routes/(unauthenticated)/auth/bot/authorize/done/+page.svelte
 msgid "Connected"
-msgstr ""
+msgstr "Conectado"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Real-time data active"
-msgstr ""
+msgstr "Datos activos en tiempo real"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Connecting..."
-msgstr ""
+msgstr "Conectando..."
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Establishing connection"
-msgstr ""
+msgstr "Estableciendo conexión"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Reconnecting..."
-msgstr ""
+msgstr "Reconectando..."
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Attempting to reconnect"
-msgstr ""
+msgstr "Intentando reconectar"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Disconnected"
-msgstr ""
+msgstr "Desconectado"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Using cached data"
-msgstr ""
+msgstr "Usando datos almacenados"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
@@ -88,7 +88,7 @@ msgstr ""
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 #: src/routes/(authenticated)/settings/migration/+page.svelte
 msgid "Connection failed"
-msgstr ""
+msgstr "Error de conexión"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
@@ -96,7 +96,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/admin/connector-cursors/+page.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "Never"
-msgstr ""
+msgstr "Nunca"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/clock/ClockFacePreview.svelte
@@ -108,25 +108,25 @@ msgstr ""
 #: src/routes/(authenticated)/settings/admin/+page.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Retry"
-msgstr ""
+msgstr "Reintentar"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Messages:"
-msgstr ""
+msgstr "Mensajes:"
 
 #: src/lib/components/WebSocketStatus.svelte
 #: src/lib/components/dashboard/widgets/ConnectionStatusWidget.svelte
 msgid "Last update:"
-msgstr ""
+msgstr "Última actualización:"
 
 #: src/lib/components/WebSocketStatus.svelte
 msgid "Reconnects:"
-msgstr ""
+msgstr "Reconexiones:"
 
 #: src/lib/components/WebSocketStatus.svelte
 msgid "Connection Error:"
-msgstr ""
+msgstr "Error de conexión:"
 
 #: src/lib/components/PreludeQuickConnect.svelte
 #: src/lib/components/XdripQuickConnect.svelte
@@ -293,7 +293,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "Low"
-msgstr ""
+msgstr "Bajo"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
@@ -311,7 +311,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "High"
-msgstr ""
+msgstr "Alto"
 
 #: src/lib/stores/auth-store.svelte.ts
 msgid "IsAuthenticated="
@@ -338,18 +338,18 @@ msgstr ""
 
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Failed to load historical data"
-msgstr ""
+msgstr "No se pudieron cargar los datos históricos"
 
 #~ msgid "Connected to real-time data"
 #~ msgstr ""
 
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Real-time data disconnected"
-msgstr ""
+msgstr "Datos en tiempo real desconectados"
 
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Failed to connect to real-time data"
-msgstr ""
+msgstr "No se pudo conectar con los datos en tiempo real"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
@@ -358,7 +358,7 @@ msgstr ""
 #: src/lib/stores/realtime-store.svelte.ts
 #: src/routes/(authenticated)/settings/connectors/+page.svelte
 msgid "Syncing"
-msgstr ""
+msgstr "Sincronizando"
 
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
@@ -366,34 +366,34 @@ msgstr ""
 #: src/lib/components/treatments/edit-dialog/NoteFormFields.svelte
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Announcement"
-msgstr ""
+msgstr "Aviso"
 
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Glucose alarm"
-msgstr ""
+msgstr "Alarma de glucosa"
 
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Glucose alarm cleared"
-msgstr ""
+msgstr "Alarma de glucosa desactivada"
 
 #. 0: instance.definitionName
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Tracker started: {0}"
-msgstr ""
+msgstr "Seguimiento iniciado: {0}"
 
 #. 0: instance.definitionName
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Tracker completed: {0}"
-msgstr ""
+msgstr "Seguimiento completado: {0}"
 
 #. 0: backfilledCount
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Synced {0} missed data points"
-msgstr ""
+msgstr "Se han sincronizado {0} datos pendientes"
 
 #: src/lib/stores/realtime-store.svelte.ts
 msgid "Failed to sync missed data"
-msgstr ""
+msgstr "No se pudieron sincronizar los datos pendientes"
 
 #~ msgid "Failed to load settings"
 #~ msgstr ""
@@ -499,7 +499,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "Unknown"
-msgstr ""
+msgstr "Desconocido"
 
 #. 0: credential.createdAt ? formatMediumDateTime(credential.createdAt) \\: "Unknown"
 #. 0: formatMediumDateTime(grant.createdAt)
@@ -616,7 +616,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/translations/[locale]/+page.svelte
 #: src/routes/(authenticated)/settings/translations/[locale]/+page.svelte
 msgid "Cancel"
-msgstr ""
+msgstr "Cancelar"
 
 #: src/lib/components/account/TotpSetupDialog.svelte
 msgid "<0/> Verify and save"
@@ -683,7 +683,7 @@ msgstr ""
 #: src/lib/components/reports/sleep/single-night/Hypnogram.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Glucose"
-msgstr ""
+msgstr "Glucosa"
 
 #: src/lib/components/actogram/Actogram.svelte
 #: src/lib/components/actogram/Actogram.svelte
@@ -798,7 +798,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 #: src/routes/(authenticated)/settings/weight/+page.svelte
 msgid "Delete"
-msgstr ""
+msgstr "Eliminar"
 
 #: src/lib/components/admin/RoleDialog.svelte
 msgid "API - Entries"
@@ -860,7 +860,7 @@ msgstr ""
 #: src/routes/(authenticated)/food/Composer.svelte
 #: src/routes/(authenticated)/settings/translations/[locale]/+page.svelte
 msgid "Name"
-msgstr ""
+msgstr "Nombre"
 
 #: src/lib/components/admin/RoleDialog.svelte
 #: src/lib/components/admin/SubjectEditDialog.svelte
@@ -924,7 +924,7 @@ msgstr ""
 #: src/routes/(authenticated)/food/Composer.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Save"
-msgstr ""
+msgstr "Guardar"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Test failed"
@@ -1014,7 +1014,7 @@ msgstr ""
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
 #: src/routes/(authenticated)/settings/patient/+page.svelte
 msgid "Save Changes"
-msgstr ""
+msgstr "Guardar cambios"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Create Provider"
@@ -1161,7 +1161,7 @@ msgstr ""
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "Type"
-msgstr ""
+msgstr "Tipo"
 
 #: src/lib/components/alerts/AlertHistoryCard.svelte
 msgid "Started"
@@ -1259,7 +1259,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/integrations/discord/+page.svelte
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 msgid "Default"
-msgstr ""
+msgstr "Predeterminado"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
@@ -1486,7 +1486,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "Time"
-msgstr ""
+msgstr "Hora"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
@@ -1795,7 +1795,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "{0}g"
-msgstr ""
+msgstr "{0} g"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Bolus:"
@@ -1834,7 +1834,7 @@ msgstr ""
 #: src/lib/components/reports/InsulinDonutChart.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "{0}U"
-msgstr ""
+msgstr "{0} U"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Basal:"
@@ -1850,7 +1850,7 @@ msgstr ""
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 msgid "Calendar"
-msgstr ""
+msgstr "Calendario"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 #: src/lib/components/dashboard/widgets/TddWidget.svelte
@@ -1859,12 +1859,12 @@ msgstr ""
 #: src/routes/(authenticated)/reports/+layout.svelte
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 msgid "Today"
-msgstr ""
+msgstr "Hoy"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 #: src/lib/components/dashboard/widgets/DailySummaryWidget.svelte
 msgid "TIR"
-msgstr ""
+msgstr "TIR"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/calendar/CalendarHeader.svelte
@@ -1874,7 +1874,7 @@ msgstr ""
 #: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 msgid "Profile"
-msgstr ""
+msgstr "Perfil"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
@@ -1887,19 +1887,19 @@ msgstr ""
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "In Range"
-msgstr ""
+msgstr "En rango"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 msgid "Daily glucose profile"
-msgstr ""
+msgstr "Perfil diario de glucosa"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 msgid "Green band = target range"
-msgstr ""
+msgstr "Banda verde = rango objetivo"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 msgid "Click any day to view detailed report"
-msgstr ""
+msgstr "Pulsa cualquier día para ver el informe detallado"
 
 #: src/lib/components/auth/ProviderIcon.svelte
 msgid "Provider icon"
@@ -1999,7 +1999,7 @@ msgstr ""
 #: src/lib/components/charts/BasalRateTrack.svelte
 #: src/lib/components/dashboard/glucose-chart/tracks/BasalTrack.svelte
 msgid "Last pump sync"
-msgstr ""
+msgstr "Última sincronización de la bomba"
 
 #: src/lib/components/charts/BasalRateTrack.svelte
 #: src/lib/components/reports/BasalRateChart.svelte
@@ -2241,7 +2241,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "Medium"
-msgstr ""
+msgstr "Medio"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Color"
@@ -2279,7 +2279,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "Off"
-msgstr ""
+msgstr "Desactivado"
 
 #. 0: mode === "dark" ? "On" \\: mode === "light" ? "Off" \\: "System"
 #: src/lib/components/command-palette/CommandPalette.svelte
@@ -2466,7 +2466,7 @@ msgstr ""
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 msgid "Food"
-msgstr ""
+msgstr "Alimento"
 
 #~ msgid "Failed to sync food data"
 #~ msgstr ""
@@ -2654,7 +2654,7 @@ msgstr ""
 #: src/lib/components/support/IssueCreatorDialog.svelte
 #: src/lib/components/ui/danger-zone-dialog/danger-zone-dialog.svelte
 msgid "Close"
-msgstr ""
+msgstr "Cerrar"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/ui/connector-toggle-group/connector-toggle-group-item.svelte
@@ -2716,7 +2716,7 @@ msgstr ""
 #: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "Total Records"
-msgstr ""
+msgstr "Registros totales"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Delete All Data from This Source"
@@ -2881,7 +2881,7 @@ msgstr ""
 #: src/lib/components/dashboard/CurrentBGDisplay.svelte
 #: src/lib/components/layout/MobileHeader.svelte
 msgid "Connection Error"
-msgstr ""
+msgstr "Error de conexión"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/lib/components/connectors/UploaderAppsCard.svelte
@@ -2945,7 +2945,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "All"
-msgstr ""
+msgstr "Todo"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "<0/> iOS"
@@ -3246,7 +3246,7 @@ msgstr ""
 #: src/routes/(authenticated)/notifications/+page.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Other"
-msgstr ""
+msgstr "Otro"
 
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
@@ -3291,7 +3291,7 @@ msgstr ""
 #: src/lib/components/dashboard/BGStatisticsCards.svelte
 #: src/lib/components/dashboard/widgets/BgDeltaWidget.svelte
 msgid "BG Delta"
-msgstr ""
+msgstr "Variación de glucosa"
 
 #: src/lib/components/dashboard/BGStatisticsCards.svelte
 #: src/lib/components/dashboard/BGStatisticsCards.svelte
@@ -3301,18 +3301,18 @@ msgstr ""
 #: src/lib/components/dashboard/widgets/LastUpdatedWidget.svelte
 #: src/lib/components/dashboard/widgets/LastUpdatedWidget.svelte
 msgid "Last Updated"
-msgstr ""
+msgstr "Última actualización"
 
 #: src/lib/components/dashboard/CurrentBGDisplay.svelte
 msgid "<0/> Demo Mode"
-msgstr ""
+msgstr "<0/> Modo de demostración"
 
 #. 0: formatTimeSinceLastReading()
 #. 0: minutesAgo(lastUpdated, now)
 #: src/lib/components/dashboard/CurrentBGDisplay.svelte
 #: src/lib/components/layout/MobileHeader.svelte
 msgid "Last reading: {0}"
-msgstr ""
+msgstr "Última lectura: {0}"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Failed to generate API key. You can create one manually in Settings."
@@ -3450,16 +3450,16 @@ msgstr ""
 
 #: src/lib/components/dashboard/MiniOverviewChart.svelte
 msgid "Full Range Overview"
-msgstr ""
+msgstr "Vista general del intervalo completo"
 
 #: src/lib/components/dashboard/MiniOverviewChart.svelte
 #: src/lib/components/dashboard/glucose-chart/ZoomIndicator.svelte
 msgid "<0/> Reset zoom"
-msgstr ""
+msgstr "<0/> Restablecer zoom"
 
 #: src/lib/components/dashboard/MiniOverviewChart.svelte
 msgid "Viewing:"
-msgstr ""
+msgstr "Mostrando:"
 
 #. 0: Math.round( (selectedXDomain[1].getTime() - selectedXDomain[0].getTime()) / (1000 * 60) )
 #: src/lib/components/dashboard/MiniOverviewChart.svelte
@@ -3500,31 +3500,31 @@ msgstr ""
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "Predictions unavailable"
-msgstr ""
+msgstr "Predicciones no disponibles"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "<0/> Retry"
-msgstr ""
+msgstr "<0/> Reintentar"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "Cone of probabilities"
-msgstr ""
+msgstr "Cono de probabilidades"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "Cone"
-msgstr ""
+msgstr "Cono"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "All prediction lines"
-msgstr ""
+msgstr "Todas las líneas de predicción"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "Lines"
-msgstr ""
+msgstr "Líneas"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "IOB only"
-msgstr ""
+msgstr "Solo IOB"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/DeliveryInspectionDialog.svelte
@@ -3533,50 +3533,50 @@ msgstr ""
 #: src/lib/components/dashboard/glucose-chart/dialogs/TreatmentInspectionDialog.svelte
 #: src/lib/components/reports/RetrospectiveStats.svelte
 msgid "IOB"
-msgstr ""
+msgstr "IOB"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "Zero Temp"
-msgstr ""
+msgstr "Basal temporal cero"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "ZT"
-msgstr ""
+msgstr "ZT"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "UAM"
-msgstr ""
+msgstr "UAM"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "15 min"
-msgstr ""
+msgstr "15 min"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "30 min"
-msgstr ""
+msgstr "30 min"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "1 hour"
-msgstr ""
+msgstr "1 hora"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "2 hours"
-msgstr ""
+msgstr "2 horas"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "3 hours"
-msgstr ""
+msgstr "3 horas"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "4 hours"
-msgstr ""
+msgstr "4 horas"
 
 #: src/lib/components/dashboard/PredictionVisualizations.svelte
 msgid "Loading predictions..."
-msgstr ""
+msgstr "Cargando predicciones..."
 
 #~ msgid "Prediction unavailable: {0}"
 #~ msgstr ""
@@ -3590,13 +3590,13 @@ msgstr ""
 #: src/lib/components/dashboard/RecentEntriesCard.svelte
 #: src/lib/components/dashboard/RecentTreatmentsCard.svelte
 msgid "No recent entries"
-msgstr ""
+msgstr "No hay entradas recientes"
 
 #: src/lib/components/alerts/ReplayPanel.svelte
 #: src/lib/components/alerts/ReplayPanel.svelte
 #: src/lib/components/dashboard/RecentTreatmentsCard.svelte
 msgid "Last 24 hours"
-msgstr ""
+msgstr "Últimas 24 horas"
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
@@ -3613,7 +3613,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Bolus"
-msgstr ""
+msgstr "Bolo"
 
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartTooltip.svelte
@@ -3627,29 +3627,29 @@ msgstr ""
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "Carbs"
-msgstr ""
+msgstr "Carbohidratos"
 
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
 msgid "BG Check"
-msgstr ""
+msgstr "Medición de glucosa"
 
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 #: src/lib/components/treatments/TreatmentFoodEntryEditDialog.svelte
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
 msgid "Note"
-msgstr ""
+msgstr "Nota"
 
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
 msgid "Device Event"
-msgstr ""
+msgstr "Evento del dispositivo"
 
 #: src/lib/components/dashboard/RecentTreatmentsCard.svelte
 msgid "Error loading recent entries."
-msgstr ""
+msgstr "Error al cargar las entradas recientes."
 
 #: src/lib/components/food/AddFoodDialog.svelte
 msgid "Edit Food"
@@ -3660,7 +3660,7 @@ msgstr ""
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 msgid "Add Food"
-msgstr ""
+msgstr "Añadir alimento"
 
 #: src/lib/components/admin/IntegrationsTabContent.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3672,22 +3672,22 @@ msgstr ""
 #: src/lib/components/trackers/TrackerEditorDialog.svelte
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
 msgid "Saving..."
-msgstr ""
+msgstr "Guardando..."
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 msgid "Food updated successfully"
-msgstr ""
+msgstr "Alimento actualizado correctamente"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 msgid "Food created successfully"
-msgstr ""
+msgstr "Alimento creado correctamente"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 msgid "Failed to save food"
-msgstr ""
+msgstr "No se pudo guardar el alimento"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 msgid "Update the food's nutritional information."
@@ -3701,7 +3701,7 @@ msgstr ""
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Category & Subcategory"
-msgstr ""
+msgstr "Categoría y subcategoría"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3716,7 +3716,7 @@ msgstr ""
 #: src/lib/components/treatments/TreatmentFoodEntryEditDialog.svelte
 #: src/lib/components/treatments/TreatmentPortionsForm.svelte
 msgid "Carbs (g)"
-msgstr ""
+msgstr "Carbohidratos (g)"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3736,7 +3736,7 @@ msgstr ""
 #: src/routes/(authenticated)/food/Composer.svelte
 #: src/routes/(authenticated)/food/InlineEditor.svelte
 msgid "Unit"
-msgstr ""
+msgstr "Unidad"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3747,19 +3747,19 @@ msgstr ""
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Fat (g)"
-msgstr ""
+msgstr "Grasas (g)"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Protein (g)"
-msgstr ""
+msgstr "Proteínas (g)"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Energy (kJ)"
-msgstr ""
+msgstr "Energía (kJ)"
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "Select category/subcategory..."
@@ -3813,12 +3813,12 @@ msgstr ""
 #: src/lib/components/food/GiCombobox.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Select GI..."
-msgstr ""
+msgstr "Seleccionar IG..."
 
 #: src/lib/components/food/GiCombobox.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Search GI..."
-msgstr ""
+msgstr "Buscar IG..."
 
 #: src/lib/components/food/GiCombobox.svelte
 msgid "No GI level found."
@@ -3827,17 +3827,17 @@ msgstr ""
 #: src/lib/components/food/UnitCombobox.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Select unit..."
-msgstr ""
+msgstr "Seleccionar unidad..."
 
 #: src/lib/components/food/UnitCombobox.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "Search units..."
-msgstr ""
+msgstr "Buscar unidades..."
 
 #: src/lib/components/food/UnitCombobox.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
 msgid "No unit found."
-msgstr ""
+msgstr "No se encontró ninguna unidad."
 
 #: src/lib/components/entries/BGCheckSection.svelte
 msgid "Finger"
@@ -3849,7 +3849,7 @@ msgstr ""
 #: src/lib/components/trackers/TrackerEditorDialog.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Sensor"
-msgstr ""
+msgstr "Sensor"
 
 #: src/lib/components/entries/BGCheckSection.svelte
 msgid "<0/> BG Check"
@@ -3861,7 +3861,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 msgid "Units"
-msgstr ""
+msgstr "Unidades"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Square Wave"
@@ -3883,12 +3883,12 @@ msgstr ""
 #: src/lib/components/entries/BolusSection.svelte
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
 msgid "Bolus Type"
-msgstr ""
+msgstr "Tipo de bolo"
 
 #: src/lib/components/entries/BolusSection.svelte
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
 msgid "Duration (min)"
-msgstr ""
+msgstr "Duración (min)"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Rate (U/hr)"
@@ -3929,7 +3929,7 @@ msgstr ""
 
 #: src/lib/components/treatments/TreatmentFoodBreakdown.svelte
 msgid "<0/> Add Food"
-msgstr ""
+msgstr "<0/> Añadir alimento"
 
 #: src/lib/components/treatments/TreatmentFoodBreakdown.svelte
 msgid "No foods added yet."
@@ -5459,9 +5459,8 @@ msgstr ""
 msgid "Profile Name"
 msgstr ""
 
-#: src/lib/components/profile/ProfileEditDialog.svelte
-msgid "Select timezone"
-msgstr ""
+#~ msgid "Select timezone"
+#~ msgstr ""
 
 #: src/lib/components/profile/ProfileEditDialog.svelte
 msgid "Duration of Insulin Action (hours)"
@@ -8368,6 +8367,7 @@ msgid "Avg Response Time"
 msgstr ""
 
 #: src/routes/(authenticated)/compatibility/+page.svelte
+#: src/routes/(authenticated)/reports/+layout.svelte
 #: src/routes/(authenticated)/reports/+layout.svelte
 msgid "Filters"
 msgstr ""
@@ -24769,4 +24769,8 @@ msgstr ""
 
 #: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
 msgid "This is a retrospective analysis of recorded readings. A flagged window indicates a pattern that is statistically unlikely to be physiologic; it does not by itself identify the cause. Boundaries are determined after the fact from surrounding readings."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+layout.svelte
+msgid "Print report"
 msgstr ""
