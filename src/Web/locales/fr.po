@@ -433,7 +433,6 @@ msgstr ""
 #: ../portal/src/lib/components/SiteHeader.svelte
 #: ../portal/src/lib/components/SiteHeader.svelte
 #: ../portal/src/routes/features/+page.svelte
-#: ../portal/src/routes/features/+page.svelte
 #: src/lib/components/dashboard/CurrentBGDisplay.svelte
 #: src/lib/components/layout/AppSidebar.svelte
 #: src/lib/components/layout/AppSidebar.svelte
@@ -1450,6 +1449,8 @@ msgstr ""
 #: src/lib/components/reports/BasalRatePercentileChart.svelte
 #: src/lib/components/reports/SiteChangeImpactChart.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "Median"
 msgstr ""
 
@@ -1767,7 +1768,6 @@ msgstr ""
 #. 0: totalCarbs
 #. 0: actualUnattributed
 #. 0: unspecifiedCarbs
-#. 0: totalCarbs.toFixed(0)
 #. 0: (summary?.totals?.food?.carbs ?? 0).toFixed(0)
 #. 0: row.carbs
 #: src/lib/components/calendar/CalendarDayCell.svelte
@@ -1792,7 +1792,6 @@ msgstr ""
 #: src/lib/components/treatments/TreatmentFoodEntryEditDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodEntryEditDialog.svelte
 #: src/lib/components/treatments/TreatmentPortionsForm.svelte
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "{0}g"
@@ -1820,7 +1819,6 @@ msgstr ""
 #. 0: afternoon.toFixed(1)
 #. 0: evening.toFixed(1)
 #. 0: d.value.toFixed(2)
-#. 0: totalInsulin.toFixed(1)
 #. 0: (row.insulin ?? 0).toFixed(2)
 #: src/lib/components/calendar/CalendarDayCell.svelte
 #: src/lib/components/calendar/CalendarDayCell.svelte
@@ -1840,7 +1838,6 @@ msgstr ""
 #: src/lib/components/reports/InsulinDeliveryChart.svelte
 #: src/lib/components/reports/InsulinDeliveryChart.svelte
 #: src/lib/components/reports/InsulinDonutChart.svelte
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "{0}U"
 msgstr ""
@@ -1943,7 +1940,6 @@ msgstr ""
 #: src/routes/(authenticated)/reports/+page.svelte
 #: src/routes/(authenticated)/reports/agp/+page.svelte
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "No data"
 msgstr ""
 
@@ -3052,6 +3048,7 @@ msgid "Failed to start deduplication"
 msgstr ""
 
 #: ../portal/src/lib/components/MilestoneCard.svelte
+#: ../portal/src/routes/roadmap/+page.svelte
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 #: src/lib/components/connectors/DeduplicationDialog.svelte
@@ -3592,10 +3589,8 @@ msgstr ""
 #~ msgid "Prediction unavailable"
 #~ msgstr ""
 
-#: src/lib/components/dashboard/RecentEntriesCard.svelte
-#: src/lib/components/dashboard/RecentTreatmentsCard.svelte
-msgid "Recent Entries"
-msgstr ""
+#~ msgid "Recent Entries"
+#~ msgstr ""
 
 #: src/lib/components/dashboard/RecentEntriesCard.svelte
 #: src/lib/components/dashboard/RecentTreatmentsCard.svelte
@@ -4484,10 +4479,12 @@ msgstr ""
 #~ msgid "Time Spans"
 #~ msgstr ""
 
+#: ../portal/src/routes/features/+page.svelte
 #: src/lib/components/rbac/PermissionCategorySelector.svelte
 #: src/lib/components/rbac/PermissionSummary.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
 #: src/routes/(authenticated)/reports/+layout.svelte
+#: src/routes/(authenticated)/reports/+page.svelte
 msgid "Reports"
 msgstr ""
 
@@ -5618,7 +5615,6 @@ msgstr ""
 #: src/lib/components/rbac/PermissionCategorySelector.svelte
 #: src/lib/components/rbac/PermissionSummary.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(unauthenticated)/setup/steps/ImportProgress.svelte
 msgid "Treatments"
 msgstr ""
@@ -5831,12 +5827,11 @@ msgid "Readings"
 msgstr ""
 
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
+#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "Std Dev"
 msgstr ""
 
 #: src/lib/components/dashboard/widgets/TirChartWidget.svelte
-#: src/routes/(authenticated)/reports/+page.svelte
-#: src/routes/(authenticated)/reports/agp/+page.svelte
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
@@ -5865,8 +5860,9 @@ msgstr ""
 #~ msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
-#: src/routes/(authenticated)/reports/+page.svelte
 #: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/heart-rate/+page.svelte
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Average"
@@ -5924,6 +5920,7 @@ msgstr ""
 #. 0: cob.toFixed(0)
 #. 0: cob.toFixed(0)
 #. 0: bolusCalc.carbInput
+#. 0: carbs.toFixed(0)
 #. 0: formatCarbDisplay(treatmentSummary?.totals?.food?.carbs)
 #. 0: formatCarbDisplay(treatmentSummary?.totals?.food?.protein)
 #. 0: formatCarbDisplay(treatmentSummary?.totals?.food?.fat)
@@ -5931,6 +5928,7 @@ msgstr ""
 #: src/lib/components/dashboard/glucose-chart/dialogs/GlucoseInspectionDialog.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/TreatmentInspectionDialog.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/TreatmentInspectionDialog.svelte
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
 #: src/lib/components/reports/DailyInsulinSummary.svelte
 #: src/lib/components/reports/DailyInsulinSummary.svelte
 #: src/lib/components/reports/DailyInsulinSummary.svelte
@@ -6007,6 +6005,9 @@ msgstr ""
 #. 0: bolusCalc.insulinRecommendation.toFixed(2)
 #. 0: bolusCalc.insulinProgrammed.toFixed(2)
 #. 0: bolusCalc.insulinOnBoard.toFixed(2)
+#. 0: auto.toFixed(1)
+#. 0: bolus.toFixed(1)
+#. 0: basal.toFixed(1)
 #. 0: d.totalDailyDose.toFixed(1)
 #. 0: insulinStats?.avgBolus?.toFixed(1) ?? "--"
 #: src/lib/components/dashboard/glucose-chart/dialogs/DeliveryInspectionDialog.svelte
@@ -6016,6 +6017,9 @@ msgstr ""
 #: src/lib/components/dashboard/glucose-chart/dialogs/TreatmentInspectionDialog.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/TreatmentInspectionDialog.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/TreatmentInspectionDialog.svelte
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
 #: src/lib/components/reports/GlycemicRiskIndexChart.svelte
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "{0} U"
@@ -6193,6 +6197,7 @@ msgstr ""
 msgid "<0/> Status at {0}"
 msgstr ""
 
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
 #: src/lib/components/reports/RetrospectiveStats.svelte
 msgid "U"
 msgstr ""
@@ -6360,9 +6365,8 @@ msgstr ""
 msgid "Median-75th"
 msgstr ""
 
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-msgid "Avg Before"
-msgstr ""
+#~ msgid "Avg Before"
+#~ msgstr ""
 
 #: src/lib/components/settings/alarm-profile/AlarmGeneralTab.svelte
 #: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
@@ -6370,27 +6374,20 @@ msgstr ""
 msgid "mg/dL"
 msgstr ""
 
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-msgid "Avg After"
-msgstr ""
+#~ msgid "Avg After"
+#~ msgstr ""
 
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-msgid "TIR Before"
-msgstr ""
+#~ msgid "TIR Before"
+#~ msgstr ""
 
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-msgid "TIR After"
-msgstr ""
+#~ msgid "TIR After"
+#~ msgstr ""
 
-#. 0: analysis.summary?.percentImprovement.toFixed(1)
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-msgid "↓ {0}% improvement"
-msgstr ""
+#~ msgid "↓ {0}% improvement"
+#~ msgstr ""
 
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-msgid "after site change"
-msgstr ""
+#~ msgid "after site change"
+#~ msgstr ""
 
 #: src/lib/components/reports/SiteChangeImpactChart.svelte
 msgid "Insufficient Data"
@@ -7053,6 +7050,7 @@ msgstr ""
 msgid "Add a rule to set processing defaults based on the uploading client."
 msgstr ""
 
+#: ../portal/src/routes/+page.svelte
 #: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 #: src/lib/components/settings/GlucoseSourceDefaultsDialog.svelte
 msgid "App"
@@ -8224,35 +8222,23 @@ msgstr ""
 msgid "No records found."
 msgstr ""
 
-#. 0: bolusCount
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
-msgid "{0} boluses"
-msgstr ""
+#~ msgid "{0} boluses"
+#~ msgstr ""
 
-#. 0: dailyAvgBoluses.toFixed(1)
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
-msgid "{0}/day"
-msgstr ""
+#~ msgid "{0}/day"
+#~ msgstr ""
 
-#. 0: avgInsulinPerBolus.toFixed(1)
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
-msgid "{0}U avg"
-msgstr ""
+#~ msgid "{0}U avg"
+#~ msgstr ""
 
-#. 0: carbEntriesCount
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
-msgid "{0} meals"
-msgstr ""
+#~ msgid "{0} meals"
+#~ msgstr ""
 
-#. 0: dailyAvgCarbs.toFixed(0)
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
-msgid "{0}g/day"
-msgstr ""
+#~ msgid "{0}g/day"
+#~ msgstr ""
 
-#. 0: avgCarbsPerEntry.toFixed(0)
-#: src/lib/components/treatments/TreatmentStatsCard.svelte
-msgid "{0}g avg/meal"
-msgstr ""
+#~ msgid "{0}g avg/meal"
+#~ msgstr ""
 
 #: src/lib/components/ui/date-range-picker.svelte
 msgid "Select date"
@@ -8620,9 +8606,11 @@ msgstr ""
 msgid "Sort: Recently added"
 msgstr ""
 
+#. 0: idx + 1; 1: REPORTS.length
 #. 0: state.filteredFoods.length; 1: state.foods.length
-#. 0: sleepSummary?.nightCount ?? 0; 1: sleepSummary?.daysInRange ?? 0
+#. 0: s?.nightCount ?? 0; 1: s?.daysInRange ?? 0
 #. 0: filteredRows.length; 1: allRows.length
+#: ../portal/src/lib/components/features/ReportsDemo.svelte
 #: src/routes/(authenticated)/food/+page.svelte
 #: src/routes/(authenticated)/reports/sleep/+page.svelte
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
@@ -9047,43 +9035,34 @@ msgstr "Impossible de charger les rapports"
 msgid "Something went wrong"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "Your Glucose Report"
-msgstr ""
+#~ msgid "Your Glucose Report"
+#~ msgstr ""
 
-#. 0: formatNumber(entries.length)
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "{0} readings analyzed"
-msgstr "{0} lectures analysées"
+#~ msgid "{0} readings analyzed"
+#~ msgstr "{0} lectures analysées"
 
-#: src/routes/(authenticated)/reports/+page.svelte
 #: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Est. A1C"
 msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
-#: src/routes/(authenticated)/reports/+page.svelte
 msgid "Variability"
 msgstr "Variabilité"
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "Time Low"
-msgstr ""
+#~ msgid "Time Low"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "<0/> Your Typical Day"
-msgstr ""
+#~ msgid "<0/> Your Typical Day"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "Glucose pattern over 24 hours"
-msgstr "Schéma glycémique sur 24 heures"
+#~ msgid "Glucose pattern over 24 hours"
+#~ msgstr "Schéma glycémique sur 24 heures"
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "Full Report <0/>"
-msgstr ""
+#~ msgid "Full Report <0/>"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/+page.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "No Data Available"
 msgstr "Pas de données disponibles"
@@ -9101,13 +9080,11 @@ msgstr "<0/> Rapport AGP"
 msgid "<0/> Day-by-Day"
 msgstr "<0/> Jour par jour"
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "Explore Your Data"
-msgstr "Explorez vos données"
+#~ msgid "Explore Your Data"
+#~ msgstr "Explorez vos données"
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "Dive deeper into specific aspects of your diabetes management"
-msgstr ""
+#~ msgid "Dive deeper into specific aspects of your diabetes management"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/+page.svelte
 msgid "Coming soon"
@@ -10158,9 +10135,8 @@ msgstr ""
 msgid "Last 24h"
 msgstr ""
 
-#: src/lib/components/dashboard/widgets/TirChartWidget.svelte
-msgid "<0/> vs 90d"
-msgstr ""
+#~ msgid "<0/> vs 90d"
+#~ msgstr ""
 
 #: src/lib/components/dashboard/widgets/TirChartWidget.svelte
 msgid "No 90-day data available"
@@ -10196,20 +10172,14 @@ msgstr ""
 msgid "No insulin"
 msgstr ""
 
-#. 0: bolus.toFixed(1)
-#: src/lib/components/dashboard/widgets/TddWidget.svelte
-msgid "<0/> Bolus {0}U"
-msgstr ""
+#~ msgid "<0/> Bolus {0}U"
+#~ msgstr ""
 
-#. 0: basal.toFixed(1)
-#: src/lib/components/dashboard/widgets/TddWidget.svelte
-msgid "<0/> Basal {0}U"
-msgstr ""
+#~ msgid "<0/> Basal {0}U"
+#~ msgstr ""
 
-#. 0: carbs.toFixed(0)
-#: src/lib/components/dashboard/widgets/TddWidget.svelte
-msgid "<0/> Carbs {0}g"
-msgstr ""
+#~ msgid "<0/> Carbs {0}g"
+#~ msgstr ""
 
 #: src/lib/components/dashboard/widgets/TddWidget.svelte
 msgid "No data for 90-day average"
@@ -10638,7 +10608,6 @@ msgid "Change every"
 msgstr ""
 
 #: src/lib/components/tools/packing/supply-item.svelte
-#: src/routes/(authenticated)/reports/steps/+page.svelte
 #: src/routes/(authenticated)/tools/packing/+page.svelte
 msgid "days"
 msgstr ""
@@ -11239,6 +11208,7 @@ msgid "<0>The lighter shaded area</0> (10th-90th percentile) shows where you are
 msgstr ""
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Target: ≥70%"
 msgstr ""
 
@@ -11246,29 +11216,29 @@ msgstr ""
 msgid "GMI"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
-#: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "CV"
 msgstr ""
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+#: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Target: ≤33%"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-msgid "Below Range"
-msgstr ""
+#~ msgid "Below Range"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Target: <4%"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-msgid "Above Range"
-msgstr ""
+#~ msgid "Above Range"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Target: <25%"
 msgstr ""
 
@@ -11395,25 +11365,22 @@ msgstr ""
 msgid "Total Basal"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "units delivered"
-msgstr ""
+#~ msgid "units delivered"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "Temp Basals"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "per day avg"
-msgstr ""
+#~ msgid "per day avg"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "High / Low"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "temp basals"
-msgstr ""
+#~ msgid "temp basals"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "<0/> Basal Rate Percentile Chart"
@@ -11463,10 +11430,8 @@ msgstr ""
 msgid "Daily Basal Insulin"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "← All Reports"
-msgstr ""
+#~ msgid "← All Reports"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "Insulin Delivery Report <0/>"
@@ -11567,15 +11532,11 @@ msgstr ""
 msgid "History of battery charge and discharge periods"
 msgstr ""
 
-#. 0: formatDateShort(cycle.chargeStartMills); 1: cycle.chargeStartLevel ?? "?"; 2: cycle.chargeEndLevel ?? "?"
-#: src/routes/(authenticated)/reports/battery/+page.svelte
-msgid "Charged: {0} ({1}% → {2}%)"
-msgstr ""
+#~ msgid "Charged: {0} ({1}% → {2}%)"
+#~ msgstr ""
 
-#. 0: formatDuration(cycle.dischargeDurationMinutes); 1: cycle.dischargeStartLevel ?? "?"; 2: cycle.dischargeEndLevel ?? "?"
-#: src/routes/(authenticated)/reports/battery/+page.svelte
-msgid "Lasted: {0} ({1}% → {2}%)"
-msgstr ""
+#~ msgid "Lasted: {0} ({1}% → {2}%)"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/battery/+page.svelte
 msgid "battery life"
@@ -11639,15 +11600,11 @@ msgstr ""
 msgid "Falsely low readings from sleeping on sensor"
 msgstr ""
 
-#. 0: pendingCount
-#: src/routes/(authenticated)/reports/data-quality/+page.svelte
-msgid "{0} pending"
-msgstr ""
+#~ msgid "{0} pending"
+#~ msgstr ""
 
-#. 0: acceptedCount
-#: src/routes/(authenticated)/reports/data-quality/+page.svelte
-msgid "{0} events"
-msgstr ""
+#~ msgid "{0} events"
+#~ msgstr ""
 
 #. 0: pendingCount; 1: pendingCount !== 1 ? 's' \\: ''
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
@@ -11695,6 +11652,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
+#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "Mean"
 msgstr ""
 
@@ -11794,9 +11752,8 @@ msgstr ""
 msgid "<0/> Glucose Stability"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Coefficient of Variation (CV)"
-msgstr ""
+#~ msgid "Coefficient of Variation (CV)"
+#~ msgstr ""
 
 #~ msgid "Stable — well done!"
 #~ msgstr ""
@@ -11807,9 +11764,8 @@ msgstr ""
 #~ msgid "Variable — swings present"
 #~ msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Std. Deviation"
-msgstr ""
+#~ msgid "Std. Deviation"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "MAGE"
@@ -11819,13 +11775,11 @@ msgstr ""
 msgid "<0/> Low Blood Sugar Events"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Total time below range"
-msgstr ""
+#~ msgid "Total time below range"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Low episodes:"
-msgstr ""
+#~ msgid "Low episodes:"
+#~ msgstr ""
 
 #~ msgid "<0/> Great job keeping lows under control!"
 #~ msgstr ""
@@ -11834,9 +11788,8 @@ msgstr ""
 msgid "<0/> High Blood Sugar Events"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Total time above range"
-msgstr ""
+#~ msgid "Total time above range"
+#~ msgstr ""
 
 #~ msgid "<0/> Time above range is well controlled!"
 #~ msgstr ""
@@ -11897,21 +11850,17 @@ msgstr ""
 msgid "Days analyzed"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "<0/> Explore More Reports"
-msgstr ""
+#~ msgid "<0/> Explore More Reports"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "AGP Report"
-msgstr ""
+#~ msgid "AGP Report"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Day-by-Day"
-msgstr ""
+#~ msgid "Day-by-Day"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "All Reports"
-msgstr ""
+#~ msgid "All Reports"
+#~ msgstr ""
 
 #. 0: formatMediumDateTime(new Date(lastUpdated))
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
@@ -12008,9 +11957,8 @@ msgstr ""
 msgid "Time in Fluctuation"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
-msgid "Overall Summary"
-msgstr ""
+#~ msgid "Overall Summary"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
@@ -12071,9 +12019,8 @@ msgstr ""
 msgid "<0>Bolus insulin:</0> Insulin taken for meals and to correct high glucose"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "units/day"
-msgstr ""
+#~ msgid "units/day"
+#~ msgstr ""
 
 #. 0: (insulinStats.totalBasal ?? 0).toFixed(1)
 #. 0: (insulinStats.totalBolus ?? 0).toFixed(1)
@@ -12087,19 +12034,15 @@ msgstr ""
 msgid "Boluses/Day"
 msgstr ""
 
-#. 0: (insulinStats.avgBolus ?? 0).toFixed(1)
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "avg {0}U each"
-msgstr ""
+#~ msgid "avg {0}U each"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "Avg I:C"
 msgstr ""
 
-#. 0: (insulinStats.basalPercent ?? 0).toFixed(0); 1: (insulinStats.bolusPercent ?? 0).toFixed( 0 )
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "Basal/Bolus Ratio: {0}% / {1}%"
-msgstr ""
+#~ msgid "Basal/Bolus Ratio: {0}% / {1}%"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "<0/> Daily Basal/Bolus Breakdown"
@@ -12130,6 +12073,8 @@ msgid "Total Boluses"
 msgstr ""
 
 #. 0: dayCount
+#. 0: dayCount
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "Over {0} days"
 msgstr ""
@@ -12202,15 +12147,11 @@ msgstr ""
 msgid "Daily heart rate patterns with glucose overlay"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/heart-rate/+page.svelte
-#: src/routes/(authenticated)/reports/heart-rate/+page.svelte
-#: src/routes/(authenticated)/reports/heart-rate/+page.svelte
-msgid "bpm"
-msgstr ""
+#~ msgid "bpm"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/heart-rate/+page.svelte
-msgid "Resting Estimate"
-msgstr ""
+#~ msgid "Resting Estimate"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/heart-rate/+page.svelte
 msgid "Min / Max"
@@ -12261,10 +12202,8 @@ msgstr ""
 msgid "Avg Total Daily Dose"
 msgstr ""
 
-#. 0: insulinStats?.tdd?.toFixed(1) ?? "--"
 #. 0: avgBasal?.toFixed(1) ?? "--"
 #. 0: avgScheduled?.toFixed(1) ?? "--"
-#: src/routes/(authenticated)/reports/idp/+page.svelte
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "{0} U/day"
@@ -12385,9 +12324,8 @@ msgstr ""
 msgid "Sleep patterns with overnight glucose overlay"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/sleep/+page.svelte
-msgid "Average Sleep"
-msgstr ""
+#~ msgid "Average Sleep"
+#~ msgstr ""
 
 #~ msgid "per night"
 #~ msgstr ""
@@ -12501,17 +12439,14 @@ msgstr ""
 msgid "Daily step patterns with glucose overlay"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/steps/+page.svelte
-msgid "Total Steps"
-msgstr ""
+#~ msgid "Total Steps"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/steps/+page.svelte
-msgid "Daily Average"
-msgstr ""
+#~ msgid "Daily Average"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/steps/+page.svelte
-msgid "steps/day"
-msgstr ""
+#~ msgid "steps/day"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/steps/+page.svelte
 msgid "<0/> Step Count Actogram"
@@ -14604,6 +14539,7 @@ msgstr ""
 msgid "<0/> Land on a dashboard in about two minutes"
 msgstr ""
 
+#: ../portal/src/routes/features/+page.svelte
 #: src/routes/(unauthenticated)/setup/steps/PathChoice.svelte
 msgid "Coming from Nightscout"
 msgstr ""
@@ -16068,9 +16004,8 @@ msgstr ""
 #~ msgid "← worse"
 #~ msgstr ""
 
-#: src/routes/(authenticated)/reports/comparison/+page.svelte
-msgid "no change"
-msgstr ""
+#~ msgid "no change"
+#~ msgstr ""
 
 #~ msgid "better →"
 #~ msgstr ""
@@ -16119,8 +16054,9 @@ msgstr ""
 msgid "Features"
 msgstr ""
 
-#~ msgid "Alarms"
-#~ msgstr ""
+#: ../portal/src/routes/features/+page.svelte
+msgid "Alarms"
+msgstr ""
 
 #: ../portal/src/routes/docs/installation/portainer/+page.svelte
 msgid "Connectors"
@@ -16161,7 +16097,6 @@ msgid "Product"
 msgstr ""
 
 #: ../portal/src/lib/components/SiteFooter.svelte
-#: ../portal/src/routes/faq/+page.svelte
 msgid "FAQ"
 msgstr ""
 
@@ -16204,9 +16139,8 @@ msgstr ""
 msgid "API Reference"
 msgstr ""
 
-#: ../portal/src/routes/docs/+page.svelte
-msgid "Documentation In Progress"
-msgstr ""
+#~ msgid "Documentation In Progress"
+#~ msgstr ""
 
 #: ../portal/src/lib/components/features/ConnectorsDemo.svelte
 msgid "Libre"
@@ -16467,7 +16401,6 @@ msgstr ""
 
 #: ../portal/src/lib/components/docs/SystemRequirements.svelte
 #: ../portal/src/routes/docs/installation/+page.svelte
-#: ../portal/src/routes/docs/installation/+page.svelte
 #: ../portal/src/routes/docs/installation/docker-compose/+page.svelte
 #: ../portal/src/routes/docs/installation/docker-compose/+page.svelte
 msgid "Docker Compose"
@@ -16489,7 +16422,6 @@ msgstr ""
 msgid "Troubleshooting"
 msgstr ""
 
-#: ../portal/src/routes/docs/installation/+page.svelte
 #: ../portal/src/routes/docs/installation/+page.svelte
 #: ../portal/src/routes/docs/installation/portainer/+page.svelte
 #: ../portal/src/routes/docs/installation/portainer/+page.svelte
@@ -16525,9 +16457,8 @@ msgstr ""
 msgid "Configuration Guide <0/>"
 msgstr ""
 
-#: ../portal/src/routes/docs/installation/+page.svelte
-msgid "Cloud Providers"
-msgstr ""
+#~ msgid "Cloud Providers"
+#~ msgstr ""
 
 #: ../portal/src/routes/docs/installation/+page.svelte
 msgid "Guides for GCP, Azure, Heroku, and other cloud platforms are coming soon."
@@ -16850,9 +16781,8 @@ msgstr ""
 msgid "Error Loading Reports"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "There aren't enough glucose readings in the selected date range to generate analytics. Try selecting a larger date range."
-msgstr ""
+#~ msgid "There aren't enough glucose readings in the selected date range to generate analytics. Try selecting a larger date range."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/+page.svelte
 msgid "This report is for informational purposes. Always consult your healthcare provider for medical advice."
@@ -16905,9 +16835,8 @@ msgstr ""
 msgid "Manage your account, data, and how Nocturne works for you."
 msgstr ""
 
-#: src/routes/(authenticated)/settings/+page.svelte
-msgid "Platform Administration"
-msgstr ""
+#~ msgid "Platform Administration"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/settings/+page.svelte
 msgid "Onboarding"
@@ -17073,7 +17002,6 @@ msgstr ""
 msgid "Leave blank to keep current value"
 msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "GitHub"
 msgstr ""
@@ -17887,10 +17815,8 @@ msgstr ""
 msgid "Target range ({0})"
 msgstr ""
 
-#. 0: Math.abs(analysis.summary?.percentImprovement).toFixed(1)
-#: src/lib/components/reports/SiteChangeImpactChart.svelte
-msgid "↑ {0}% higher"
-msgstr ""
+#~ msgid "↑ {0}% higher"
+#~ msgstr ""
 
 #. 0: analysis.siteChangeCount ?? 0
 #: src/lib/components/reports/SiteChangeImpactChart.svelte
@@ -18346,7 +18272,7 @@ msgstr ""
 #. 0: signed(d)
 #. 0: signed(d, 2)
 #. 0: signed(d)
-#. 0: signedNumber(v)
+#. 0: signedNumber(priorWeek.tirDelta)
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
@@ -18401,22 +18327,14 @@ msgstr ""
 msgid "This report is for informational purposes only. Always consult your healthcare provider for medical advice."
 msgstr ""
 
-#. 0: bgLabel()
-#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
-msgid "Mean ({0})"
-msgstr ""
+#~ msgid "Mean ({0})"
+#~ msgstr ""
 
-#. 0: bgLabel()
-#. 0: bgLabel()
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
-msgid "Median ({0})"
-msgstr ""
+#~ msgid "Median ({0})"
+#~ msgstr ""
 
-#. 0: bgLabel()
-#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
-msgid "Std Dev ({0})"
-msgstr ""
+#~ msgid "Std Dev ({0})"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "A typical split is around 50/50, but this can vary based on diet, activity, and individual needs. Some people do well with 40/60 or 60/40 ratios."
@@ -18472,24 +18390,18 @@ msgstr ""
 #~ msgid "<0>Consider:</0> Look at post-meal patterns and correction doses. Your AGP report can help identify when highs occur most."
 #~ msgstr ""
 
-#. 0: bgLabel()
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Average ({0})"
-msgstr ""
+#~ msgid "Average ({0})"
+#~ msgstr ""
 
 #. 0: bgLabel()
 #. 0: bgLabel()
-#. 0: bgLabel()
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Lowest ({0})"
 msgstr ""
 
-#. 0: bgLabel()
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Highest ({0})"
-msgstr ""
+#~ msgid "Highest ({0})"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "This report is for informational purposes. Always consult your healthcare provider for medical decisions."
@@ -19175,10 +19087,8 @@ msgstr ""
 #~ msgid "Glucose dial"
 #~ msgstr ""
 
-#. 0: auto.toFixed(1)
-#: src/lib/components/dashboard/widgets/TddWidget.svelte
-msgid "<0/> Auto {0}U"
-msgstr ""
+#~ msgid "<0/> Auto {0}U"
+#~ msgstr ""
 
 #: src/lib/components/reports/sensor-integrity/ClusterTable.svelte
 msgid "No windows were flagged in this period."
@@ -19559,9 +19469,8 @@ msgstr ""
 #~ msgid "SourceGraphic"
 #~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "NCTRN / HOMEPAGE"
-msgstr ""
+#~ msgid "NCTRN / HOMEPAGE"
+#~ msgstr ""
 
 #~ msgid "v0.4 · public preview"
 #~ msgstr ""
@@ -19576,9 +19485,8 @@ msgstr ""
 msgid "Every reading."
 msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "<0>Every</0> source."
-msgstr ""
+#~ msgid "<0>Every</0> source."
+#~ msgstr ""
 
 #: ../portal/src/routes/+page.svelte
 msgid "One dashboard."
@@ -19649,9 +19557,8 @@ msgstr ""
 #~ msgid "Five minutes from <0>git clone</0> to a dashboard."
 #~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "~/nocturne"
-msgstr ""
+#~ msgid "~/nocturne"
+#~ msgstr ""
 
 #: ../portal/src/routes/+page.svelte
 #: ../portal/src/routes/features/+page.svelte
@@ -19666,26 +19573,20 @@ msgstr ""
 #~ msgid "05 — Community"
 #~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "Built in the open. <0>Maintained by volunteers.</0>"
-msgstr ""
+#~ msgid "Built in the open. <0>Maintained by volunteers.</0>"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "GitHub stars"
-msgstr ""
+#~ msgid "GitHub stars"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "Forks"
-msgstr ""
+#~ msgid "Forks"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "Latest release"
-msgstr ""
+#~ msgid "Latest release"
+#~ msgstr ""
 
-#. 0: communityData.contributors.length
-#: ../portal/src/routes/+page.svelte
-msgid "{0} contributors"
-msgstr ""
+#~ msgid "{0} contributors"
+#~ msgstr ""
 
 #: ../portal/src/lib/components/SiteHeader.svelte
 msgid "Contribute"
@@ -19757,9 +19658,8 @@ msgstr ""
 #~ msgid "Self-hosted: nothing leaves your machine"
 #~ msgstr ""
 
-#: ../portal/src/lib/components/features/FeaturePillars.svelte
-msgid "What it can do"
-msgstr ""
+#~ msgid "What it can do"
+#~ msgstr ""
 
 #~ msgid "Four things Nocturne is <0>really good at.</0>"
 #~ msgstr ""
@@ -19818,6 +19718,7 @@ msgstr ""
 #~ msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
+#: src/lib/components/dashboard/widgets/TirChartWidget.svelte
 msgid "in range"
 msgstr ""
 
@@ -19930,8 +19831,9 @@ msgstr ""
 #~ msgid "Insulet"
 #~ msgstr ""
 
-#~ msgid "Looping"
-#~ msgstr ""
+#: ../portal/src/routes/+page.svelte
+msgid "Looping"
+msgstr ""
 
 #~ msgid "Legacy"
 #~ msgstr ""
@@ -20072,9 +19974,8 @@ msgstr ""
 msgid "Get Involved"
 msgstr ""
 
-#: ../portal/src/lib/components/SiteFooter.svelte
-msgid "Made with <0/> by the diabetes community"
-msgstr ""
+#~ msgid "Made with <0/> by the diabetes community"
+#~ msgstr ""
 
 #. 0: new Date().getFullYear()
 #: ../portal/src/lib/components/SiteFooter.svelte
@@ -20093,9 +19994,8 @@ msgstr ""
 msgid "Interactive API documentation powered by Scalar. Explore endpoints, test requests, and integrate with Nocturne."
 msgstr ""
 
-#: ../portal/src/routes/docs/+page.svelte
-msgid "We're actively working on expanding the documentation. Check back soon for more guides and tutorials, or contribute on GitHub!"
-msgstr ""
+#~ msgid "We're actively working on expanding the documentation. Check back soon for more guides and tutorials, or contribute on GitHub!"
+#~ msgstr ""
 
 #~ msgid "Authentication"
 #~ msgstr ""
@@ -20175,9 +20075,8 @@ msgstr ""
 #~ msgid "Nocturne is dual-licensed. For individuals and community self-hosters, it is available under the AGPL-3.0 — free to use, modify, and self-host, with the requirement that any modifications you distribute are also open source. For organisations that need to integrate Nocturne into proprietary products or services without those source-disclosure obligations — such as clinics, device manufacturers, or diabetes management platforms — a commercial license is available. This model lets us build a sustainable revenue stream with partnering organisations while fully protecting the rights of individual users and the broader diabetes community."
 #~ msgstr ""
 
-#: ../portal/src/routes/faq/+page.svelte
-msgid "Common questions.<0/> <1>Straight answers.</1>"
-msgstr ""
+#~ msgid "Common questions.<0/> <1>Straight answers.</1>"
+#~ msgstr ""
 
 #: ../portal/src/routes/faq/+page.svelte
 msgid "Answers to frequent questions about Nocturne, installation, migration, and the technology stack."
@@ -20247,49 +20146,39 @@ msgstr ""
 #~ msgid "AGPL-3.0 licensed. Auditable, forkable, never going behind a paywall. The community built it; the community owns it."
 #~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
-msgstr ""
+#~ msgid "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
-msgstr ""
+#~ msgid "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
-msgstr ""
+#~ msgid "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "M12 22v-5M9 8V2M15 8V2M18 8v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"
-msgstr ""
+#~ msgid "M12 22v-5M9 8V2M15 8V2M18 8v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "M3 3v18h18M7 15l3-3 4 4 6-6"
-msgstr ""
+#~ msgid "M3 3v18h18M7 15l3-3 4 4 6-6"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"
-msgstr ""
+#~ msgid "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "<0/> Everything Nocturne does"
-msgstr ""
+#~ msgid "<0/> Everything Nocturne does"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "Big features.<0/> <1>Plain English.</1>"
-msgstr ""
+#~ msgid "Big features.<0/> <1>Plain English.</1>"
+#~ msgstr ""
 
 #: ../portal/src/routes/features/+page.svelte
 msgid "Nocturne is a free, open-source diabetes dashboard you run on your own server. It connects to your CGM, pump, and apps; shows your numbers the way you want; and tells you the moment something needs attention."
 msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "<0/> Also inside"
-msgstr ""
+#~ msgid "<0/> Also inside"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "The unglamorous stuff <0>still matters.</0>"
-msgstr ""
+#~ msgid "The unglamorous stuff <0>still matters.</0>"
+#~ msgstr ""
 
 #~ msgid "A handful of reports, all built in 2014"
 #~ msgstr ""
@@ -20306,9 +20195,8 @@ msgstr ""
 #~ msgid "Slows down after a year of readings"
 #~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "The old way"
-msgstr ""
+#~ msgid "The old way"
+#~ msgstr ""
 
 #~ msgid "Nightscout, circa 2014"
 #~ msgstr ""
@@ -20325,9 +20213,8 @@ msgstr ""
 #~ msgid "The rewrite, 2026"
 #~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "<0/> What changes"
-msgstr ""
+#~ msgid "<0/> What changes"
+#~ msgstr ""
 
 #~ msgid "The same data. <0>Better everything else.</0>"
 #~ msgstr ""
@@ -20342,13 +20229,11 @@ msgstr ""
 #~ msgid "Run your own copy with Docker, or poke around the demo first. No credit card, no waitlist, never any of that."
 #~ msgstr ""
 
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "What's next.<0/> <1>What's done.</1>"
-msgstr ""
+#~ msgid "What's next.<0/> <1>What's done.</1>"
+#~ msgstr ""
 
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "Track Nocturne's development milestones. See what's shipping, what's in progress, and what's already shipped."
-msgstr ""
+#~ msgid "Track Nocturne's development milestones. See what's shipping, what's in progress, and what's already shipped."
+#~ msgstr ""
 
 #: ../portal/src/routes/roadmap/+page.svelte
 msgid "Loading milestones from GitHub…"
@@ -20361,38 +20246,32 @@ msgstr ""
 #~ msgid "01 — In Progress"
 #~ msgstr ""
 
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "Currently <0>building.</0>"
-msgstr ""
+#~ msgid "Currently <0>building.</0>"
+#~ msgstr ""
 
 #~ msgid "0{0} — Upcoming"
 #~ msgstr ""
 
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "On the <0>horizon.</0>"
-msgstr ""
+#~ msgid "On the <0>horizon.</0>"
+#~ msgstr ""
 
 #~ msgid "0{0} — Completed"
 #~ msgstr ""
 
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "Already <0>shipped.</0>"
-msgstr ""
+#~ msgid "Already <0>shipped.</0>"
+#~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Built by volunteers"
-msgstr ""
+#~ msgid "Built by volunteers"
+#~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Devices & apps connected"
-msgstr ""
+#~ msgid "Devices & apps connected"
+#~ msgstr ""
 
 #~ msgid "Ads, trackers, or paywalls"
 #~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Community support"
-msgstr ""
+#~ msgid "Community support"
+#~ msgstr ""
 
 #: ../portal/src/routes/get-involved/+page.svelte
 msgid "Translate Nocturne"
@@ -20483,43 +20362,35 @@ msgstr ""
 msgid "<0/> Join the Discord"
 msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "<0/> Get Involved"
-msgstr ""
+#~ msgid "<0/> Get Involved"
+#~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "The best diabetes tools are built by <0>the people who need them</0>."
-msgstr ""
+#~ msgid "The best diabetes tools are built by <0>the people who need them</0>."
+#~ msgstr ""
 
 #~ msgid "Nocturne is free, open source, and made entirely by volunteers. You don't need to write a line of code to move it forward — here's where to start."
 #~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Ways to help"
-msgstr ""
+#~ msgid "Ways to help"
+#~ msgstr ""
 
 #~ msgid "Seven ways to contribute"
 #~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Open tasks right now"
-msgstr ""
+#~ msgid "Open tasks right now"
+#~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Tagged <0/>"
-msgstr ""
+#~ msgid "Tagged <0/>"
+#~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Open the tracker <0/>"
-msgstr ""
+#~ msgid "Open the tracker <0/>"
+#~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "nightscout/nocturne"
-msgstr ""
+#~ msgid "nightscout/nocturne"
+#~ msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "<0/> get-involved"
-msgstr ""
+#~ msgid "<0/> get-involved"
+#~ msgstr ""
 
 #: ../portal/src/routes/get-involved/+page.svelte
 msgid "Couldn't load live tasks just now. <0>View them on GitHub</0>."
@@ -20648,7 +20519,6 @@ msgid "Use Docker Desktop with WSL2 backend (Windows) or the native Docker Deskt
 msgstr ""
 
 #: ../portal/src/lib/components/PikaPodsVoteCard.svelte
-#: ../portal/src/lib/components/PikaPodsVoteCard.svelte
 msgid "PikaPods"
 msgstr ""
 
@@ -20689,6 +20559,7 @@ msgid "Scope"
 msgstr ""
 
 #: ../portal/src/lib/components/docs/OAuthScopeTable.svelte
+#: ../portal/src/routes/features/+page.svelte
 msgid "Access"
 msgstr ""
 
@@ -20909,36 +20780,27 @@ msgstr ""
 msgid "Check the logs for error details:"
 msgstr ""
 
-#. 0: communityData?.latestRelease ?? "preview"
-#: ../portal/src/routes/+page.svelte
-msgid "{0} · public preview"
-msgstr ""
+#~ msgid "{0} · public preview"
+#~ msgstr ""
 
-#. 0: DATA_SOURCES.length
-#: ../portal/src/routes/+page.svelte
-msgid "{0} data sources"
-msgstr ""
+#~ msgid "{0} data sources"
+#~ msgstr ""
 
-#. 0: AVAILABLE_REPORT_COUNT
-#: ../portal/src/routes/+page.svelte
-msgid "{0} reports"
-msgstr ""
+#~ msgid "{0} reports"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "<0/>Nightscout-compatible, rebuilt"
-msgstr ""
+#~ msgid "<0/>Nightscout-compatible, rebuilt"
+#~ msgstr ""
 
 #: ../portal/src/routes/+page.svelte
 msgid "Nocturne pulls every CGM, pump, and app you use into one self-hosted dashboard. Real-time, multitenant, open source, and built by the diabetes community."
 msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "01 · Why this exists"
-msgstr ""
+#~ msgid "01 · Why this exists"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "A decade of Nightscout taught us what the data needs.<0/> <1>Nocturne is the rebuild.</1>"
-msgstr ""
+#~ msgid "A decade of Nightscout taught us what the data needs.<0/> <1>Nocturne is the rebuild.</1>"
+#~ msgstr ""
 
 #: ../portal/src/routes/+page.svelte
 msgid "Speaks the Nightscout v1, v2, and v3 APIs. The apps, watch faces, and followers you use today keep working; you change the URL they point at."
@@ -20956,34 +20818,26 @@ msgstr ""
 msgid "Built around WebSockets and PostgreSQL. A new reading reaches every open dashboard and follower the moment it lands, and years of history stay quick to browse."
 msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "02 · What plugs in"
-msgstr ""
+#~ msgid "02 · What plugs in"
+#~ msgstr ""
 
-#. 0: DATA_SOURCES.length
-#: ../portal/src/routes/+page.svelte
-msgid "{0} sources. <0>One dashboard.</0>"
-msgstr ""
+#~ msgid "{0} sources. <0>One dashboard.</0>"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "Missing yours?"
-msgstr ""
+#~ msgid "Missing yours?"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "Ask for a connector"
-msgstr ""
+#~ msgid "Ask for a connector"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "04 · Run it tonight"
-msgstr ""
+#~ msgid "04 · Run it tonight"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "Two files and a domain name. <0>That's the install.</0>"
-msgstr ""
+#~ msgid "Two files and a domain name. <0>That's the install.</0>"
+#~ msgstr ""
 
-#: ../portal/src/routes/+page.svelte
-msgid "05 · Community"
-msgstr ""
+#~ msgid "05 · Community"
+#~ msgstr ""
 
 #: ../portal/src/routes/docs/installation/+page.svelte
 msgid "Bring Your Own Reverse Proxy"
@@ -21028,19 +20882,14 @@ msgstr ""
 msgid "Back to home"
 msgstr ""
 
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "01 · In Progress"
-msgstr ""
+#~ msgid "01 · In Progress"
+#~ msgstr ""
 
-#. 0: grouped.inProgress.length > 0 ? 2 \\: 1
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "0{0} · Upcoming"
-msgstr ""
+#~ msgid "0{0} · Upcoming"
+#~ msgstr ""
 
-#. 0: [grouped.inProgress.length > 0, grouped.upcoming.length > 0].filter(Boolean).length + 1
-#: ../portal/src/routes/roadmap/+page.svelte
-msgid "0{0} · Completed"
-msgstr ""
+#~ msgid "0{0} · Completed"
+#~ msgstr ""
 
 #: ../portal/src/routes/get-involved/+page.svelte
 msgid "Every interface string lives in a gettext .po file, one per language, and most languages are barely started. Edit one on GitHub and open a pull request: no build tools, just words."
@@ -21110,9 +20959,8 @@ msgstr ""
 msgid "No open tasks tagged <0/> right now. Check back soon, or <1>ask in the Discord</1>."
 msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Updated continuously: these are real, grabbable tasks."
-msgstr ""
+#~ msgid "Updated continuously: these are real, grabbable tasks."
+#~ msgstr ""
 
 #: ../portal/src/routes/get-involved/+page.svelte
 msgid "There is no company behind Nocturne, just volunteers and the Nightscout Foundation, a registered non-profit. Donations cover servers, test devices, and the work that keeps your data yours. Give once, or subscribe monthly."
@@ -21177,9 +21025,8 @@ msgstr ""
 msgid "Self-hosted with Docker Compose, Portainer, or Helm. No cloud middleman and no third-party analytics. Your health data never leaves your infrastructure."
 msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "Run a household, a clinic, or a community on a single deployment. Each tenant lives in its own database schema, behind its own subdomain."
-msgstr ""
+#~ msgid "Run a household, a clinic, or a community on a single deployment. Each tenant lives in its own database schema, behind its own subdomain."
+#~ msgstr ""
 
 #: ../portal/src/routes/features/+page.svelte
 msgid "Real-time updates"
@@ -21209,13 +21056,11 @@ msgstr ""
 msgid "One instance per person"
 msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "Readings arrive through uploader apps or bridge plugins you configure"
-msgstr ""
+#~ msgid "Readings arrive through uploader apps or bridge plugins you configure"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "Alarms are high and low thresholds, with a snooze"
-msgstr ""
+#~ msgid "Alarms are high and low thresholds, with a snooze"
+#~ msgstr ""
 
 #: ../portal/src/routes/features/+page.svelte
 msgid "One shared API secret for every app and follower"
@@ -21247,13 +21092,11 @@ msgstr ""
 msgid "{0} reports, with your own target range drawn on them"
 msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "The same data. <0>A new home for it.</0>"
-msgstr ""
+#~ msgid "The same data. <0>A new home for it.</0>"
+#~ msgstr ""
 
-#: ../portal/src/routes/features/+page.svelte
-msgid "Ready to take a look?<0/> <1>Start with the demo.</1>"
-msgstr ""
+#~ msgid "Ready to take a look?<0/> <1>Start with the demo.</1>"
+#~ msgstr ""
 
 #: ../portal/src/routes/features/+page.svelte
 msgid "Poke around the demo, then run your own copy with Docker Compose. No account, no credit card, no waitlist."
@@ -21349,19 +21192,14 @@ msgstr ""
 msgid "Your range: {0} · {1}% of time"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "Consensus target: at least 70%"
-msgstr ""
+#~ msgid "Consensus target: at least 70%"
+#~ msgstr ""
 
-#. 0: new Date(lastUpdated).toLocaleTimeString(formatLocale(), { hour\\: "2-digit", minute\\: "2-digit", })
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "<0/> Last updated {0}"
-msgstr ""
+#~ msgid "<0/> Last updated {0}"
+#~ msgstr ""
 
-#. 0.0: formatNumber(entries.length); 0: formatNumericDate(startDate); 1: formatNumericDate(endDate)
-#: src/routes/(authenticated)/reports/+page.svelte
-msgid "<0>{0} readings</0> from {0} to {1} <1/>"
-msgstr ""
+#~ msgid "<0>{0} readings</0> from {0} to {1} <1/>"
+#~ msgstr ""
 
 #~ msgid "<0/>Generated {0}"
 #~ msgstr ""
@@ -21431,6 +21269,9 @@ msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
+#: src/routes/(authenticated)/reports/+page.svelte
+#: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Time in range"
 msgstr ""
 
@@ -21578,6 +21419,7 @@ msgstr ""
 
 #: ../portal/src/lib/components/features/ReportsDemo.svelte
 #: src/lib/components/reports/year-overview/ColorFocusRange.svelte
+#: src/routes/(authenticated)/reports/+page.svelte
 msgid "Average glucose"
 msgstr ""
 
@@ -21641,9 +21483,8 @@ msgstr ""
 msgid "Watchtower is included and checks for image updates daily; no action required."
 msgstr ""
 
-#: ../portal/src/lib/components/features/FeaturePillars.svelte
-msgid "Four things Nocturne is <0>good at.</0>"
-msgstr ""
+#~ msgid "Four things Nocturne is <0>good at.</0>"
+#~ msgstr ""
 
 #: ../portal/src/lib/components/features/FeaturePillars.svelte
 msgid "Open the demo, or run your own copy in a few minutes."
@@ -22220,15 +22061,11 @@ msgstr ""
 msgid "Report generated from {0} basal events between {1} and {2}"
 msgstr ""
 
-#. 0: committed.b.label
-#: src/routes/(authenticated)/reports/comparison/+page.svelte
-msgid "← lower in {0}"
-msgstr ""
+#~ msgid "← lower in {0}"
+#~ msgstr ""
 
-#. 0: committed.b.label
-#: src/routes/(authenticated)/reports/comparison/+page.svelte
-msgid "higher in {0} →"
-msgstr ""
+#~ msgid "higher in {0} →"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
@@ -22245,20 +22082,15 @@ msgid "<0/> Back to Previous View"
 msgstr ""
 
 #. 0: targetLabel
-#. 0: target
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Target {0}"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Headline metrics"
-msgstr ""
+#~ msgid "Headline metrics"
+#~ msgstr ""
 
-#. 0: dayCount
-#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-msgid "Time in Range, glucose variability and estimated A1C over the last {0} days, each shown with the consensus target it is read against."
-msgstr ""
+#~ msgid "Time in Range, glucose variability and estimated A1C over the last {0} days, each shown with the consensus target it is read against."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 msgid "Target: below 7%. Your care team sets your individual target."
@@ -22310,9 +22142,8 @@ msgstr ""
 msgid "No estimate"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "A typical split is around 50/50; 40/60 and 60/40 are both common. Diet, activity and pump settings all move it."
-msgstr ""
+#~ msgid "A typical split is around 50/50; 40/60 and 60/40 are both common. Diet, activity and pump settings all move it."
+#~ msgstr ""
 
 #. 0: insulinStats.correctionBoluses ?? 0; 1: insulinStats.mealBoluses ?? 0
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
@@ -22356,9 +22187,8 @@ msgstr ""
 msgid "Saturday"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "<0/> What to look for"
-msgstr ""
+#~ msgid "<0/> What to look for"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
 msgid "A consistent rise in the hours before site changes is a pattern worth discussing with your care team."
@@ -22466,28 +22296,22 @@ msgstr ""
 msgid "Sleep sessions arrive from connected sources (Apple Health, Health Connect, Fitbit, Oura, Garmin, Samsung) or manual entries. If tracking started recently, try a larger date range."
 msgstr ""
 
-#: src/routes/(authenticated)/reports/sleep/+page.svelte
-msgid "Nights Tracked"
-msgstr ""
+#~ msgid "Nights Tracked"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/sleep/+page.svelte
-#: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
-msgid "Sleep Score"
-msgstr ""
+#~ msgid "Sleep Score"
+#~ msgstr ""
 
 #: src/lib/components/reports/sleep/SleepCompositionChart.svelte
 #: src/routes/(authenticated)/reports/sleep/+page.svelte
-#: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
 msgid "Overnight TIR"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/sleep/+page.svelte
-msgid "Dawn Rise"
-msgstr ""
+#~ msgid "Dawn Rise"
+#~ msgstr ""
 
-#: src/routes/(authenticated)/reports/sleep/+page.svelte
-msgid "Overnight Lows"
-msgstr ""
+#~ msgid "Overnight Lows"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "<0/> Weekly Breakdown"
@@ -22866,6 +22690,8 @@ msgid "Awake"
 msgstr ""
 
 #: src/lib/components/reports/sleep/SleepCompositionChart.svelte
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
+#: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
 msgid "Sleep score"
 msgstr ""
 
@@ -22913,13 +22739,10 @@ msgstr ""
 msgid "<0/> Sleep & Overnight"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
-msgid "Time Asleep"
-msgstr ""
+#~ msgid "Time Asleep"
+#~ msgstr ""
 
-#. 0: bg(report.overnightTir.meanBg ?? 0); 1: bgLabel()
 #. 0: bg(report.overnightTir?.meanBg ?? 0); 1: bgLabel()
-#: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
 #: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
 msgid "Mean {0} {1}"
 msgstr ""
@@ -23241,13 +23064,11 @@ msgstr ""
 #: ../portal/src/routes/get-involved/+page.svelte
 #: ../portal/src/routes/get-involved/+page.svelte
 #: ../portal/src/routes/get-involved/+page.svelte
-#: ../portal/src/routes/get-involved/+page.svelte
 msgid "Outbound Click"
 msgstr ""
 
-#: ../portal/src/routes/get-involved/+page.svelte
-msgid "Ads, cookies, or paywalls"
-msgstr ""
+#~ msgid "Ads, cookies, or paywalls"
+#~ msgstr ""
 
 #: ../portal/src/routes/get-involved/+page.svelte
 msgid "Get Involved Lane"
@@ -24355,9 +24176,8 @@ msgstr ""
 msgid "<0/> Bolus: {0} U/day ({1}%)"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/idp/+page.svelte
-msgid "Target: ≤33% <0/>"
-msgstr ""
+#~ msgid "Target: ≤33% <0/>"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Asleep (unstaged)"
@@ -24494,4 +24314,398 @@ msgstr ""
 
 #: src/lib/components/dashboard/glucose-chart/tracks/SwimLaneTrack.svelte
 msgid "Mode"
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Every source."
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "A decade of Nightscout taught us what the data needs. Nocturne is the rebuild."
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Connected accounts"
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Nightscout uploaders"
+msgstr ""
+
+#. 0: DATA_SOURCES.length
+#: ../portal/src/routes/+page.svelte
+msgid "{0} sources, one dashboard"
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Sign in to a device account and readings arrive by themselves. Anything that already uploads to Nightscout uploads to Nocturne."
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Missing yours? <0>Ask for a connector</0>."
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Two files and a domain name. That's the install."
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Download the compose file and its environment template, fill in your domain and passwords, and start it. Caddy fetches the certificate."
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "# BASE_DOMAIN, INSTANCE_KEY, four database passwords"
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid ", and the latest release is <0/>"
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "Built in the open, maintained by volunteers"
+msgstr ""
+
+#: ../portal/src/routes/+page.svelte
+msgid "<0/> people have contributed so far. The repository has <1/> stars and <2/> forks<3/>."
+msgstr ""
+
+#: ../portal/src/lib/components/SiteFooter.svelte
+msgid "Built by the diabetes community"
+msgstr ""
+
+#: ../portal/src/routes/docs/+page.svelte
+msgid "The documentation is still growing. If a guide you need is missing, check back soon or contribute one on GitHub."
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Run a household, a clinic, or a community on a single deployment. Each tenant gets its own subdomain, and row-level security in the database keeps one tenant's data out of another's."
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Who it serves"
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Getting data in"
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Uploader apps or bridge plugins you configure"
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "High and low thresholds, with a snooze"
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Everything Nocturne does"
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Also inside"
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Aspect"
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "The same data, and the same API your apps already speak. What changes is everything around it."
+msgstr ""
+
+#: ../portal/src/routes/features/+page.svelte
+msgid "Start with the demo"
+msgstr ""
+
+#: ../portal/src/routes/get-involved/+page.svelte
+msgid "The best diabetes tools are built by the people who need them."
+msgstr ""
+
+#: ../portal/src/routes/get-involved/+page.svelte
+msgid "Open tasks"
+msgstr ""
+
+#: ../portal/src/routes/get-involved/+page.svelte
+msgid "Issues tagged <0/> on GitHub, live."
+msgstr ""
+
+#: ../portal/src/routes/get-involved/+page.svelte
+msgid "Comments:"
+msgstr ""
+
+#: ../portal/src/routes/roadmap/+page.svelte
+msgid "Nocturne's development milestones, live from GitHub: what's being built now, what's next, and what has already shipped."
+msgstr ""
+
+#: ../portal/src/routes/roadmap/+page.svelte
+msgid "In progress"
+msgstr ""
+
+#: ../portal/src/routes/roadmap/+page.svelte
+msgid "Upcoming"
+msgstr ""
+
+#: ../portal/src/routes/faq/+page.svelte
+msgid "Frequently asked questions"
+msgstr ""
+
+#: src/lib/components/dashboard/RecentEntriesCard.svelte
+msgid "Recent readings"
+msgstr ""
+
+#: src/lib/components/dashboard/RecentTreatmentsCard.svelte
+msgid "Recent treatments"
+msgstr ""
+
+#: src/lib/components/reports/SiteChangeImpactChart.svelte
+msgid "Avg before"
+msgstr ""
+
+#: src/lib/components/reports/SiteChangeImpactChart.svelte
+msgid "Avg after"
+msgstr ""
+
+#: src/lib/components/reports/SiteChangeImpactChart.svelte
+msgid "TIR before"
+msgstr ""
+
+#: src/lib/components/reports/SiteChangeImpactChart.svelte
+msgid "TIR after"
+msgstr ""
+
+#. 0: bolusCount; 1: dailyAvgBoluses.toFixed(1); 2: avgInsulinPerBolus.toFixed(1)
+#: src/lib/components/treatments/TreatmentStatsCard.svelte
+msgid "{0} boluses · {1}/day · {2}U avg"
+msgstr ""
+
+#. 0: carbEntriesCount; 1: dailyAvgCarbs.toFixed(0); 2: avgCarbsPerEntry.toFixed(0)
+#: src/lib/components/treatments/TreatmentStatsCard.svelte
+msgid "{0} meals · {1}g/day · {2}g avg/meal"
+msgstr ""
+
+#. 0: formatNumber(entries.length)
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "· {0} readings"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Consensus target: at least 70% of time in range."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Estimated A1C"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Coefficient of variation"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Time below range"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Typical day"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Glucose over 24 hours, across the whole range"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Full report <0/>"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "No data in this range"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "There aren't enough glucose readings between these dates to summarise. Choose a longer date range."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "All reports"
+msgstr ""
+
+#. 0: new Date(lastUpdated).toLocaleTimeString(formatLocale(), { hour\\: "2-digit", minute\\: "2-digit", })
+#: src/routes/(authenticated)/reports/+page.svelte
+msgid "Last updated {0}"
+msgstr ""
+
+#: src/routes/(authenticated)/settings/+page.svelte
+msgid "Platform administration"
+msgstr ""
+
+#: ../portal/src/lib/components/features/FeaturePillars.svelte
+msgid "Four things Nocturne is good at"
+msgstr ""
+
+#: ../portal/src/lib/components/features/ReportsDemo.svelte
+msgid "Cabin, sans-serif"
+msgstr ""
+
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
+msgid "<0/>Auto"
+msgstr ""
+
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
+msgid "<0/>Bolus"
+msgstr ""
+
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
+msgid "<0/>Basal"
+msgstr ""
+
+#: src/lib/components/dashboard/widgets/TddWidget.svelte
+msgid "<0/>Carbs"
+msgstr ""
+
+#. 0: improvement > 0 ? "+" \\: ""; 1: improvement.toFixed(1)
+#: src/lib/components/dashboard/widgets/TirChartWidget.svelte
+msgid "{0}{1}% vs 90d"
+msgstr ""
+
+#. 0: (veryLow + low).toFixed(0)
+#: src/lib/components/dashboard/widgets/TirChartWidget.svelte
+msgid "Below {0}%"
+msgstr ""
+
+#. 0: (high + veryHigh).toFixed(0)
+#: src/lib/components/dashboard/widgets/TirChartWidget.svelte
+msgid "Above {0}%"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Below range"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Above range"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
+#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
+msgid "<0/> All Reports"
+msgstr ""
+
+#. 0: pendingCount
+#: src/routes/(authenticated)/reports/data-quality/+page.svelte
+msgid "· {0} pending"
+msgstr ""
+
+#. 0: acceptedCount
+#: src/routes/(authenticated)/reports/data-quality/+page.svelte
+msgid "{0} events<0/>"
+msgstr ""
+
+#. 0: committed.b.label
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
+msgid "<0/> Lower in {0}"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
+msgid "No change"
+msgstr ""
+
+#. 0: committed.b.label
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
+msgid "Higher in {0} <0/>"
+msgstr ""
+
+#. 0: formatDateShort(cycle.chargeStartMills); 1: cycle.chargeStartLevel ?? "?"; 2: cycle.chargeEndLevel ?? "?"
+#: src/routes/(authenticated)/reports/battery/+page.svelte
+msgid "Charged: {0} ({1}% to {2}%)"
+msgstr ""
+
+#. 0: formatDuration(cycle.dischargeDurationMinutes); 1: cycle.dischargeStartLevel ?? "?"; 2: cycle.dischargeEndLevel ?? "?"
+#: src/routes/(authenticated)/reports/battery/+page.svelte
+msgid "Lasted: {0} ({1}% to {2}%)"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Target: <7%"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Standard deviation"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Low episodes"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Lowest"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "Highest"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "More reports"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "<0/>AGP Report"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "<0/>Day-by-Day"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "<0/>Treatments"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/executive-summary/+page.svelte
+msgid "<0/>All reports"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/heart-rate/+page.svelte
+msgid "Resting estimate"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/idp/+page.svelte
+msgid "U/day"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
+msgid "What to look for"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/steps/+page.svelte
+msgid "Total steps"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/steps/+page.svelte
+msgid "Daily average"
+msgstr ""
+
+#. 0: caption; 1: delta
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
+msgid "{0} · {1} vs prior 7 nights"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
+msgid "Average sleep"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
+msgid "Nights tracked"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
+msgid "Dawn rise"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/sleep/+page.svelte
+msgid "Overnight lows"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
+msgid "Time asleep"
 msgstr ""
