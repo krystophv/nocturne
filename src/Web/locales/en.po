@@ -1815,9 +1815,6 @@ msgstr "Bolus:"
 #. 0: formatInsulinDisplay(treatmentSummary?.totals?.insulin?.bolus)
 #. 0: formatInsulinDisplay(treatmentSummary?.totals?.insulin?.basal)
 #. 0: formatInsulinDisplay((treatmentSummary?.totals?.insulin?.bolus ?? 0) + (treatmentSummary?.totals?.insulin?.basal ?? 0))
-#. 0: morning.toFixed(1)
-#. 0: afternoon.toFixed(1)
-#. 0: evening.toFixed(1)
 #. 0: d.value.toFixed(2)
 #. 0: (row.insulin ?? 0).toFixed(2)
 #: src/lib/components/calendar/CalendarDayCell.svelte
@@ -1834,9 +1831,6 @@ msgstr "Bolus:"
 #: src/lib/components/reports/DailyInsulinSummary.svelte
 #: src/lib/components/reports/DailyInsulinSummary.svelte
 #: src/lib/components/reports/DailyInsulinSummary.svelte
-#: src/lib/components/reports/InsulinDeliveryChart.svelte
-#: src/lib/components/reports/InsulinDeliveryChart.svelte
-#: src/lib/components/reports/InsulinDeliveryChart.svelte
 #: src/lib/components/reports/InsulinDonutChart.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "{0}U"
@@ -4354,6 +4348,7 @@ msgstr "Snack"
 #: src/lib/components/reports/sleep/single-night/Hypnogram.svelte
 #: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
+#: src/lib/components/status-pills/BasalPill.svelte
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
@@ -6198,6 +6193,7 @@ msgid "<0/> Status at {0}"
 msgstr "<0/> Status at {0}"
 
 #: src/lib/components/dashboard/widgets/TddWidget.svelte
+#: src/lib/components/reports/InsulinDeliveryChart.svelte
 #: src/lib/components/reports/RetrospectiveStats.svelte
 msgid "U"
 msgstr "U"
@@ -16597,7 +16593,6 @@ msgid "Changelog"
 msgstr "Changelog"
 
 #: ../portal/src/routes/changelog/+page.svelte
-#: ../portal/src/routes/changelog/+page.svelte
 msgid "Failed to load changelog"
 msgstr "Failed to load changelog"
 
@@ -16639,9 +16634,7 @@ msgid "Blog"
 msgstr "Blog"
 
 #. 0: post.author
-#. 0: data.meta?.author
 #: ../portal/src/routes/blog/+page.svelte
-#: ../portal/src/routes/blog/[slug]/+page.svelte
 msgid "By {0}"
 msgstr "By {0}"
 
@@ -17776,9 +17769,8 @@ msgstr "Your basal percentage is higher than typical — consider discussing wit
 msgid "Your bolus percentage is higher than typical — this may indicate high carb meals or frequent corrections."
 msgstr "Your bolus percentage is higher than typical — this may indicate high carb meals or frequent corrections."
 
-#: src/lib/components/reports/BasalBolusRatioChart.svelte
-msgid "<0>Typical ratios:</0> Most people with Type 1 diabetes have around 50% basal and 50% bolus. Ratios can vary based on diet, activity level, and individual needs. <1/>"
-msgstr "<0>Typical ratios:</0> Most people with Type 1 diabetes have around 50% basal and 50% bolus. Ratios can vary based on diet, activity level, and individual needs. <1/>"
+#~ msgid "<0>Typical ratios:</0> Most people with Type 1 diabetes have around 50% basal and 50% bolus. Ratios can vary based on diet, activity level, and individual needs. <1/>"
+#~ msgstr "<0>Typical ratios:</0> Most people with Type 1 diabetes have around 50% basal and 50% bolus. Ratios can vary based on diet, activity level, and individual needs. <1/>"
 
 #: src/lib/components/profile/ProfileEditDialog.svelte
 msgid "Modify your therapy settings. Changes are not saved until you click Save."
@@ -20651,13 +20643,11 @@ msgstr "Fill in the configuration form. Set a strong password for each PostgreSQ
 msgid "Click <0>Deploy the stack</0>."
 msgstr "Click <0>Deploy the stack</0>."
 
-#: ../portal/src/routes/docs/installation/portainer/+page.svelte
-msgid "<0>Bot integrations are optional.</0> Leave Discord, Telegram, Slack, and WhatsApp fields blank if you don't need them. They can be configured later by updating the stack."
-msgstr "<0>Bot integrations are optional.</0> Leave Discord, Telegram, Slack, and WhatsApp fields blank if you don't need them. They can be configured later by updating the stack."
+#~ msgid "<0>Bot integrations are optional.</0> Leave Discord, Telegram, Slack, and WhatsApp fields blank if you don't need them. They can be configured later by updating the stack."
+#~ msgstr "<0>Bot integrations are optional.</0> Leave Discord, Telegram, Slack, and WhatsApp fields blank if you don't need them. They can be configured later by updating the stack."
 
-#: ../portal/src/routes/docs/installation/portainer/+page.svelte
-msgid "In Portainer, go to <0>Stacks → Add stack</0>. Name it <1/> and select <2>Web editor</2>."
-msgstr "In Portainer, go to <0>Stacks → Add stack</0>. Name it <1/> and select <2>Web editor</2>."
+#~ msgid "In Portainer, go to <0>Stacks → Add stack</0>. Name it <1/> and select <2>Web editor</2>."
+#~ msgstr "In Portainer, go to <0>Stacks → Add stack</0>. Name it <1/> and select <2>Web editor</2>."
 
 #: ../portal/src/routes/docs/installation/portainer/+page.svelte
 msgid "Paste the contents of <0/> into the editor."
@@ -20683,9 +20673,8 @@ msgstr "The Nocturne app template lets you deploy directly from Portainer's temp
 msgid "Step 1: Add the template URL"
 msgstr "Step 1: Add the template URL"
 
-#: ../portal/src/routes/docs/installation/portainer/+page.svelte
-msgid "In Portainer, go to <0>Settings → App Templates</0> and set the URL to:"
-msgstr "In Portainer, go to <0>Settings → App Templates</0> and set the URL to:"
+#~ msgid "In Portainer, go to <0>Settings → App Templates</0> and set the URL to:"
+#~ msgstr "In Portainer, go to <0>Settings → App Templates</0> and set the URL to:"
 
 #: ../portal/src/routes/docs/installation/portainer/+page.svelte
 msgid "Click <0>Save settings</0>."
@@ -21527,17 +21516,15 @@ msgstr "Patron"
 msgid "Funds sustained maintainer time on connectors, security updates, and support."
 msgstr "Funds sustained maintainer time on connectors, security updates, and support."
 
-#: ../portal/src/lib/components/docs/SupportNocturne.svelte
-msgid "/ month"
-msgstr "/ month"
+#~ msgid "/ month"
+#~ msgstr "/ month"
 
 #: ../portal/src/lib/components/docs/SupportNocturne.svelte
 msgid "Subscribe <0/>"
 msgstr "Subscribe <0/>"
 
-#: ../portal/src/lib/components/docs/SupportNocturne.svelte
-msgid "<0/> Support Nocturne"
-msgstr "<0/> Support Nocturne"
+#~ msgid "<0/> Support Nocturne"
+#~ msgstr "<0/> Support Nocturne"
 
 #: ../portal/src/lib/components/docs/SupportNocturne.svelte
 msgid "Nocturne is free and always will be. A monthly subscription to the Nightscout Foundation covers servers, test devices, and the maintenance that keeps self-hosting working."
@@ -24059,6 +24046,8 @@ msgid "Target range {0}"
 msgstr "Target range {0}"
 
 #. 0: zone.label; 1: zone.range
+#. 0: currentZone.label; 1: currentZone.range
+#: src/lib/components/reports/GlycemicRiskIndexChart.svelte
 #: src/lib/components/reports/GlycemicRiskIndexChart.svelte
 msgid "Zone {0} ({1})"
 msgstr "Zone {0} ({1})"
@@ -24706,3 +24695,65 @@ msgstr "Overnight lows"
 #: src/routes/(authenticated)/reports/sleep/[date]/+page.svelte
 msgid "Time asleep"
 msgstr "Time asleep"
+
+#: ../portal/src/routes/changelog/+page.svelte
+msgid "<0/> Failed to load changelog"
+msgstr "<0/> Failed to load changelog"
+
+#: src/lib/components/status-pills/BasalPill.svelte
+msgid "Temp basal"
+msgstr "Temp basal"
+
+#. 0: label
+#: src/lib/components/status-pills/BasalPill.svelte
+msgid "{0} · combo"
+msgstr "{0} · combo"
+
+#. 0: time; 1: bg(data.eventualBG); 2: bgLabel()
+#: src/lib/components/status-pills/LoopPill.svelte
+msgid "{0} · eventual {1} {2}"
+msgstr "{0} · eventual {1} {2}"
+
+#: src/lib/components/status-pills/StatusPill.svelte
+#: src/lib/components/status-pills/TrackerPill.svelte
+msgid "Urgent:"
+msgstr "Urgent:"
+
+#: src/lib/components/status-pills/StatusPill.svelte
+#: src/lib/components/status-pills/TrackerPill.svelte
+msgid "Warning:"
+msgstr "Warning:"
+
+#: src/lib/components/status-pills/StatusPill.svelte
+msgid "(not current)"
+msgstr "(not current)"
+
+#. 0: tier.amount
+#: ../portal/src/lib/components/docs/SupportNocturne.svelte
+msgid "{0} / month"
+msgstr "{0} / month"
+
+#: ../portal/src/lib/components/docs/SupportNocturne.svelte
+msgid "Support Nocturne"
+msgstr "Support Nocturne"
+
+#. 0: data.meta?.author
+#: ../portal/src/routes/blog/[slug]/+page.svelte
+msgid "<0/> · By {0}"
+msgstr "<0/> · By {0}"
+
+#: ../portal/src/routes/docs/installation/portainer/+page.svelte
+msgid "Bot integrations are optional"
+msgstr "Bot integrations are optional"
+
+#: ../portal/src/routes/docs/installation/portainer/+page.svelte
+msgid "Leave Discord, Telegram, Slack, and WhatsApp fields blank if you don't need them. They can be configured later by updating the stack."
+msgstr "Leave Discord, Telegram, Slack, and WhatsApp fields blank if you don't need them. They can be configured later by updating the stack."
+
+#: ../portal/src/routes/docs/installation/portainer/+page.svelte
+msgid "In Portainer, go to <0>Stacks › Add stack</0>. Name it <1/> and select <2>Web editor</2>."
+msgstr "In Portainer, go to <0>Stacks › Add stack</0>. Name it <1/> and select <2>Web editor</2>."
+
+#: ../portal/src/routes/docs/installation/portainer/+page.svelte
+msgid "In Portainer, go to <0>Settings › App Templates</0> and set the URL to:"
+msgstr "In Portainer, go to <0>Settings › App Templates</0> and set the URL to:"
