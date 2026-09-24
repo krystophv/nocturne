@@ -20,6 +20,7 @@ public static class ReadVisibilityFilter
         where TEntity : IIdentified
     {
         var key = RecordTypeKeys.Key(recordType);
+        // Keep the correlated Any (NOT EXISTS). !ids.Contains(e.Id) emits NOT IN, which PostgreSQL 17 rescans per row past work_mem.
         return query.Where(e =>
             !ctx.LinkedRecords.Any(lr => lr.RecordType == key && !lr.IsPrimary && lr.RecordId == e.Id));
     }
