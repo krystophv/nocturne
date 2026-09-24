@@ -4,6 +4,7 @@
   import { slide } from "svelte/transition";
   import { flip } from "svelte/animate";
   import * as Card from "$lib/components/ui/card";
+  import { Button } from "$lib/components/ui/button";
   import {
     Users,
     Check,
@@ -43,7 +44,7 @@
   import { retainQuery } from "$lib/api/retain-query.svelte";
 
   const effectivePermissions: string[] = $derived(
-    (page.data as any).effectivePermissions ?? [],
+    page.data.effectivePermissions ?? [],
   );
   const hasStar = $derived(effectivePermissions.includes("*"));
   const canInvite = $derived(
@@ -214,7 +215,7 @@
       {#if canManageSharing}
         <span class="inline-flex h-8 items-center gap-2 rounded-full bg-secondary px-3 text-xs font-medium">
           {#if share?.enabled}
-            <Globe class="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+            <Globe class="h-3.5 w-3.5 text-success" />
           {:else}
             <Lock class="h-3.5 w-3.5 text-muted-foreground" />
           {/if}
@@ -236,9 +237,9 @@
   {/if}
 
   {#if successMessage}
-    <div class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-900/20">
-      <Check class="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
-      <p class="text-sm text-green-800 dark:text-green-200">{successMessage}</p>
+    <div class="flex items-start gap-3 rounded-md border border-success/30 bg-success/10 p-3">
+      <Check class="mt-0.5 h-4 w-4 shrink-0 text-success" />
+      <p class="text-sm text-success">{successMessage}</p>
     </div>
   {/if}
 
@@ -333,9 +334,10 @@
             onCancel={() => (showCreateInvite = false)}
           />
         {:else}
-          <button
-            type="button"
-            class="w-full rounded-xl border border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 bg-transparent hover:bg-muted/50 transition-colors py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
+          <Button
+            variant="dashed"
+            size="lg"
+            class="w-full"
             onclick={() => (showCreateInvite = true)}
             {@attach coachmark({
               key: "setup-invite.create-link",
@@ -345,7 +347,7 @@
           >
             <Link class="h-4 w-4" />
             Create Invite Link
-          </button>
+          </Button>
         {/if}
       {/if}
 

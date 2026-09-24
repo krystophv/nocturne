@@ -6,6 +6,7 @@
   import { toast } from "svelte-sonner";
   import { useToastSubmission } from "$lib/forms";
   import { X, Loader2 } from "lucide-svelte";
+  import { Button } from "$lib/components/ui/button";
   import { StateHistory } from "runed";
   import {
     clockGlucoseSourceOf,
@@ -401,16 +402,18 @@
 {/snippet}
 
 {#snippet removeButton(rowIndex: number, elementId: string)}
-  <button
-    type="button"
-    class="absolute -right-2 -top-2 z-10 flex size-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-md transition-transform hover:scale-110"
+  <Button
+    variant="destructive"
+    size="icon-2xs"
+    class="absolute -right-2 -top-2 z-10"
     onclick={(e) => {
       e.stopPropagation();
       removeElement(rowIndex, elementId);
     }}
+    aria-label="Remove element"
   >
-    <X class="size-3" />
-  </button>
+    <X />
+  </Button>
 {/snippet}
 
 {#snippet draggableElement(
@@ -420,6 +423,7 @@
 )}
   {@const belowThreshold = isTrackerBelowThreshold(element)}
   <div class="relative">
+    <!-- eslint-disable-next-line no-restricted-syntax -- draggable element on the clock canvas -->
     <button
       type="button"
       draggable="true"
@@ -536,6 +540,7 @@
             </div>
             <!-- Background chart selection button -->
             <div class="absolute left-2 top-2 z-20">
+              <!-- eslint-disable-next-line no-restricted-syntax -- element selector on the clock canvas -->
               <button
                 type="button"
                 class="rounded bg-black/50 px-2 py-1 text-xs text-white/70 transition-all hover:bg-black/70 hover:text-white {selectedElementId ===

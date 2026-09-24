@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Nocturne.API.Controllers.V4.Analytics;
+using Nocturne.API.Services.Analytics;
 using Nocturne.Core.Contracts.Analytics;
 using Nocturne.Core.Contracts.Glucose;
 using Nocturne.Core.Contracts.Multitenancy;
@@ -34,14 +35,17 @@ public class StatisticsControllerTests
     private readonly Mock<IApsSnapshotRepository> _apsSnapshotRepoMock = new();
     private readonly Mock<IDeviceEventRepository> _deviceEventRepoMock = new();
     private readonly Mock<IAidMetricsService> _aidMetricsServiceMock = new();
+    private readonly Mock<IBasalRateResolver> _basalRateResolverMock = new();
 
-    private StatisticsController CreateController(ICanonicalGlucoseService? canonicalGlucose = null)
+    private StatisticsController CreateController(
+        ICanonicalGlucoseService? canonicalGlucose = null,
+        IStatisticsService? statisticsService = null)
     {
         var controller = new StatisticsController(
-            _statsServiceMock.Object,
+            statisticsService ?? _statsServiceMock.Object,
             Mock.Of<ICacheService>(),
             Mock.Of<IProfileProjectionService>(),
-            Mock.Of<IBasalRateResolver>(),
+            _basalRateResolverMock.Object,
             _basalSegmentsMock.Object,
             _therapySettingsResolverMock.Object,
             _glucoseRepoMock.Object,
@@ -384,6 +388,56 @@ public class StatisticsControllerTests
     }
 
     [Fact]
+    public async Task GetBasalAnalysis_FillsMissingScheduledRate_SoLegacyTempsCountAsHighAndLow()
+    {
+        var start = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        var tempBasals = new List<TempBasal>
+        {
+            new()
+            {
+                StartTimestamp = start,
+                EndTimestamp = start.AddMinutes(30),
+                Rate = 1.5,
+                Origin = TempBasalOrigin.Manual,
+            },
+            new()
+            {
+                StartTimestamp = start.AddHours(2),
+                EndTimestamp = start.AddHours(2).AddMinutes(30),
+                Rate = 0.5,
+                Origin = TempBasalOrigin.Manual,
+            },
+        };
+
+        _tempBasalRepoMock
+            .Setup(r => r.GetAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tempBasals);
+        _bolusRepoMock
+            .Setup(r => r.GetAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(),
+                It.IsAny<bool>(), It.IsAny<BolusKind?>(),
+                It.IsAny<DateTime?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Bolus>());
+        _basalRateResolverMock
+            .Setup(r => r.BuildResolverAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Func<long, double>)(_ => 1.0));
+
+        var result = await CreateController(statisticsService: new StatisticsService())
+            .GetBasalAnalysis(start, start.AddDays(1));
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var payload = ok.Value.Should().BeOfType<BasalAnalysisResponse>().Subject;
+        payload.TempBasalInfo.HighTemps.Should().Be(1);
+        payload.TempBasalInfo.LowTemps.Should().Be(1);
+    }
+
+    [Fact]
     public async Task GetHourlyInsulinDelivery_WithBasalInjections_DoesNotSynthesizeScheduledBasal()
     {
         var start = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -552,8 +606,8 @@ public class StatisticsControllerTests
         var controller = CreateController();
 
         var result = await controller.GetPunchCardData(
-            new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc),
-            new DateTime(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc));
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 2));
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var payload = ok.Value.Should().BeOfType<PunchCardResponse>().Subject;
@@ -565,6 +619,45 @@ public class StatisticsControllerTests
         juneSecond.Entries.Should().ContainSingle(e => e.Mills == reading.Mills);
         capturedFrom.Should().Be(new DateTime(2026, 5, 31, 22, 0, 0, DateTimeKind.Utc));
         capturedTo.Should().Be(new DateTime(2026, 6, 2, 21, 59, 59, 999, DateTimeKind.Utc).AddTicks(9999));
+    }
+
+    [Fact]
+    public async Task GetPunchCardData_EastOfUtcTenantWindowStartsAtTheLocalFirstDay()
+    {
+        DateTime? capturedFrom = null;
+        DateTime? capturedTo = null;
+
+        _therapySettingsResolverMock
+            .Setup(r => r.GetTimezoneAsync(null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Australia/Sydney");
+
+        _glucoseRepoMock
+            .Setup(r => r.GetAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(),
+                It.IsAny<bool>(), It.IsAny<DateTime?>(), It.IsAny<Guid?>(),
+                It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
+            .Callback<DateTime?, DateTime?, string?, string?, int, int, bool, bool, DateTime?, Guid?, CancellationToken, Guid?>(
+                (from, to, _, _, _, _, _, _, _, _, _, _) =>
+                {
+                    capturedFrom = from;
+                    capturedTo = to;
+                })
+            .ReturnsAsync(Array.Empty<SensorGlucose>());
+        SetupEmptyTreatments();
+
+        var result = await CreateController()
+            .GetPunchCardData(new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var payload = ok.Value.Should().BeOfType<PunchCardResponse>().Subject;
+
+        capturedFrom.Should().Be(new DateTime(2026, 8, 31, 14, 0, 0, DateTimeKind.Utc));
+        capturedTo.Should().Be(new DateTime(2026, 9, 30, 13, 59, 59, 999, DateTimeKind.Utc).AddTicks(9999));
+
+        var month = payload.Months.Should().ContainSingle().Subject;
+        month.Days.Should().ContainSingle(d => d.Date == "2026-09-01");
     }
 
     [Fact]
@@ -601,7 +694,9 @@ public class StatisticsControllerTests
                 },
             });
 
-        var result = await CreateController().GetPunchCardData(dayStart, dayStart.AddDays(1));
+        var result = await CreateController().GetPunchCardData(
+            DateOnly.FromDateTime(dayStart),
+            DateOnly.FromDateTime(dayStart.AddDays(1)));
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var payload = ok.Value.Should().BeOfType<PunchCardResponse>().Subject;

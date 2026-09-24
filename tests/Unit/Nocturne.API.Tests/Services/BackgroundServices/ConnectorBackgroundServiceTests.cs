@@ -57,8 +57,9 @@ public class ConnectorBackgroundServiceTests
             Action? onSyncCompleted = null,
             ConnectorSyncBudget? budget = null,
             ConnectorPollerNudge? nudge = null,
-            TimeSpan? unconfiguredRecheck = null)
-            : base(serviceProvider, budget ?? new ConnectorSyncBudget(), logger, nudge)
+            TimeSpan? unconfiguredRecheck = null,
+            ConnectorSyncMetrics? metrics = null)
+            : base(serviceProvider, budget ?? new ConnectorSyncBudget(), logger, nudge, metrics)
         {
             _syncResult = syncResult;
             _onSync = onSync;
@@ -585,6 +586,70 @@ public class ConnectorBackgroundServiceTests
     }
 
     /// <summary>
+    /// A sync must leave one duration with the outcome and one slot-wait measurement, tagged with the
+    /// connector and never the tenant.
+    /// </summary>
+    [Fact]
+    public async Task SuccessfulSync_RecordsDurationAndSlotWait()
+    {
+        var (cleanup, connStr) = CreateSqliteDb();
+        using var _ = cleanup;
+
+        using var factory = new TestMeterFactory();
+        using var listener = new ConnectorMetricListener(factory);
+        var budget = new ConnectorSyncBudget();
+        var metrics = new ConnectorSyncMetrics(factory, budget);
+
+        var configServiceMock = BuildEnabledConfigMock();
+        var serviceProvider = BuildServiceProvider(
+            connStr, configServiceMock, new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true, Message = "OK" },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            budget: budget,
+            metrics: metrics);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        listener.SlotWaits.Should().ContainSingle("a sync takes exactly one slot");
+        listener.SlotWaits[0].Connector.Should().Be("TestConnector");
+
+        listener.Durations.Should().ContainSingle("a sync is measured exactly once");
+        listener.Durations[0].Connector.Should().Be("TestConnector");
+        listener.Durations[0].Outcome.Should().Be("success");
+    }
+
+    [Fact]
+    public async Task FailedSync_RecordsFailureOutcome()
+    {
+        var (cleanup, connStr) = CreateSqliteDb();
+        using var _ = cleanup;
+
+        using var factory = new TestMeterFactory();
+        using var listener = new ConnectorMetricListener(factory);
+        var budget = new ConnectorSyncBudget();
+        var metrics = new ConnectorSyncMetrics(factory, budget);
+
+        var configServiceMock = BuildEnabledConfigMock();
+        var serviceProvider = BuildServiceProvider(
+            connStr, configServiceMock, new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = false, Errors = ["upstream refused"] },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            budget: budget,
+            metrics: metrics);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        listener.Durations.Should().ContainSingle();
+        listener.Durations[0].Outcome.Should().Be("failure");
+    }
+
+    /// <summary>
     ///     A connector that could not sign in has no token, so it fetches nothing and reports a run
     ///     that found no data — indistinguishable from a healthy source with nothing new. What the
     ///     token provider recorded about the sign-in is what has to override that.
@@ -1065,6 +1130,30 @@ public class ConnectorBackgroundServiceTests
         winner.Should().Be(run,
             "a tenant exceeding PerTenantSyncTimeout must be cancelled so the cycle completes");
         await run;
+    }
+
+    [Fact]
+    public async Task SyncForTenant_WhenASyncThrowsACancellationNobodyAskedFor_LogsItAsAnErrorNotATimeout()
+    {
+        // A cancellation of neither the poller's token nor the timeout's is not the per-tenant
+        // timeout, so it must fall through to the generic handler rather than be reported as one.
+        var (cleanup, connStr, _) = CreateSqliteDbWithTenantId();
+        using var _c = cleanup;
+
+        var serviceProvider = BuildServiceProvider(
+            connStr, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
+
+        var logger = new MessageRecordingLogger();
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true },
+            logger,
+            onSync: () => throw new OperationCanceledException());
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        logger.Messages.Should().NotContain(m => m.Contains("exceeded"));
+        logger.Messages.Should().Contain(m => m.Contains("Error syncing"));
     }
 
     /// <summary>Config-service mock that reports the test connector as configured and enabled.</summary>

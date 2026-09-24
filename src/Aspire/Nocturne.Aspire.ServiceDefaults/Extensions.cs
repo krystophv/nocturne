@@ -80,7 +80,8 @@ public static class Extensions
                 metrics
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter("Npgsql");
             })
             .WithTracing(tracing =>
             {
@@ -96,15 +97,14 @@ public static class Extensions
         return builder;
     }
 
+    public static bool IsOtlpConfigured(this IConfiguration configuration) =>
+        !string.IsNullOrWhiteSpace(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+
     private static IHostApplicationBuilder AddOpenTelemetryExporters(
         this IHostApplicationBuilder builder
     )
     {
-        var useOtlpExporter = !string.IsNullOrWhiteSpace(
-            builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]
-        );
-
-        if (useOtlpExporter)
+        if (builder.Configuration.IsOtlpConfigured())
         {
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }

@@ -8,7 +8,7 @@
     CardTitle,
   } from "$lib/components/ui/card";
   import { Button } from "$lib/components/ui/button";
-  import { Badge } from "$lib/components/ui/badge";
+  import { Badge, type BadgeVariant } from "$lib/components/ui/badge";
   import * as Tabs from "$lib/components/ui/tabs";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -37,7 +37,6 @@
     type MigrationJobStatus,
     type PendingMigrationConfig,
     type MigrationSourceDto,
-    type TestMigrationConnectionResult,
     MigrationJobState,
     MigrationMode,
   } from "$api";
@@ -179,7 +178,10 @@
     }
   }
 
-  function getStateBadge(state: MigrationJobState | undefined) {
+  function getStateBadge(state: MigrationJobState | undefined): {
+    variant: BadgeVariant;
+    label: string;
+  } {
     switch (state) {
       case MigrationJobState.Pending:
         return { variant: "secondary", label: "Pending" };
@@ -262,18 +264,18 @@
 
     <Tabs.Root bind:value={activeTab} class="space-y-6">
       <Tabs.List class="grid w-full grid-cols-3">
-        <Tabs.Trigger value="migrate" class="gap-2">
+        <Tabs.Trigger value="migrate">
           <Play class="h-4 w-4" />
           New Migration
         </Tabs.Trigger>
-        <Tabs.Trigger value="progress" class="gap-2">
+        <Tabs.Trigger value="progress">
           <RefreshCw class="h-4 w-4" />
           Progress
           {#if hasActiveMigration}
-            <Badge variant="default" class="ml-1 animate-pulse">Active</Badge>
+            <Badge variant="default" live class="ml-1">Active</Badge>
           {/if}
         </Tabs.Trigger>
-        <Tabs.Trigger value="history" class="gap-2">
+        <Tabs.Trigger value="history">
           <Clock class="h-4 w-4" />
           History
           {#if history.length > 0}
@@ -299,14 +301,14 @@
               <RadioGroup.Root bind:value={mode} class="flex gap-4">
                 <div class="flex items-center space-x-2">
                   <RadioGroup.Item value="Api" id="mode-api" />
-                  <Label for="mode-api" class="flex items-center gap-2">
+                  <Label for="mode-api" class="flex items-center">
                     <Globe class="h-4 w-4" />
                     Nightscout API
                   </Label>
                 </div>
                 <div class="flex items-center space-x-2">
                   <RadioGroup.Item value="MongoDb" id="mode-mongodb" />
-                  <Label for="mode-mongodb" class="flex items-center gap-2">
+                  <Label for="mode-mongodb" class="flex items-center">
                     <Database class="h-4 w-4" />
                     MongoDB (Advanced)
                   </Label>
@@ -412,7 +414,7 @@
                 {...testConnectionForm.enhance(async ({ submit }) => {
                   connectionTestResult = null;
                   await submit();
-                  const result = testConnectionForm.result as TestMigrationConnectionResult | undefined;
+                  const result = testConnectionForm.result;
                   if (result) {
                     connectionTestResult = {
                       success: result.isSuccess || false,
@@ -457,7 +459,7 @@
                 {...startMigrationForm.enhance(async ({ submit }) => {
                   error = null;
                   await submit();
-                  const jobInfo = startMigrationForm.result as MigrationJobInfo | undefined;
+                  const jobInfo = startMigrationForm.result;
                   if (jobInfo?.id) {
                     await pollMigrationStatus(jobInfo.id);
                     activeTab = "progress";
@@ -509,7 +511,7 @@
             <CardTitle class="flex items-center gap-2">
               Active Migration
               {#if hasActiveMigration}
-                <Badge variant="default" class="animate-pulse">Running</Badge>
+                <Badge variant="default" live>Running</Badge>
               {/if}
             </CardTitle>
             <CardDescription>
@@ -546,7 +548,7 @@
                 {#if activeMigration.collectionProgress && Object.keys(activeMigration.collectionProgress).length > 0}
                   <div class="space-y-3">
                     <Label>Collection Progress</Label>
-                    {#each Object.entries(activeMigration.collectionProgress) as [name, collection]}
+                    {#each Object.entries(activeMigration.collectionProgress) as [name, collection] (name)}
                       <div
                         class="flex justify-between items-center p-3 border rounded-lg"
                       >
@@ -608,7 +610,7 @@
               </div>
             {:else}
               <div class="space-y-3">
-                {#each history as job}
+                {#each history as job (job.id)}
                   {@const badge = getStateBadge(job.state)}
                   <div
                     class="flex items-center justify-between p-4 rounded-lg border"
@@ -624,7 +626,7 @@
                       <div>
                         <div class="font-medium flex items-center gap-2">
                           {job.sourceDescription || "Unknown Source"}
-                          <Badge variant={badge.variant as any}>
+                          <Badge variant={badge.variant}>
                             {badge.label}
                           </Badge>
                         </div>
@@ -668,7 +670,7 @@
             </CardHeader>
             <CardContent>
               <div class="space-y-3">
-                {#each sources as source}
+                {#each sources as source (source.id)}
                   <div
                     class="flex items-center justify-between p-4 rounded-lg border"
                   >

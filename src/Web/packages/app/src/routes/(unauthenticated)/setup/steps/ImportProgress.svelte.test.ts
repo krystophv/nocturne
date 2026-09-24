@@ -23,7 +23,7 @@ describe("ImportProgress", () => {
       errorMessage:
         "1 of 7 collections imported, 1 failed, 5 not attempted. treatments: Could not reach your Nightscout server.",
       collectionProgress: {},
-    } as MigrationJobStatus;
+    };
 
     render(ImportProgress, { jobId: "job-1", onComplete: () => {} });
 
@@ -47,43 +47,43 @@ describe("ImportProgress", () => {
           skippedReason: "Skipped: listing the people and devices that can sign in needs an admin API secret.",
         },
       },
-    } as unknown as MigrationJobStatus;
+    };
 
     render(ImportProgress, { jobId: "job-3", onComplete: () => {} });
 
     const summary = page.getByText(/6 of 7 collections imported/);
     await expect.element(summary).toBeVisible();
-    await expect.element(summary).not.toHaveClass("text-amber-400");
+    await expect.element(summary).not.toHaveClass("text-warning");
   });
 
   it("colours the summary as a warning when a collection actually failed", async () => {
     status = {
       state: MigrationJobState.Completed,
       progressPercentage: 100,
-      errorMessage: "1 of 2 collections imported, 1 failed. treatments: Nightscout answered 500 for treatments.",
+      errorMessage: "1 of 2 collections imported, 1 failed. treatments: Nightscout answered with a server error (500). It may be down or restarting; try again shortly.",
       collectionProgress: {
         treatments: {
           collectionName: "treatments",
           isComplete: true,
-          failureReason: "Nightscout answered 500 for treatments.",
+          failureReason: "Nightscout answered with a server error (500). It may be down or restarting; try again shortly.",
         },
       },
-    } as unknown as MigrationJobStatus;
+    };
 
     render(ImportProgress, { jobId: "job-4", onComplete: () => {} });
 
     await expect
       .element(page.getByText(/1 of 2 collections imported/))
-      .toHaveClass("text-amber-400");
+      .toHaveClass("text-warning");
   });
 
   it("says nothing extra when every collection imported", async () => {
     status = {
       state: MigrationJobState.Completed,
       progressPercentage: 100,
-      errorMessage: null,
+      errorMessage: undefined,
       collectionProgress: {},
-    } as MigrationJobStatus;
+    };
 
     render(ImportProgress, { jobId: "job-2", onComplete: () => {} });
 

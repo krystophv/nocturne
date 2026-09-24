@@ -13,6 +13,7 @@
   } from "@simplewebauthn/browser";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
   import {
     getInviteInfo,
     acceptInvite,
@@ -77,7 +78,7 @@
     acceptError = null;
     try {
       await acceptInvite(token);
-      await goto("/", { replaceState: true });
+      await goto(resolve("/"), { replaceState: true });
     } catch (err) {
       console.error("Accepting the invite failed:", err);
       acceptError = describeSubmitError(
@@ -96,9 +97,10 @@
   function loginWithProvider(providerId: string) {
     isRedirecting = true;
     selectedProvider = providerId;
-    const params = new URLSearchParams();
-    params.set("provider", providerId);
-    params.set("returnUrl", `/join?token=${encodeURIComponent(token)}`);
+    const params = new URLSearchParams({
+      provider: providerId,
+      returnUrl: `/join?token=${encodeURIComponent(token)}`,
+    });
     window.location.href = `/api/auth/oidc/login?${params.toString()}`;
   }
 
@@ -155,7 +157,7 @@
   }
 
   function goHome() {
-    goto("/", { replaceState: true });
+    goto(resolve("/"), { replaceState: true });
   }
 </script>
 
@@ -190,9 +192,9 @@
       <!-- Passkey registration complete — show recovery codes -->
       <Card.Header class="space-y-1 text-center">
         <div
-          class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10"
+          class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success/10"
         >
-          <Check class="h-6 w-6 text-green-600" />
+          <Check class="h-6 w-6 text-success" />
         </div>
         <Card.Title class="text-2xl font-bold">You're In</Card.Title>
         <Card.Description>

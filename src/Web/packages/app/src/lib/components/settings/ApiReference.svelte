@@ -11,7 +11,7 @@
   import { describeSubmitError } from "$lib/forms/submit-error";
 
   const effectivePermissions: string[] = $derived(
-    (page.data as any).effectivePermissions ?? [],
+    page.data.effectivePermissions ?? [],
   );
   const canManageSettings = $derived(
     effectivePermissions.includes("*") ||
@@ -87,6 +87,7 @@
       <div class="border-t border-border px-5 py-4 @md:px-6">
         <a
           href="/scalar"
+          rel="external"
           class="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
         >
           Open the API reference

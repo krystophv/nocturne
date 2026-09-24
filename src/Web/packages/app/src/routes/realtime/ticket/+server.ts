@@ -25,9 +25,10 @@ import { AUTH_COOKIE_NAMES } from "$lib/config/auth-cookies";
  *
  * Always responds 200 with `{ token: string | null, retry?: boolean }`. A null
  * token means no ticket was minted; `retry: true` distinguishes a transient
- * failure (API unreachable / 5xx — the client should keep trying) from a
- * definitive denial (`retry` absent — the user isn't permitted realtime, so the
- * client stays quietly disconnected rather than surfacing a connection error).
+ * failure (API unreachable / 5xx, or this instance misconfigured — the client
+ * should keep trying) from a definitive denial (`retry` absent — the user isn't
+ * permitted realtime, so the client stays quietly disconnected rather than
+ * surfacing a connection error).
  */
 export const GET: RequestHandler = async (event) => {
   const secret = env.INSTANCE_KEY;
@@ -35,9 +36,12 @@ export const GET: RequestHandler = async (event) => {
   const effectiveHost = getEffectiveHost(event.request, event.cookies);
 
   // Fail closed: without the signing secret, the API URL, or a resolvable host
-  // we cannot mint a trustworthy ticket.
+  // we cannot mint a trustworthy ticket. This is a deployment fault, not a
+  // per-user denial, so it is transient: a definitive denial would latch the
+  // client into a terminal "realtime not permitted" state that no longer
+  // recovers once the operator fixes the configuration.
   if (!secret || !apiBaseUrl || !effectiveHost) {
-    return json({ token: null });
+    return json({ token: null, retry: true });
   }
 
   // Probe the read endpoint from inside the BFF so the instance key is attached,
@@ -65,7 +69,7 @@ export const GET: RequestHandler = async (event) => {
   // Bound the probe (5s): the client fetches this inside the Socket.IO `auth`
   // callback, which has no timeout of its own, so a hung API must not wedge the
   // handshake. The request's own abort signal is already bound via the client.
-  let probeStatus: number | null = null;
+  let probeStatus: number;
   try {
     const probe = await httpClient.fetch(
       `${apiBaseUrl}/api/v1/entries?count=1`,

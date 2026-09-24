@@ -34,7 +34,7 @@
   let {
     createOpen = $bindable(false),
     prefillLabel = "",
-    prefillScopes = [] as string[],
+    prefillScopes = [],
     onCreateClose,
   }: {
     createOpen?: boolean;
@@ -191,12 +191,12 @@
 
 {#if successMessage}
   <div
-    class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-900/20"
+    class="flex items-start gap-3 rounded-md border border-success/30 bg-success/10 p-3"
   >
     <Check
-      class="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400"
+      class="mt-0.5 h-4 w-4 shrink-0 text-success"
     />
-    <p class="text-sm text-green-800 dark:text-green-200">
+    <p class="text-sm text-success">
       {successMessage}
     </p>
   </div>
@@ -258,14 +258,14 @@
                 <div class="flex items-center gap-2">
                   <p class="text-sm font-medium">{grant.label}</p>
                   {#if grant.isLegacy}
-                    <Badge variant="outline" class="text-xs border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                    <Badge variant="warning">
                       Legacy — rotate to per-device key
                     </Badge>
                   {/if}
                 </div>
                 <div class="flex flex-wrap gap-1.5">
-                  {#each grant.scopes as scope}
-                    <Badge variant="outline" class="text-xs font-mono">
+                  {#each grant.scopes as scope, i (i)}
+                    <Badge variant="outline" class="font-mono">
                       {scope}
                     </Badge>
                   {/each}
@@ -273,9 +273,9 @@
               </div>
               <Button
                 type="button"
-                variant="ghost"
+                variant="ghost-destructive"
                 size="sm"
-                class="text-destructive hover:text-destructive shrink-0"
+                class="shrink-0"
                 disabled={isRevoking === grant.id}
                 onclick={() => confirmRevokeGrant(grant)}
               >
@@ -324,12 +324,12 @@
       </Dialog.Header>
       <div class="space-y-4 py-4">
         <div
-          class="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-900/20"
+          class="flex items-start gap-3 rounded-md border border-warning/30 bg-warning/10 p-3"
         >
           <AlertTriangle
-            class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+            class="mt-0.5 h-4 w-4 shrink-0 text-warning"
           />
-          <p class="text-sm text-amber-800 dark:text-amber-200">
+          <p class="text-sm text-warning">
             This token will only be shown once. Copy it now.
           </p>
         </div>
@@ -338,11 +338,11 @@
             type="text"
             value={createdToken}
             readonly
-            class="font-mono text-sm"
+            class="font-mono"
           />
           <Button variant="outline" size="icon" onclick={copyToken}>
             {#if copiedToken}
-              <Check class="h-4 w-4 text-green-600" />
+              <Check class="h-4 w-4 text-success" />
             {:else}
               <Copy class="h-4 w-4" />
             {/if}

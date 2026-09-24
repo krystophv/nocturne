@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isoNow } from "$lib/utils/now";
   import { formatClock } from "$lib/utils/formatting";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
@@ -44,7 +45,7 @@
   import { severity, severityLabel } from "$lib/components/alerts/severity";
 
   const effectivePermissions: string[] = $derived(
-    (page.data as any).effectivePermissions ?? [],
+    page.data.effectivePermissions ?? [],
   );
   // Every write on this page — rule toggle/delete/test-fire, acknowledge, and
   // clearing the manual mute — is gated on alerts.readwrite server-side.
@@ -138,7 +139,7 @@
       await acknowledge({}).updates(
         activeAlertsQuery.withOverride((current) =>
           (current ?? []).map((a) =>
-            a.acknowledgedAt ? a : { ...a, acknowledgedAt: new Date() },
+            a.acknowledgedAt ? a : { ...a, acknowledgedAt: isoNow() },
           ),
         ),
       );
@@ -150,11 +151,11 @@
   }
 
   function newRule(): void {
-    goto("/alerts/new");
+    goto(resolve("/alerts/new"));
   }
 
   function editRule(rule: AlertRuleResponse): void {
-    goto(`/alerts/${rule.id}`);
+    goto(resolve(`/alerts/${rule.id}`));
   }
 </script>
 
@@ -189,7 +190,7 @@
     {/snippet}
 
     {#snippet failed(error)}
-      <Card class="border-destructive">
+      <Card variant="destructive">
         <CardContent class="flex items-center gap-3">
           <AlertTriangle class="h-5 w-5 text-destructive" />
           <div>
@@ -249,10 +250,10 @@
         </CardContent>
       </Card>
       <a
-        href="/alerts/history"
+        href={resolve("/alerts/history")}
         class="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Card class="transition-colors hover:bg-muted/40">
+        <Card interactive>
           <CardContent>
             <p class="text-xs uppercase tracking-wider text-muted-foreground">Fired this week</p>
             <p class="mt-1 text-2xl font-bold tabular-nums">
@@ -266,10 +267,10 @@
     <!-- Active alerts banner (kept as a persistent surface separate from the
          FiringToast which handles fresh-fire moments). -->
     {#if activeAlerts.length > 0}
-      <Card class="border-destructive/40 bg-destructive/5">
+      <Card variant="destructive">
         <CardHeader>
           <div class="flex flex-col gap-2 @sm:flex-row @sm:items-center @sm:justify-between">
-            <CardTitle class="flex min-w-0 items-center gap-2 text-destructive">
+            <CardTitle variant="destructive" class="flex min-w-0 items-center gap-2">
               <AlertTriangle class="h-5 w-5 shrink-0" />
               <span class="truncate">Active alerts ({activeAlerts.length})</span>
             </CardTitle>

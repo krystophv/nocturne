@@ -148,6 +148,23 @@ public class StatisticsController : ControllerBase
     }
 
     /// <summary>
+    /// Fills <see cref="TempBasal.ScheduledRate"/> from the profile's scheduled rate at each
+    /// temp's start, for records that have none. Legacy-sourced temps arrive with a null rate and
+    /// <see cref="IStatisticsService.CalculateBasalAnalysis"/> can only classify a temp as high or
+    /// low against it. Scheduled-origin records are the profile baseline itself and are skipped.
+    /// </summary>
+    private async Task FillMissingScheduledRatesAsync(
+        IList<TempBasal> tempBasals, long startMills, long endMills, CancellationToken ct)
+    {
+        var rateAt = await _basalRateResolver.BuildResolverAsync(startMills, endMills, ct);
+        foreach (var tb in tempBasals)
+        {
+            if (!tb.ScheduledRate.HasValue && tb.Origin != TempBasalOrigin.Scheduled)
+                tb.ScheduledRate = rateAt(tb.StartMills);
+        }
+    }
+
+    /// <summary>
     /// Appends one <see cref="TempBasalOrigin.Scheduled"/> TempBasal per profile basal segment
     /// when the pump reported none.
     /// </summary>
@@ -945,15 +962,15 @@ public class StatisticsController : ControllerBase
     /// and treatment summaries inline (no per-day round-trips). Replaces a frontend orchestrator
     /// that was issuing ~62 sequential HTTP calls per 31-day month.
     /// </summary>
-    /// <param name="startDate">Inclusive start of the date range.</param>
-    /// <param name="endDate">Inclusive end of the date range.</param>
+    /// <param name="startDate">Inclusive start calendar date in the tenant's timezone.</param>
+    /// <param name="endDate">Inclusive end calendar date in the tenant's timezone.</param>
     /// <returns><see cref="PunchCardResponse"/> with months, days, and global maxes for chart scaling.</returns>
     [HttpGet("punch-card")]
     [RequireScope(Scope.GlucoseRead)]
     [RemoteQuery]
     public async Task<ActionResult<PunchCardResponse>> GetPunchCardData(
-        [FromQuery] DateTime startDate,
-        [FromQuery] DateTime endDate,
+        [FromQuery] DateOnly startDate,
+        [FromQuery] DateOnly endDate,
         CancellationToken cancellationToken = default
     )
     {
@@ -962,8 +979,8 @@ public class StatisticsController : ControllerBase
             ? TimeZoneHelper.GetTimeZoneInfoFromId(tzId)
             : TimeZoneInfo.Utc;
 
-        var startLocalDate = DateTime.SpecifyKind(startDate.Date, DateTimeKind.Unspecified);
-        var endLocalDate = DateTime.SpecifyKind(endDate.Date, DateTimeKind.Unspecified);
+        var startLocalDate = startDate.ToDateTime(TimeOnly.MinValue);
+        var endLocalDate = endDate.ToDateTime(TimeOnly.MinValue);
         var startDt = TimeZoneInfo.ConvertTimeToUtc(startLocalDate, tz);
         var endDt = TimeZoneInfo.ConvertTimeToUtc(endLocalDate.AddDays(1).AddTicks(-1), tz);
 
@@ -1162,13 +1179,7 @@ public class StatisticsController : ControllerBase
         var (boluses, algorithmBoluses, tempBasals, basalInjections) =
             await FetchInsulinRecordsAsync(startDt, endDt, 10000, default, carbTask);
         var carbs  = await carbTask;
-        var rateAt = await _basalRateResolver.BuildResolverAsync(startMs, endMs);
-
-        foreach (var tb in tempBasals)
-        {
-            if (!tb.ScheduledRate.HasValue && tb.Origin != TempBasalOrigin.Scheduled)
-                tb.ScheduledRate = rateAt(tb.StartMills);
-        }
+        await FillMissingScheduledRatesAsync(tempBasals, startMs, endMs, HttpContext.RequestAborted);
 
         var result = _statisticsService.CalculateInsulinDeliveryStatistics(
             boluses,
@@ -1209,6 +1220,10 @@ public class StatisticsController : ControllerBase
 
         var tempBasals       = (await tempBasalTask).ToList();
         var algorithmBoluses = await algoTask;
+
+        var startMs = new DateTimeOffset(startUtc, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        var endMs   = new DateTimeOffset(endUtc,   TimeSpan.Zero).ToUnixTimeMilliseconds();
+        await FillMissingScheduledRatesAsync(tempBasals, startMs, endMs, HttpContext.RequestAborted);
 
         await AddScheduledBasalFallbackAsync(tempBasals, startUtc, endUtc, recordedBasal: null);
 

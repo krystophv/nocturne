@@ -139,12 +139,12 @@
     {#if createdInviteUrl}
       <div class="space-y-4">
         <div
-          class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-900/20"
+          class="flex items-start gap-3 rounded-md border border-success/30 bg-success/10 p-3"
         >
           <Check
-            class="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400"
+            class="mt-0.5 h-4 w-4 shrink-0 text-success"
           />
-          <p class="text-sm text-green-800 dark:text-green-200">
+          <p class="text-sm text-success">
             Invite link created. Share it with the new member.
           </p>
         </div>
@@ -158,11 +158,11 @@
             type="text"
             value={createdInviteUrl}
             readonly
-            class="font-mono text-sm"
+            class="font-mono"
           />
           <Button variant="outline" size="icon" onclick={copyInviteUrl}>
             {#if copiedInvite}
-              <Check class="h-4 w-4 text-green-600" />
+              <Check class="h-4 w-4 text-success" />
             {:else}
               <Copy class="h-4 w-4" />
             {/if}
@@ -237,13 +237,17 @@
           open={showInvitePermissions}
           onOpenChange={(open: boolean) => (showInvitePermissions = open)}
         >
-          <Collapsible.Trigger class="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full">
-            {#if showInvitePermissions}
-              <ChevronUp class="h-4 w-4" />
-            {:else}
-              <ChevronDown class="h-4 w-4" />
-            {/if}
-            Direct Permissions (optional)
+          <Collapsible.Trigger>
+            {#snippet child({ props }: { props: Record<string, unknown> })}
+              <Button {...props} variant="subtle" size="inline" class="w-full justify-start">
+                {#if showInvitePermissions}
+                  <ChevronUp class="h-4 w-4" />
+                {:else}
+                  <ChevronDown class="h-4 w-4" />
+                {/if}
+                Direct Permissions (optional)
+              </Button>
+            {/snippet}
           </Collapsible.Trigger>
           <Collapsible.Content>
             <div class="mt-3">

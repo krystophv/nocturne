@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isoNow } from "$lib/utils/now";
   import {
     getActiveAlerts,
     snoozeInstance,
@@ -32,6 +33,7 @@
   // Which ids we've already shown, so a refresh doesn't spawn duplicates. Kept
   // off $state: the effect below both reads and writes it, and nothing renders
   // from it.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- kept off $state, see above
   const seen = new Set<string>();
   // Reactive clock so each card's relative time ages while it sits on screen.
   // Toasts never auto-dismiss and existing queue items aren't replaced on
@@ -103,7 +105,7 @@
       }).updates(
         activeAlerts.withOverride((current) =>
           (current ?? []).map((a) =>
-            a.id === id ? { ...a, acknowledgedAt: new Date() } : a
+            a.id === id ? { ...a, acknowledgedAt: isoNow() } : a
           )
         )
       )
@@ -121,7 +123,7 @@
   <div
     role="region"
     aria-label="Fresh alerts"
-    class="pointer-events-none fixed inset-x-0 top-4 z-50 flex flex-col items-center gap-2 px-4"
+    class="pointer-events-none fixed print:hidden inset-x-0 top-4 z-50 flex flex-col items-center gap-2 px-4"
   >
     {#each queue as a (a.id)}
       <div
@@ -143,7 +145,7 @@
                 {a.ruleName ?? "Alert"}
               </span>
               <span
-                class="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground"
+                class="ml-auto text-2xs uppercase tracking-wider text-muted-foreground"
               >
                 {formatTimeSince(a.startedAt, now)}
               </span>
@@ -152,8 +154,7 @@
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                class="h-7 px-2 text-xs"
+                size="xs"
                 onclick={() => snooze(a.id ?? "", 5)}
               >
                 5m
@@ -161,8 +162,7 @@
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                class="h-7 px-2 text-xs"
+                size="xs"
                 onclick={() => snooze(a.id ?? "", 15)}
               >
                 15m
@@ -170,8 +170,7 @@
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                class="h-7 px-2 text-xs"
+                size="xs"
                 onclick={() => snooze(a.id ?? "", 30)}
               >
                 30m
@@ -179,8 +178,7 @@
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                class="h-7 px-2 text-xs"
+                size="xs"
                 onclick={() => snooze(a.id ?? "", 60)}
               >
                 1h
@@ -191,8 +189,8 @@
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                class="h-7 px-2 text-xs ml-auto"
+                size="xs"
+                class="ml-auto"
                 onclick={() => ack(a.id ?? "")}
               >
                 Acknowledge
@@ -201,8 +199,7 @@
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  class="h-7 px-2 text-xs"
+                  size="xs"
                   href="/alerts/{a.alertRuleId}"
                   title="Open this rule's settings"
                   aria-label="Open settings for {a.ruleName ?? 'this rule'}"
@@ -213,8 +210,7 @@
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                class="h-7 w-7"
+                size="icon-xs"
                 onclick={() => dismiss(a.id ?? "")}
                 aria-label="Close this notification without acknowledging"
               >

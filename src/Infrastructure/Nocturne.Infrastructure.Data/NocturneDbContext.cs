@@ -359,6 +359,8 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
     public DbSet<CoachMarkStateEntity> CoachMarkStates { get; set; }
 
+    public DbSet<TranslationDraftEntity> TranslationDrafts { get; set; }
+
     public DbSet<ReadAccessLogEntity> ReadAccessLog { get; set; }
 
     public DbSet<TenantAuditConfigEntity> TenantAuditConfig { get; set; }
@@ -676,6 +678,21 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
                 .HasDatabaseName($"ix_{entity.Metadata.GetTableName()}_tenant_legacy_id")
                 .IsUnique()
                 .HasFilter("legacy_id IS NOT NULL AND deleted_at IS NULL");
+        }
+
+        // GetBlockingLegacyIdsAsync also wants the user tombstones, which the unique index above
+        // leaves out, so without this the lookup scans every row the tenant owns: 719 ms and 187k
+        // buffers to find 200 ids on the largest production tenant. With it, the planner answers
+        // the OR in WhereBlocksRecreation with a BitmapOr over the two partial indexes. Tombstones
+        // only, not every soft-deleted row, because that is the arm the OR asks for; on production
+        // that is 1.5% of sensor_glucose and at most 15% of any table. Named, because an unnamed HasIndex on the same
+        // columns would reconfigure the unique index instead of adding this one.
+        foreach (var entity in V4LegacyIdRecordEntities.Select(t => modelBuilder.Entity(t)))
+        {
+            var name = $"ix_{entity.Metadata.GetTableName()}_tenant_legacy_id_user_deleted";
+            entity.HasIndex([nameof(ITenantScoped.TenantId), nameof(IV4Entity.LegacyId)], name)
+                .HasDatabaseName(name)
+                .HasFilter("legacy_id IS NOT NULL AND deleted_by_user");
         }
 
         foreach (var entity in V4CorrelationIndexedEntities.Select(t => modelBuilder.Entity(t)))
@@ -1399,6 +1416,17 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             .HasIndex(c => new { c.ConnectorName, c.TenantId })
             .HasDatabaseName("ix_connector_configurations_connector_name_tenant")
             .IsUnique();
+
+        // The index above is case-sensitive, so it only means "one row per connector per tenant"
+        // while the column holds one spelling of each name. Enforced here rather than trusted to
+        // the writers: a writer that predates the rule — an instance still serving during a rolling
+        // deploy, or an operator's own SQL — would otherwise insert a row that satisfies the index
+        // and that no lookup can ever find again.
+        modelBuilder
+            .Entity<ConnectorConfigurationEntity>()
+            .ToTable(t => t.HasCheckConstraint(
+                "ck_connector_configurations_connector_name_lower",
+                "connector_name = lower(connector_name)"));
 
         modelBuilder.Entity<PlatformSettingsEntity>()
             .HasIndex(ps => ps.Category)
@@ -2331,9 +2359,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             entity.ToTable("client_devices");
             entity.Property(e => e.Capabilities).HasColumnType("text[]");
 
-            // Revoke-cascade: removing the OAuth grant removes the device. The FK is nullable and
-            // unpopulated until the device-management flow resolves the grant, so existing rows are
-            // unaffected.
+            // Fires only on a hard grant delete; a revoke stages removal via ClientDeviceGrantCascade.
             entity.HasOne<OAuthGrantEntity>()
                 .WithMany()
                 .HasForeignKey(e => e.GrantId)
@@ -2486,6 +2512,15 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             .Entity<CoachMarkStateEntity>()
             .HasIndex(e => new { e.SubjectId, e.MarkKey })
             .IsUnique();
+
+        // TranslationDraftEntity: the logical key is unique via a functional
+        // index created with raw SQL in the migration (see AddTranslationDrafts);
+        // only the lookup index is declared here. Both lead with TenantId
+        // because a subject is a global membership scope and can hold drafts in
+        // more than one tenant.
+        modelBuilder
+            .Entity<TranslationDraftEntity>()
+            .HasIndex(e => new { e.TenantId, e.SubjectId, e.Locale });
 
     }
 

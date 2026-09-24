@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import {
     get as getDnd,
@@ -25,7 +26,7 @@
   import { retainQuery } from "$lib/api/retain-query.svelte";
 
   const effectivePermissions: string[] = $derived(
-    (page.data as any).effectivePermissions ?? [],
+    page.data.effectivePermissions ?? [],
   );
   // Manual DND is tenant-wide — it suppresses delivery of every non-critical
   // alert for every member — so the server gates it on alerts.readwrite.
@@ -112,7 +113,7 @@
     type="button"
     variant="ghost"
     size="icon"
-    onclick={() => goto("/alerts")}
+    onclick={() => goto(resolve("/alerts"))}
     aria-label="Back to alerts"
   >
     <ArrowLeft class="h-4 w-4" />
@@ -231,7 +232,7 @@
           </div>
           <p class="text-xs text-muted-foreground">
             Scheduled windows are interpreted in your timezone, set on your
-            <a href="/settings/patient" class="underline">patient record</a>.
+            <a href={resolve("/settings/patient")} class="underline">patient record</a>.
           </p>
         {/if}
       </CardContent>

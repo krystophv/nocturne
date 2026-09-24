@@ -26,6 +26,7 @@ import {
   Terminal,
   TestTube,
   Palette,
+  Languages,
   Timer,
   Layers,
   ShieldCheck,
@@ -216,6 +217,11 @@ export function buildAppNavigation(viewer: NavViewer): NavItem[] {
           icon: HeartPulse,
         },
         { title: "Appearance", href: "/settings/appearance", icon: Palette },
+        {
+          title: "Translations",
+          href: "/settings/translations",
+          icon: Languages,
+        },
         { title: "Therapy", href: "/settings/profile", icon: Syringe },
         {
           title: "Data Quality",

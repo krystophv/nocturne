@@ -388,12 +388,12 @@
 
     {#if successMessage}
       <div
-        class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-900/20"
+        class="flex items-start gap-3 rounded-md border border-success/30 bg-success/10 p-3"
       >
         <Check
-          class="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400"
+          class="mt-0.5 h-4 w-4 shrink-0 text-success"
         />
-        <p class="text-sm text-green-800 dark:text-green-200">
+        <p class="text-sm text-success">
           {successMessage}
         </p>
       </div>
@@ -515,9 +515,9 @@
       </Card.Root>
 
       <!-- Section 4: Recovery Mode Info -->
-      <Card.Root class="border-muted">
+      <Card.Root>
         <Card.Header>
-          <Card.Title class="flex items-center gap-2 text-muted-foreground">
+          <Card.Title variant="muted" class="flex items-center gap-2">
             <Server class="h-5 w-5" />
             Server-Side Account Recovery
           </Card.Title>
@@ -553,7 +553,7 @@
     <div
       class="min-h-[70vh] flex flex-col items-center justify-center p-4 animate-in fade-in slide-in-from-bottom-4 duration-500"
     >
-      <Card.Root class="w-full max-w-md text-center shadow-lg">
+      <Card.Root class="w-full max-w-md text-center">
         <Card.Header class="pb-4 pt-8">
           <div
             class="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6"
@@ -561,7 +561,7 @@
             <User class="h-8 w-8 text-primary" />
           </div>
           <Card.Title class="text-2xl font-bold">Not Signed In</Card.Title>
-          <Card.Description class="text-base mt-2">
+          <Card.Description class="mt-2">
             Sign in to access your account dashboard and manage your settings.
           </Card.Description>
         </Card.Header>
@@ -569,7 +569,7 @@
           <Button
             href="/auth/login"
             size="lg"
-            class="w-full @sm:w-auto min-w-[200px] font-medium"
+            class="w-full @sm:w-auto min-w-[200px]"
           >
             <User class="mr-2 h-5 w-5" />
             Sign In with Nocturne
@@ -673,13 +673,13 @@
     </Dialog.Header>
     <div class="space-y-4 py-4">
       <div class="grid grid-cols-2 gap-2 rounded-md border bg-muted/30 p-4">
-        {#each newRecoveryCodes as code}
+        {#each newRecoveryCodes as code, i (i)}
           <p class="font-mono text-sm text-center">{code}</p>
         {/each}
       </div>
       <Button variant="outline" class="w-full" onclick={copyRecoveryCodes}>
         {#if copiedCodes}
-          <Check class="mr-1.5 h-4 w-4 text-green-600" />
+          <Check class="mr-1.5 h-4 w-4 text-success" />
           Copied
         {:else}
           <Copy class="mr-1.5 h-4 w-4" />

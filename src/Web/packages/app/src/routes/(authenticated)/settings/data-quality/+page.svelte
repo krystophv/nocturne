@@ -109,7 +109,7 @@
 	{#if settingsQuery.loading}
 		<SettingsPageSkeleton cardCount={2} />
 	{:else if settingsQuery.error}
-		<Card class="border-destructive">
+		<Card variant="destructive">
 			<CardContent class="flex items-center gap-3 py-6">
 				<AlertCircle class="h-5 w-5 text-destructive" />
 				<p class="font-medium">
@@ -143,7 +143,7 @@
 								{formatHour(bedtimeHour)}
 							</SelectTrigger>
 							<SelectContent>
-								{#each bedtimeHours as hour}
+								{#each bedtimeHours as hour (hour.value)}
 									<SelectItem value={String(hour.value)}>{hour.label}</SelectItem>
 								{/each}
 							</SelectContent>
@@ -161,7 +161,7 @@
 								{formatHour(wakeTimeHour)}
 							</SelectTrigger>
 							<SelectContent>
-								{#each wakeTimeHours as hour}
+								{#each wakeTimeHours as hour (hour.value)}
 									<SelectItem value={String(hour.value)}>{hour.label}</SelectItem>
 								{/each}
 							</SelectContent>

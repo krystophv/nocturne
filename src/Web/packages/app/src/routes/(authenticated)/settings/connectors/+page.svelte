@@ -392,7 +392,7 @@
         </p>
       </div>
     </div>
-    <Button variant="outline" size="sm" onclick={refreshAll} class="gap-2">
+    <Button variant="outline" size="sm" onclick={refreshAll}>
       <RefreshCw
         class="h-4 w-4 {isLoading || isLoadingConnectorStatuses
           ? 'animate-spin'
@@ -405,7 +405,7 @@
   {#if isLoading && !servicesOverview}
     <SettingsPageSkeleton cardCount={3} />
   {:else if error}
-    <Card class="border-destructive">
+    <Card variant="destructive">
       <CardContent class="py-8">
         <div class="text-center">
           <AlertCircle class="h-12 w-12 mx-auto mb-4 text-destructive" />
@@ -457,16 +457,13 @@
               >
                 {#snippet badges()}
                   {#if isDemo}
-                    <Badge
-                      variant="secondary"
-                      class="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100 text-xs"
-                    >
+                    <Badge variant="demo">
                       <Sparkles class="h-3 w-3 mr-1" />
                       Demo
                     </Badge>
                   {/if}
                   {#if matchingUploader}
-                    <Badge variant="outline" class="text-xs">
+                    <Badge variant="outline">
                       {getUploaderName(matchingUploader)}
                     </Badge>
                   {/if}
@@ -538,7 +535,7 @@
                 onclick={() => copyField(window.location.origin, "baseUrl")}
               >
                 {#if copiedField === "baseUrl"}
-                  <Check class="h-4 w-4 text-green-500" />
+                  <Check class="h-4 w-4 text-success" />
                 {:else}
                   <Copy class="h-4 w-4" />
                 {/if}

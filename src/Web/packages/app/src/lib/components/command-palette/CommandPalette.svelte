@@ -3,6 +3,7 @@
   import { getRealtimeStore } from "$lib/stores/realtime-store.svelte";
   import { getAuthStore } from "$lib/stores/auth-store.svelte";
   import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
   import {
     glucoseChartLookback,
     setColorScheme,
@@ -26,6 +27,7 @@
   } from "./command-palette-store.svelte";
   import CommandPaletteVitals from "./CommandPaletteVitals.svelte";
   import { Star } from "lucide-svelte";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     open: boolean;
@@ -74,21 +76,17 @@
   });
 
   const groupedItems = $derived.by(() => {
-    const groups: Partial<Record<CommandPaletteGroup, CommandPaletteItem[]>> =
-      {};
+    const groups: CommandPaletteGroup[] = [];
     for (const item of mainGroupItems) {
-      (groups[item.group] ??= []).push(item);
+      if (!groups.includes(item.group)) groups.push(item.group);
     }
 
-    const entries = Object.entries(groups) as [
-      CommandPaletteGroup,
-      CommandPaletteItem[],
-    ][];
-    const sorted = entries.sort(
-      ([a], [b]) => groupMeta[a].order - groupMeta[b].order
-    );
-
-    return sorted;
+    return groups
+      .sort((a, b) => groupMeta[a].order - groupMeta[b].order)
+      .map((group): [CommandPaletteGroup, CommandPaletteItem[]] => [
+        group,
+        mainGroupItems.filter((item) => item.group === group),
+      ]);
   });
 
   function getStatValue(itemId: string): string | undefined {
@@ -142,9 +140,11 @@
 
     if (item.href) {
       open = false;
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- item.href is a literal in-app path from command-palette-items.ts
       goto(item.href);
     } else if (item.linkedHref) {
       open = false;
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- item.linkedHref is a literal in-app path from command-palette-items.ts
       goto(item.linkedHref);
     } else {
       handleAction(item.id);
@@ -172,15 +172,15 @@
       }
       case "action-add-treatment":
         open = false;
-        goto("/reports/treatments");
+        goto(resolve("/reports/treatments"));
         break;
       case "action-add-food":
         open = false;
-        goto("/food");
+        goto(resolve("/food"));
         break;
       case "action-manual-sync":
         open = false;
-        goto("/settings/connectors");
+        goto(resolve("/settings/connectors"));
         break;
     }
   }
@@ -201,7 +201,7 @@
   {@const pinned = isPinned(item.id)}
   {#if item.href}
     <Command.LinkItem
-      class="group/item"
+      class="group"
       href={item.href}
       value={item.label}
       keywords={item.keywords}
@@ -219,19 +219,22 @@
           >
         {/if}
       </div>
-      <button
-        class="ml-auto shrink-0 p-1 {pinAlwaysVisible || pinned ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100'} transition-opacity"
+      <Button
+        variant="ghost-muted"
+        size="icon-2xs"
+        reveal={!(pinAlwaysVisible || pinned)}
+        class="ml-auto"
         aria-label={pinned ? `Unpin ${item.label}` : `Pin ${item.label}`}
-        onclick={(e) => handlePinClick(e, item.id)}
+        onclick={(e: MouseEvent) => handlePinClick(e, item.id)}
       >
         <Star
-          class="h-3.5 w-3.5 {pinned ? 'fill-current text-yellow-500' : 'text-muted-foreground'}"
+          class="size-3.5 {pinned ? 'fill-current text-favorite' : 'text-muted-foreground'}"
         />
-      </button>
+      </Button>
     </Command.LinkItem>
   {:else}
     <Command.Item
-      class="group/item"
+      class="group"
       value={item.label}
       keywords={item.keywords}
       onSelect={() => handleSelect(item)}
@@ -248,15 +251,18 @@
           >
         {/if}
       </div>
-      <button
-        class="ml-auto shrink-0 p-1 {pinAlwaysVisible || pinned ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100'} transition-opacity"
+      <Button
+        variant="ghost-muted"
+        size="icon-2xs"
+        reveal={!(pinAlwaysVisible || pinned)}
+        class="ml-auto"
         aria-label={pinned ? `Unpin ${item.label}` : `Pin ${item.label}`}
-        onclick={(e) => handlePinClick(e, item.id)}
+        onclick={(e: MouseEvent) => handlePinClick(e, item.id)}
       >
         <Star
-          class="h-3.5 w-3.5 {pinned ? 'fill-current text-yellow-500' : 'text-muted-foreground'}"
+          class="size-3.5 {pinned ? 'fill-current text-favorite' : 'text-muted-foreground'}"
         />
-      </button>
+      </Button>
     </Command.Item>
   {/if}
 {/snippet}

@@ -30,6 +30,9 @@ dotnet test tests/E2E/Nocturne.E2E.Tests -p:RunE2E=true
 # Frontend type checking
 cd src/Web/packages/app && pnpm run check
 
+# Lint the frontend before pushing (CI gate: no errors, warnings capped in each package's lint:ci)
+cd src/Web && pnpm --recursive --no-bail run lint:ci
+
 # Seed a loginable tenant with sample data (stack must be running; see README
 # "Multitenancy and Passkeys"). Response has url + loginLink (browser session).
 curl -X POST http://localhost:1610/api/v4/dev-only/admin/seed-tenant \
@@ -83,7 +86,7 @@ Git worktrees are supported. In the main checkout, `aspire start` uses persisten
 aspire run --isolated
 ```
 
-`--isolated` randomizes all Aspire infrastructure ports (dashboard, OTLP, resource service) and creates isolated user secrets. Without it, the worktree shares `launchSettings.json` ports with main and will fail to start if main is already running.
+`--isolated` randomizes all Aspire infrastructure ports (dashboard, OTLP, resource service) and creates isolated user secrets. Without it, the worktree shares `launchSettings.json` ports with main and will fail to start if main is already running. It overrides only the `ASPIRE_*` endpoint variables, so the AppHost's `launchSettings.json` must use those names: a legacy `DOTNET_RESOURCE_SERVICE_ENDPOINT_URL` or `DOTNET_DASHBOARD_OTLP_ENDPOINT_URL` wins over the randomised port and collides across worktrees.
 
 To force persistent mode in a worktree (e.g. long-lived debugging): `NOCTURNE_DB_PERSISTENCE=persistent aspire run --isolated`.
 
