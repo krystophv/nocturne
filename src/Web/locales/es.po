@@ -1934,6 +1934,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/+page.svelte
 #: src/routes/(authenticated)/reports/agp/+page.svelte
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
 msgid "No data"
 msgstr ""
 
