@@ -24918,3 +24918,21 @@ msgstr ""
 #: src/lib/navigation/report-navigation.svelte.ts
 msgid "Pump battery trends and longevity"
 msgstr ""
+
+#: src/lib/components/shared/SkippedRecordsNote.svelte
+msgid "1 record was not added again because you had deleted it."
+msgstr ""
+
+#. 0: formatNumber(deleted)
+#: src/lib/components/shared/SkippedRecordsNote.svelte
+msgid "{0} records were not added again because you had deleted them."
+msgstr ""
+
+#: src/lib/components/shared/SkippedRecordsNote.svelte
+msgid "1 record was not added because Nocturne does not store that kind of record."
+msgstr ""
+
+#. 0: formatNumber(unsupported)
+#: src/lib/components/shared/SkippedRecordsNote.svelte
+msgid "{0} records were not added because Nocturne does not store that kind of record."
+msgstr ""
