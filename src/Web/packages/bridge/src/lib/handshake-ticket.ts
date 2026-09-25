@@ -16,14 +16,15 @@ import { isRecord } from './payload.js';
  * payload and the bridge verifies it locally with the shared INSTANCE_KEY.
  *
  * Wire format: `base64url(json).hexSig`.
- * Payload: `{ h, exp, tenantRelay }`. `h` is the normalized host the ticket
- * authorizes, `exp` is a unix-ms deadline, and `tenantRelay` is the API's
- * admission for the credential the ticket was minted for. Binding to the host
- * (not just the tenant slug) means a ticket minted for one tenant cannot be
- * replayed on a connection that arrives on a different host. The minting
- * endpoint and the handshake both derive the host from X-Forwarded-Host behind
- * the gateway, so they agree for tenant subdomains and the apex single-tenant
- * case alike.
+ * Payload: `{ h, exp, tenantRelay, subjectId? }`. `h` is the normalized host
+ * the ticket authorizes, `exp` is a unix-ms deadline, and `tenantRelay` is the
+ * API's admission for the credential the ticket was minted for. `subjectId` is
+ * the subject whose per-subject room the socket may join, present only when the
+ * credential belongs to one. Binding to the host (not just the tenant slug) means a ticket
+ * minted for one tenant cannot be replayed on a connection that arrives on a
+ * different host. The minting endpoint and the handshake both derive the host
+ * from X-Forwarded-Host behind the gateway, so they agree for tenant subdomains
+ * and the apex single-tenant case alike.
  * Signature: HMAC-SHA256 over the base64url payload using INSTANCE_KEY.
  */
 
@@ -38,7 +39,16 @@ export interface HandshakeTicketPayload {
    * cannot grant itself the room; a ticket without it verifies as false.
    */
   tenantRelay: boolean;
+  /**
+   * The subject whose per-subject room the socket may join, as the API returned
+   * it at {@link REALTIME_ADMISSION_PATH}. Present only when the credential
+   * belongs to a subject; a guest link or share has none.
+   */
+  subjectId?: string;
 }
+
+/** A subject id in canonical lowercase `D` GUID form, the only form the bridge rooms on. */
+const CANONICAL_SUBJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * The API endpoint answering whether a credential may read glucose live and
@@ -61,6 +71,7 @@ export function signHandshakeTicket(
   secret: string,
   host: string,
   tenantRelay: boolean,
+  subjectId?: string,
   ttlMs: number = HANDSHAKE_TICKET_LIFETIME_MS,
   now: number = Date.now(),
 ): string {
@@ -69,6 +80,7 @@ export function signHandshakeTicket(
     exp: now + ttlMs,
     tenantRelay,
   };
+  if (subjectId) payload.subjectId = subjectId;
   const payloadB64 = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');
   const sig = createHmac('sha256', secret).update(payloadB64).digest('hex');
   return `${payloadB64}.${sig}`;
@@ -113,9 +125,17 @@ export function verifyHandshakeTicket(
   }
 
   if (!isRecord(parsed)) return null;
-  const { h, exp } = parsed;
+  const { h, exp, subjectId } = parsed;
   if (typeof h !== 'string' || typeof exp !== 'number') return null;
   if (exp < now) return null;
 
-  return { h, exp, tenantRelay: parsed.tenantRelay === true };
+  return {
+    h,
+    exp,
+    tenantRelay: parsed.tenantRelay === true,
+    subjectId:
+      typeof subjectId === 'string' && CANONICAL_SUBJECT_ID.test(subjectId)
+        ? subjectId
+        : undefined,
+  };
 }
