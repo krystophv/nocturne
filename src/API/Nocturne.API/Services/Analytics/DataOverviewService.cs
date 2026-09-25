@@ -419,11 +419,7 @@ public class DataOverviewService : IDataOverviewService
         var npSensorGlucoseIds = NonPrimaryRecordIds(context, RecordType.SensorGlucose);
         var allReadings = new List<(DateTime Timestamp, double Mgdl)>();
 
-        // Each source is queried independently so one failure doesn't prevent the other. A response
-        // missing a source is still returned but never cached, or one transient failure would blank
-        // the year until the entry expires. The catch filters let the caller's cancellation propagate.
-        // Every other exception marks the source failed, including Npgsql's command timeout (an
-        // NpgsqlException wrapping TimeoutException) and a server statement_timeout (57014).
+        // Each source is queried independently so one failure doesn't prevent the other.
         var allSourcesRead = true;
         try
         {
@@ -480,6 +476,7 @@ public class DataOverviewService : IDataOverviewService
         var points = BuildEHbA1cPoints(dailySum, dailyCount, localRangeStart, EHbA1cWindowDays, year, localNow.Date);
         var response = new EHbA1cTimelineResponse { Year = year, Points = points };
 
+        // Caching a partial timeline would blank the missing source for the whole expiry below.
         if (!allSourcesRead)
             return response;
 
