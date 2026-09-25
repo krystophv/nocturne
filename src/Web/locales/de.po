@@ -2706,7 +2706,6 @@ msgstr "Inaktiv"
 msgid "Records (24h)"
 msgstr "Datensätze (24h)"
 
-#: src/lib/components/connectors/DataSourceManageDialog.svelte
 #: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "Total Records"
@@ -2733,10 +2732,8 @@ msgstr "DIESE AKTION KANN NICHT RÜCKGÄNGIG GEMACHT WERDEN"
 msgid "You are about to permanently delete <0>all data</0> from <1/> . This includes:"
 msgstr "Du bist dabei, <0>alle Daten</0> von <1/> dauerhaft zu löschen. Dies umfasst:"
 
-#. 0: formatNumber( selectedDataSource.totalEntries )
-#: src/lib/components/connectors/DataSourceManageDialog.svelte
-msgid "All glucose records ({0} records)"
-msgstr "Alle Glukosedatensätze (Anzahl: {0})"
+#~ msgid "All glucose records ({0} records)"
+#~ msgstr "Alle Glukosedatensätze (Anzahl: {0})"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "All treatments entered by this device"
@@ -6879,10 +6876,8 @@ msgid "<0/> Inactive"
 msgstr "<0/> Inaktiv"
 
 #. 0: formatNumber(totalEntries)
-#. 0: formatNumber(totalEntries)
 #. 0: formatNumber(allRows.length)
 #. 0: formatCount(col.migrated)
-#: src/lib/components/settings/DataSourceRow.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
 #: src/routes/(unauthenticated)/setup/steps/ImportProgress.svelte
@@ -8719,6 +8714,7 @@ msgstr "Lebensmittel konnte nicht aktualisiert werden"
 msgid "Food deleted"
 msgstr "Lebensmittel gelöscht"
 
+#: src/lib/components/entries/FoodBreakdown.svelte
 #: src/routes/(authenticated)/food/food-state.svelte.ts
 msgid "Failed to delete food"
 msgstr "Lebensmittel konnte nicht gelöscht werden"
@@ -8960,6 +8956,7 @@ msgstr "Lebensmittel konnte nicht entkoppelt werden"
 msgid "Food added"
 msgstr "Lebensmittel hinzugefügt"
 
+#: src/lib/components/entries/FoodBreakdown.svelte
 #: src/routes/(authenticated)/meals/+page.svelte
 msgid "Failed to add food"
 msgstr "Lebensmittel konnte nicht hinzugefügt werden"
@@ -9806,13 +9803,11 @@ msgstr "Weiter zu Nocturne"
 msgid "Accept Invite"
 msgstr "Einladung annehmen"
 
-#: src/routes/(unauthenticated)/join/+page.svelte
-#: src/routes/(unauthenticated)/join/+page.svelte
+#: src/lib/components/members/InviteSummary.svelte
 msgid "<0/> has invited you to join"
 msgstr "<0/> hat dich eingeladen beizutreten"
 
-#: src/routes/(unauthenticated)/join/+page.svelte
-#: src/routes/(unauthenticated)/join/+page.svelte
+#: src/lib/components/members/InviteSummary.svelte
 msgid "You've been invited to join"
 msgstr "Du wurdest zum Beitritt eingeladen"
 
@@ -16841,9 +16836,8 @@ msgstr ""
 msgid "You cannot remove your only credential without an alternative sign-in method linked to your account."
 msgstr ""
 
-#: src/routes/(unauthenticated)/join/+page.svelte
-msgid "<0/> <1/>. Create an account or sign in to accept."
-msgstr ""
+#~ msgid "<0/> <1/>. Create an account or sign in to accept."
+#~ msgstr ""
 
 #: src/routes/(unauthenticated)/setup/StepSidebar.svelte
 msgid "Four short steps. Nothing to uninstall later, nothing sent off-server. You can change every choice in Settings afterwards."
@@ -21188,9 +21182,8 @@ msgstr ""
 msgid "You already have access to <0/>."
 msgstr ""
 
-#: src/routes/(unauthenticated)/join/+page.svelte
-msgid "as <0/>"
-msgstr ""
+#~ msgid "as <0/>"
+#~ msgstr ""
 
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
 msgid "No events yet; playhead at start of window."
@@ -25045,4 +25038,98 @@ msgstr ""
 
 #: src/lib/components/alerts/conditionIssues.svelte.ts
 msgid "Part of this rule's conditions has a setting its kind of condition doesn't have, so it can't be saved."
+msgstr ""
+
+#: src/lib/components/connectors/DataSourceManageDialog.svelte
+msgid "Records in the last 30 days"
+msgstr ""
+
+#: src/lib/components/connectors/DataSourceManageDialog.svelte
+msgid "All glucose records"
+msgstr ""
+
+#. 0: formatNumber(selectedDataSource.totalEntries)
+#: src/lib/components/connectors/DataSourceManageDialog.svelte
+msgid "This source sent {0} records in the last 30 days."
+msgstr ""
+
+#. 0: inviterName; 1: url
+#: src/lib/components/members/CopyInvitationMessageButton.svelte
+msgid "{0} has invited you to Nocturne, a website for viewing diabetes information, such as glucose readings, that they've chosen to share with you. Open this link to sign in or create an account and join: {1}"
+msgstr ""
+
+#. 0: url
+#: src/lib/components/members/CopyInvitationMessageButton.svelte
+msgid "You've been invited to Nocturne, a website for viewing diabetes information, such as glucose readings, that someone has chosen to share with you. Open this link to sign in or create an account and join: {0}"
+msgstr ""
+
+#: src/lib/components/members/CopyInvitationMessageButton.svelte
+msgid "<0/> Message copied"
+msgstr ""
+
+#: src/lib/components/members/CopyInvitationMessageButton.svelte
+msgid "<0/> Copy invitation message"
+msgstr ""
+
+#: src/lib/components/members/CreateInviteCard.svelte
+msgid "Couldn't copy the message to the clipboard. Copy the link manually instead."
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "the person who sent it"
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "This invite no longer gives access to anything. Ask <0/> for a new invite link."
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "Your role: <0/>"
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "What you'll have access to:"
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "You can view this information. You can't change records, treatment settings or who has access."
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "You'll only see the last 24 hours of data."
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "While you have Nocturne open, you'll see alerts as they happen. Getting alerts when Nocturne isn't open, for example on your phone, depends on how alerts have been set up. Ask the person who invited you."
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "You can press Acknowledge on an alert to mark it as seen. This stops the alert being passed on to other people."
+msgstr ""
+
+#. 0: siteName
+#: src/lib/components/members/InviteSummary.svelte
+msgid "Next, accept the invite below. You'll then go to the {0} dashboard."
+msgstr ""
+
+#. 0: siteName
+#: src/lib/components/members/InviteSummary.svelte
+msgid "Next, choose how you'd like to sign in below. Once you're in, you'll go to the {0} dashboard."
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "Nocturne is a website for viewing diabetes information, such as glucose (blood sugar) readings, that someone has chosen to share with you."
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "<0/> <1/> on Nocturne."
+msgstr ""
+
+#. 0: formatNumber(totalEntries)
+#: src/lib/components/settings/DataSourceRow.svelte
+msgid "{0} records in the last 30 days"
+msgstr ""
+
+#: src/routes/(unauthenticated)/join/+page.svelte
+msgid "You're signed in as <0/>"
 msgstr ""
