@@ -57,6 +57,15 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     /// </summary>
     private readonly ConcurrentDictionary<Guid, DateTime> _nextCheckByTenant = new();
 
+    /// <summary>
+    /// When each tenant's source is next expected to have new data, as reported by
+    /// <see cref="GetAlignedSyncTimeAsync"/> after a successful sync. A tenant whose aligned time has
+    /// arrived syncs even inside its <c>SyncIntervalMinutes</c>: the interval stays the longest the
+    /// poller waits, the aligned time lets it go sooner. Consumed when the sync it scheduled starts,
+    /// and never set by a failed sync, so a failing source falls back to the plain interval.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, DateTime> _alignedSyncByTenant = new();
+
     private static readonly TimeSpan NudgeDebounceWindow = TimeSpan.FromSeconds(10);
 
     /// <summary>
@@ -177,6 +186,31 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     /// write did not reach (<see cref="ConnectorPollerNudge"/> is in-process). Overridable for tests.
     /// </summary>
     protected virtual TimeSpan UnconfiguredRecheckInterval => TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// The earliest an aligned sync may be scheduled after the sync that produced it. Guards the
+    /// source against a <see cref="GetAlignedSyncTimeAsync"/> that answers "now" on every run, which
+    /// would otherwise sync the tenant on every tick. Overridable for tests.
+    /// </summary>
+    protected virtual TimeSpan MinimumAlignedSyncSpacing => TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Called after each successful sync. A connector whose source publishes on a known cadence (a
+    /// CGM every five minutes) returns when the next record should be available, and the tenant is
+    /// synced then instead of waiting out <c>SyncIntervalMinutes</c>, so the poll lands just after the
+    /// data rather than at an arbitrary phase of the interval. Return <c>null</c> to keep the plain
+    /// interval, which is the default. The result is honoured to the resolution of
+    /// <see cref="PollInterval"/>, so a connector that aligns should shorten its tick too.
+    /// </summary>
+    /// <param name="scopeProvider">The tenant-scoped provider the sync ran in.</param>
+    /// <param name="config">The tenant's connector configuration.</param>
+    /// <param name="now">The current UTC time.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    protected virtual Task<DateTime?> GetAlignedSyncTimeAsync(
+        IServiceProvider scopeProvider,
+        TConfig config,
+        DateTime now,
+        CancellationToken cancellationToken) => Task.FromResult<DateTime?>(null);
 
     private DateTime _lastRealtimeSupervision = DateTime.MinValue;
 
@@ -509,16 +543,22 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
             return;
         }
 
-        // Only sync when the tenant's configured interval has elapsed
+        // Only sync when the tenant's configured interval has elapsed, or when the connector said
+        // new data is due (see GetAlignedSyncTimeAsync) and that time has arrived.
         var interval = TimeSpan.FromMinutes(config.SyncIntervalMinutes);
-        if (_lastSyncByTenant.TryGetValue(tenantId, out var lastSync) && now - lastSync < interval)
+        var hasAligned = _alignedSyncByTenant.TryGetValue(tenantId, out var alignedAt);
+        if (!(hasAligned && alignedAt <= now)
+            && _lastSyncByTenant.TryGetValue(tenantId, out var lastSync)
+            && now - lastSync < interval)
         {
-            _nextCheckByTenant[tenantId] = lastSync + interval;
+            var intervalDue = lastSync + interval;
+            _nextCheckByTenant[tenantId] = hasAligned && alignedAt < intervalDue ? alignedAt : intervalDue;
             return;
         }
 
         Logger.LogDebug("Syncing {ConnectorName} for tenant {TenantSlug}", ConnectorName, tenantSlug);
 
+        _alignedSyncByTenant.TryRemove(tenantId, out _);
         _lastSyncByTenant[tenantId] = now;
         _nextCheckByTenant[tenantId] = now + interval;
 
@@ -574,6 +614,8 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
                 lastErrorMessage: string.Empty,
                 lastErrorAt: DateTime.MinValue,
                 cancellationToken: stoppingToken);
+
+            await ScheduleAlignedSyncAsync(scope.ServiceProvider, tenantId, tenantSlug, config, stoppingToken);
         }
         else
         {
@@ -598,6 +640,48 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
                 lastErrorAt: DateTime.UtcNow,
                 cancellationToken: stoppingToken);
         }
+    }
+
+    /// <summary>
+    /// Asks the connector when its source next expects new data and, when it names a time, brings
+    /// the tenant's next check forward to it. A failure here is logged and costs only the alignment:
+    /// the sync already succeeded, and the plain interval still stands.
+    /// </summary>
+    private async Task ScheduleAlignedSyncAsync(
+        IServiceProvider scopeProvider,
+        Guid tenantId,
+        string tenantSlug,
+        TConfig config,
+        CancellationToken cancellationToken)
+    {
+        DateTime? aligned;
+        try
+        {
+            aligned = await GetAlignedSyncTimeAsync(scopeProvider, config, DateTime.UtcNow, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(
+                ex,
+                "Could not align the next {ConnectorName} sync for tenant {TenantSlug}; using the sync interval",
+                ConnectorName, tenantSlug);
+            return;
+        }
+
+        if (aligned is not { } at)
+            return;
+
+        var earliest = DateTime.UtcNow + MinimumAlignedSyncSpacing;
+        if (at < earliest)
+            at = earliest;
+
+        _alignedSyncByTenant[tenantId] = at;
+        if (!_nextCheckByTenant.TryGetValue(tenantId, out var next) || at < next)
+            _nextCheckByTenant[tenantId] = at;
+
+        Logger.LogDebug(
+            "{ConnectorName} next sync for tenant {TenantSlug} aligned to {AlignedAt:HH:mm:ss} UTC",
+            ConnectorName, tenantSlug, at);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

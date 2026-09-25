@@ -62,9 +62,9 @@ public class ConnectorPollingRegistrationTests
     }
 
     /// <summary>
-    /// A connector that also runs a real-time listener subclasses the poller. It must be scheduled by
-    /// that subclass and by nothing else: a second, generic poller for the same connector would run a
-    /// competing sync loop over the same tenants.
+    /// A connector that also runs a real-time listener, or schedules its syncs by its source's cadence,
+    /// subclasses the poller. It must be scheduled by that subclass and by nothing else: a second,
+    /// generic poller for the same connector would run a competing sync loop over the same tenants.
     /// </summary>
     [Fact]
     public void ConnectorsWithTheirOwnSubclass_AreScheduledByIt()
@@ -72,7 +72,9 @@ public class ConnectorPollingRegistrationTests
         var subclasses = HandWrittenPollers();
 
         subclasses.Select(t => t.Name).Should().BeEquivalentTo(
-            "NightscoutConnectorBackgroundService", "NocturneRemoteConnectorBackgroundService");
+            "DexcomConnectorBackgroundService",
+            "NightscoutConnectorBackgroundService",
+            "NocturneRemoteConnectorBackgroundService");
 
         var scheduled = ScheduledPollers();
         foreach (var subclass in subclasses)
