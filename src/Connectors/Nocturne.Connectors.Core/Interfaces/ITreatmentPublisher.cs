@@ -47,20 +47,21 @@ public interface ITreatmentPublisher
 
     /// <summary>
     /// The legacy ids of the treatment records <paramref name="source"/> has stored with an event
-    /// time in [<paramref name="from"/>, <paramref name="to"/>].
+    /// time in [<paramref name="from"/>, <paramref name="to"/>], each with that event time.
     /// </summary>
-    Task<IReadOnlySet<string>> GetStoredTreatmentIdsAsync(
+    Task<IReadOnlyDictionary<string, DateTime>> GetStoredTreatmentIdsAsync(
         string source,
         DateTime from,
         DateTime to,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Publishes treatments a source may already have delivered: an edit made in place under the
-    /// same id updates the stored record, and one never stored is created. Treatments that would
-    /// store nothing, and stored ones whose type cannot be decomposed again safely, are left out.
+    /// Publishes treatments a source may already have delivered: one never stored is created, and
+    /// one the source has changed since it was stored is written again. Nothing the user deleted
+    /// comes back.
     /// </summary>
-    Task<bool> PublishRecentTreatmentsAsync(
+    /// <returns>How many were written, or null when the write failed.</returns>
+    Task<int?> PublishRecentTreatmentsAsync(
         IEnumerable<Treatment> treatments,
         string source,
         WriteOrigin origin,

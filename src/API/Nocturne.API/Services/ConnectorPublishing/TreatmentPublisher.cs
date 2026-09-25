@@ -10,6 +10,7 @@ using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Entities.V4;
 using Nocturne.Infrastructure.Data.Services;
 using Nocturne.Core.Contracts.V4;
+using Nocturne.API.Services.V4;
 
 namespace Nocturne.API.Services.ConnectorPublishing;
 
@@ -247,34 +248,49 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
             () => _deviceEventRepository.GetLatestTimestampAsync(source, cancellationToken));
 
     /// <inheritdoc />
-    public async Task<bool> PublishRecentTreatmentsAsync(
+    /// <remarks>The conflict rule is <see cref="TreatmentDecomposer.SelectForRepublishAsync"/>'s.</remarks>
+    public async Task<int?> PublishRecentTreatmentsAsync(
         IEnumerable<Treatment> treatments,
         string source,
         WriteOrigin origin, CancellationToken cancellationToken = default)
     {
-        var list = treatments.ToList();
-        IReadOnlySet<string> stored;
+        IReadOnlyList<(Treatment Treatment, string Fingerprint)> selected;
         try
         {
-            stored = await _treatmentDecomposer.GetHeldLegacyIdsAsync(
-                list.Select(t => t.Id).OfType<string>().ToHashSet(), cancellationToken);
+            using (PushSystemAudit())
+                selected = await _treatmentDecomposer.SelectForRepublishAsync(source, treatments.ToList(), cancellationToken);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to read stored treatments for {Source}", source);
-            return false;
+            Logger.LogError(ex, "Failed to compare recent treatments with what is stored for {Source}", source);
+            return null;
         }
 
-        var republish = list
-            .Where(t => _treatmentDecomposer.CanRepublish(t, t.Id is { } id && stored.Contains(id)))
-            .ToList();
+        if (selected.Count == 0)
+            return 0;
 
-        return republish.Count == 0 || await PublishTreatmentsAsync(republish, source, origin, cancellationToken);
+        if (!await PublishTreatmentsAsync(selected.Select(s => s.Treatment), source, origin, cancellationToken))
+            return null;
+
+        try
+        {
+            using (PushSystemAudit())
+                await _treatmentDecomposer.StampUpstreamFingerprintsAsync(
+                    source, selected.ToDictionary(s => s.Treatment.Id!, s => s.Fingerprint), cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            // An unstamped row counts as unchanged next sync, so nothing is written twice.
+            Logger.LogWarning(ex, "Failed to stamp upstream fingerprints for {Source}", source);
+        }
+
+        return selected.Count;
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlySet<string>> GetStoredTreatmentIdsAsync(
+    public Task<IReadOnlyDictionary<string, DateTime>> GetStoredTreatmentIdsAsync(
         string source, DateTime from, DateTime to, CancellationToken cancellationToken = default)
         => _treatmentDecomposer.GetLegacyIdsFromSourceAsync(source, from, to, cancellationToken);
 

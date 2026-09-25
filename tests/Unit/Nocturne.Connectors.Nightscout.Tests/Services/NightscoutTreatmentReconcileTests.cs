@@ -31,6 +31,7 @@ public class NightscoutTreatmentReconcileTests
     private const string MongoIdA = "bbbbbbbbbbbbbbbbbbbbbbb1";
 
     private static readonly DateTimeOffset Now = new(2026, 3, 1, 12, 30, 0, TimeSpan.Zero);
+    private static readonly DateTime StoredAt = Now.UtcDateTime.AddMinutes(-30);
 
     [Fact]
     public async Task A_trio_treatment_the_source_deleted_is_looked_up_by_its_uuid_and_deleted()
@@ -48,6 +49,10 @@ public class NightscoutTreatmentReconcileTests
         harness.Lookups.Should().Contain($"find[id]={TrioGone}");
         harness.Lookups.Should().NotContain(l => l.StartsWith("find[_id]"),
             "a UUID is not an ObjectId, and asking for one by _id fails on older Nightscout");
+        harness.LookupUrls.Should().Contain(u => u.EndsWith($"find[id]={TrioGone}")
+            && u.Contains($"find[created_at][$gte]={StoredAt.AddHours(-15):o}")
+            && u.Contains($"find[created_at][$lte]={StoredAt.AddHours(15):o}"),
+            "neither id field is indexed, so the lookup is bounded to where the treatment can sit");
     }
 
     [Fact]
@@ -174,24 +179,54 @@ public class NightscoutTreatmentReconcileTests
     }
 
     [Fact]
-    public async Task One_sync_an_hour_reads_back_across_the_full_window()
+    public async Task A_full_reconcile_runs_once_an_hour_has_passed_and_is_recorded()
     {
-        var widened = 0;
-        var url = $"https://{Guid.NewGuid():N}.ns.example";
-        for (var minute = 0; minute < 60; minute++)
+        var harness = new Harness
         {
-            var harness = new Harness
-            {
-                Url = url,
-                At = new DateTimeOffset(2026, 3, 1, 12, minute, 0, TimeSpan.Zero),
-                Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
-            };
-            await harness.SyncAsync();
-            if (harness.CrawlLowerBound < harness.At.UtcDateTime.AddHours(-20))
-                widened++;
-        }
+            LastFullReconcile = Now.UtcDateTime.AddMinutes(-61),
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+        };
 
-        widened.Should().Be(5, "the sync interval is five minutes, so one sync an hour falls in the slot");
+        await harness.SyncAsync();
+
+        harness.CrawlLowerBound.Should().Be(Now.UtcDateTime.AddHours(-25));
+        harness.FullReconcileRecorded.Should().Equal(Now.UtcDateTime);
+    }
+
+    [Fact]
+    public async Task Between_full_reconciles_the_window_comes_from_the_crawls_own_download()
+    {
+        // Eleven hours below the resume point: inside the created_at envelope the crawl already
+        // downloads, and so reconciled without a request of its own.
+        var harness = new Harness
+        {
+            LastFullReconcile = Now.UtcDateTime.AddMinutes(-20),
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddHours(-11))],
+            Stored = [TrioKept],
+        };
+
+        await harness.SyncAsync();
+
+        harness.TreatmentReads.Should().Be(1);
+        harness.CrawlLowerBound.Should().Be(Now.UtcDateTime.AddMinutes(-15));
+        harness.Republished.Select(t => t.Id).Should().Equal(TrioKept);
+        harness.FullReconcileRecorded.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Only_what_the_store_wrote_counts_as_synced()
+    {
+        var harness = new Harness
+        {
+            Upstream = [Loop(LoopKept, Now.AddMinutes(-40)), Loop(LoopGone, Now.AddMinutes(-50))],
+            Stored = [LoopKept, LoopGone],
+            Written = 1,
+        };
+
+        var result = await harness.SyncAsync();
+
+        harness.Republished.Should().HaveCount(2);
+        result.ItemsSynced[SyncDataType.CarbIntake].Should().Be(1);
     }
 
     [Fact]
@@ -285,6 +320,8 @@ public class NightscoutTreatmentReconcileTests
         public bool ReadFails { get; init; }
         public bool LookupFails { get; init; }
         public bool LookupFindsNothing { get; init; }
+        public DateTime? LastFullReconcile { get; init; }
+        public int? Written { get; init; }
 
         public List<Treatment> Crawled { get; } = [];
         public List<Treatment> Republished { get; } = [];
@@ -292,6 +329,9 @@ public class NightscoutTreatmentReconcileTests
         public List<string> DeletedFrom { get; } = [];
         public List<string> StoredAskedOf { get; } = [];
         public List<string> Lookups { get; } = [];
+        public List<string> LookupUrls { get; } = [];
+        public List<DateTime?> FullReconcileRecorded { get; } = [];
+        public int TreatmentReads { get; private set; }
         public DateTime? CrawlLowerBound { get; private set; }
 
         public Task<SyncResult> SyncAsync(SyncRequest? request = null)
@@ -315,6 +355,7 @@ public class NightscoutTreatmentReconcileTests
             {
                 var (field, id) = (lookup.Groups[1].Value, lookup.Groups[2].Value);
                 Lookups.Add($"find[{field}]={id}");
+                LookupUrls.Add(url);
                 if (LookupFails)
                     return Task.FromResult(Failure());
 
@@ -323,6 +364,7 @@ public class NightscoutTreatmentReconcileTests
                 return Task.FromResult(Json(found ? [Upstream.FirstOrDefault() ?? "{}"] : []));
             }
 
+            TreatmentReads++;
             var gte = System.Text.RegularExpressions.Regex.Match(url, @"find\[created_at\]\[\$gte\]=([^&]+)");
             if (gte.Success && CrawlLowerBound is null)
                 CrawlLowerBound = DateTime.Parse(gte.Groups[1].Value, null,
@@ -346,12 +388,13 @@ public class NightscoutTreatmentReconcileTests
                 .Setup(p => p.PublishRecentTreatmentsAsync(
                     It.IsAny<IEnumerable<Treatment>>(), It.IsAny<string>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
                 .Callback<IEnumerable<Treatment>, string, WriteOrigin, CancellationToken>((batch, _, _, _) => Republished.AddRange(batch))
-                .ReturnsAsync(true);
+                .ReturnsAsync((IEnumerable<Treatment> batch, string _, WriteOrigin _, CancellationToken _) =>
+                    Written ?? batch.Count());
             treatments
                 .Setup(p => p.GetStoredTreatmentIdsAsync(
                     It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
                 .Callback<string, DateTime, DateTime, CancellationToken>((source, _, _, _) => StoredAskedOf.Add(source))
-                .ReturnsAsync(() => Stored);
+                .ReturnsAsync(() => Stored.ToDictionary(id => id, _ => StoredAt));
             treatments
                 .Setup(p => p.DeleteTreatmentsAsync(
                     It.IsAny<string>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
@@ -367,7 +410,16 @@ public class NightscoutTreatmentReconcileTests
             publisher.Setup(p => p.Glucose).Returns(Mock.Of<IGlucosePublisher>());
             publisher.Setup(p => p.Treatments).Returns(treatments.Object);
             publisher.Setup(p => p.Device).Returns(Mock.Of<IDevicePublisher>());
-            publisher.Setup(p => p.Metadata).Returns(Mock.Of<IMetadataPublisher>());
+            var metadata = new Mock<IMetadataPublisher>();
+            metadata
+                .Setup(m => m.GetBackfillLowWaterMarkAsync(Source, "TreatmentsFullReconcile", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(LastFullReconcile);
+            metadata
+                .Setup(m => m.SetBackfillLowWaterMarkAsync(
+                    Source, "TreatmentsFullReconcile", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+                .Callback<string, string, DateTime?, CancellationToken>((_, _, at, _) => FullReconcileRecorded.Add(at))
+                .Returns(Task.CompletedTask);
+            publisher.Setup(p => p.Metadata).Returns(metadata.Object);
 
             var registration = new Mock<IConnectorRegistration<NightscoutConnectorConfiguration>>();
             registration.Setup(r => r.Defaults).Returns(new NightscoutConnectorConfiguration());

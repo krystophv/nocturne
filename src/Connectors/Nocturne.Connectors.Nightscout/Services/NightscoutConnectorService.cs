@@ -222,8 +222,9 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                     ? ResumeFrom(request.From, await CalculateTreatmentSinceTimestampAsync(config))
                     : request.From;
 
-                var recent = openEnded && treatmentFrom is not null
-                    ? new RecentTreatments(ReconcileWindowStart(config, _timeProvider.GetUtcNow().UtcDateTime))
+                var now = _timeProvider.GetUtcNow().UtcDateTime;
+                var recent = openEnded && treatmentFrom is { } crawlFrom
+                    ? await RecentTreatmentsForAsync(crawlFrom, now)
                     : null;
 
                 var outcome = await CrawlAndPublishAsync(
@@ -236,6 +237,8 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                 {
                     var reconciled = await ReconcileRecentTreatmentsAsync(recent, treatmentFrom!.Value, cancellationToken);
                     outcome = new PagedCrawlOutcome(outcome.Count + reconciled.Count, reconciled.Success);
+                    if (reconciled.Success && recent.Full)
+                        await SetBackfillLowWaterMarkAsync(FullReconcileMark, now);
                 }
 
                 foreach (var treatmentType in treatmentTypes.Where(activeTypes.Contains))
@@ -601,7 +604,8 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         DateTime? to,
         string collection,
         Func<T, string?> createdAtOf,
-        string operationName)
+        string operationName,
+        Action<T[]>? observe = null)
     {
         var anchoredTo = AnchorUnboundedFetch(from, to);
 
@@ -611,7 +615,11 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
             (pageFrom, pageTo) => BuildCreatedAtUrl(collection, pageFrom, pageTo),
             page => OldestWrittenCreatedAt(page, createdAtOf),
             operationName,
-            page => page.Where(item => WithinWindow(createdAtOf(item), from, anchoredTo)).ToArray());
+            page =>
+            {
+                observe?.Invoke(page);
+                return page.Where(item => WithinWindow(createdAtOf(item), from, anchoredTo)).ToArray();
+            });
     }
 
     private async IAsyncEnumerable<Entry[]> FetchGlucosePagesAsync(DateTime? from, DateTime? to)
@@ -626,23 +634,25 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     /// <param name="recent">
-    ///     Collects what the read returns from <see cref="RecentTreatments.ReadFrom"/> on, reaching
-    ///     back that far when it lies below <paramref name="from"/>. Only records from
-    ///     <paramref name="from"/> on are yielded to publish.
+    ///     Collects every page the read returns as it arrives, before the crawl's window is applied.
+    ///     A full reconcile reaches back to <see cref="RecentTreatments.ReadFrom"/> when that lies
+    ///     below <paramref name="from"/>; only records from <paramref name="from"/> on are yielded to
+    ///     publish.
     /// </param>
     private async IAsyncEnumerable<Treatment[]> FetchTreatmentPagesAsync(
         DateTime? from, DateTime? to, RecentTreatments? recent = null)
     {
-        var readFrom = recent is not null && from > recent.ReadFrom ? recent.ReadFrom : from;
+        var readFrom = recent is { Full: true } && from > recent.ReadFrom ? recent.ReadFrom : from;
 
         await foreach (var page in FetchCreatedAtPagesAsync<Treatment>(
-            readFrom, to, "treatments", t => t.CreatedAt, "FetchTreatments"))
+            readFrom, to, "treatments", t => t.CreatedAt, "FetchTreatments",
+            observe: raw =>
+            {
+                foreach (var treatment in raw)
+                    treatment.DataSource = ConnectorSource;
+                recent?.Collect(raw);
+            }))
         {
-            foreach (var treatment in page)
-                treatment.DataSource = ConnectorSource;
-
-            recent?.Collect(page);
-
             var kept = readFrom == from ? page : page.Where(t => WithinWindow(t.CreatedAt, from, to)).ToArray();
             if (kept.Length > 0)
                 yield return kept;
@@ -650,20 +660,30 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     /// <summary>
-    ///     The window every catch-up reconciles. It adds little to the read, which already reaches
-    ///     <see cref="MaxUtcOffset"/> below the crawl's resume point for offset-written created_at values.
+    ///     How far below the crawl's resume point every catch-up reconciles. The crawl's read already
+    ///     reaches <see cref="MaxUtcOffset"/> below it for offset-written created_at values, so this
+    ///     window plus <see cref="ReconcileReadMargin"/> stays inside what it downloads anyway.
     /// </summary>
-    private static readonly TimeSpan RecentReconcileWindow = TimeSpan.FromHours(1);
+    private static readonly TimeSpan RecentReconcileWindow = TimeSpan.FromHours(12);
 
     /// <summary>
-    ///     The window one catch-up an hour reconciles, reading this much further back than the crawl.
+    ///     The window a full reconcile covers, reading this far back past the crawl when it must.
     /// </summary>
     private static readonly TimeSpan FullReconcileWindow = TimeSpan.FromHours(24);
 
+    /// <summary>How long after a full reconcile the next catch-up runs another.</summary>
+    private static readonly TimeSpan FullReconcileEvery = TimeSpan.FromHours(1);
+
     /// <summary>
-    ///     How much further back than the window the read reaches. A row near the window's edge can
-    ///     have a stored time slightly off its created_at, and is then matched by the read rather than
-    ///     looked up.
+    ///     The connector-metadata key the last full reconcile's time is kept under, beside the
+    ///     collections' backfill marks.
+    /// </summary>
+    private const string FullReconcileMark = "TreatmentsFullReconcile";
+
+    /// <summary>
+    ///     How much further back than the window the read reaches, and how far either side of a
+    ///     stored time a lookup searches beyond <see cref="MaxUtcOffset"/>. A row near the window's
+    ///     edge can have a stored time slightly off its created_at.
     /// </summary>
     private static readonly TimeSpan ReconcileReadMargin = TimeSpan.FromHours(1);
 
@@ -689,10 +709,9 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     ///     What a catch-up's treatment read returned from <see cref="ReadFrom"/> on, for
     ///     <see cref="ReconcileRecentTreatmentsAsync"/>.
     /// </summary>
-    private sealed class RecentTreatments(DateTime windowStart)
+    /// <param name="Full">Whether this is the hourly full reconcile, which may extend the read.</param>
+    private sealed record RecentTreatments(DateTime WindowStart, bool Full)
     {
-        public DateTime WindowStart { get; } = windowStart;
-
         public DateTime ReadFrom => WindowStart - ReconcileReadMargin;
 
         public List<Treatment> Records { get; } = [];
@@ -702,29 +721,32 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     /// <summary>
-    ///     The start of this sync's reconcile window: <see cref="FullReconcileWindow"/> in the one sync
-    ///     an hour whose start falls in the source's minute slot, <see cref="RecentReconcileWindow"/>
-    ///     otherwise. The slot is derived from the URL so sources do not all widen in the same minute.
+    ///     This catch-up's reconcile window: <see cref="FullReconcileWindow"/> once
+    ///     <see cref="FullReconcileEvery"/> has passed since the last full one, otherwise
+    ///     <see cref="RecentReconcileWindow"/> below the crawl's resume point.
     /// </summary>
-    private static DateTime ReconcileWindowStart(TConfig config, DateTime now)
+    private async Task<RecentTreatments> RecentTreatmentsForAsync(DateTime crawlFrom, DateTime now)
     {
-        var slot = SHA256.HashData(Encoding.UTF8.GetBytes(config.Url))[0] % 60;
-        var minutesPastSlot = ((now.Minute - slot) % 60 + 60) % 60;
-        var full = minutesPastSlot < Math.Max(1, config.SyncIntervalMinutes);
-        return now - (full ? FullReconcileWindow : RecentReconcileWindow);
+        var lastFull = await GetBackfillLowWaterMarkAsync(FullReconcileMark);
+        return lastFull is { } last && last <= now && now - last < FullReconcileEvery
+            ? new RecentTreatments(crawlFrom - RecentReconcileWindow, Full: false)
+            : new RecentTreatments(now - FullReconcileWindow, Full: true);
     }
 
     /// <summary>
     ///     Catches up on what the event-time crawl cannot see, from the treatments the crawl's own read
-    ///     returned in the reconcile window. The crawl resumes from the newest stored event time. It
-    ///     misses a treatment that reaches the source after a newer one: an edit Trio makes by deleting
-    ///     and re-uploading under the original event time, a back-dated entry, an offline phone. It
-    ///     also misses an edit made in place under the same id (Loop, AAPS, Careportal). Those are
-    ///     published again. Nightscout's v1 API hard-deletes and leaves no tombstone to page for, so
-    ///     stored rows the read did not return are deleted once the source confirms them gone
+    ///     returned in the reconcile window. The crawl resumes from the newest stored event time, so
+    ///     it misses a treatment that reaches the source after a newer one. Trio edits that way, by
+    ///     deleting and re-uploading under the original event time; so do back-dated entries and
+    ///     offline phones. It also misses an edit made in place under the same id (Loop, AAPS,
+    ///     Careportal). Those are published again, under
+    ///     <see cref="ITreatmentPublisher.PublishRecentTreatmentsAsync"/>'s rule. Nightscout's v1 API
+    ///     hard-deletes and leaves no tombstone to page for. Stored rows the read did not return are
+    ///     therefore deleted once the source confirms them gone
     ///     (<see cref="DeleteTreatmentsGoneUpstreamAsync"/>).
     /// </summary>
     /// <param name="crawledFrom">The crawl's own lower bound; it already published what lies above.</param>
+    /// <returns>How many treatments were written, not how many were compared.</returns>
     private async Task<PagedCrawlOutcome> ReconcileRecentTreatmentsAsync(
         RecentTreatments recent, DateTime crawledFrom, CancellationToken cancellationToken)
     {
@@ -736,31 +758,47 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
             .Where(t => ParseCreatedAt(t.CreatedAt) is { } at && at.UtcDateTime < crawledFrom)
             .ToList();
 
-        if (uncrawled.Count > 0 && !await publisher.Treatments.PublishRecentTreatmentsAsync(
-                uncrawled, ConnectorSource, await TreatmentPublishOriginAsync(), cancellationToken))
-            return new PagedCrawlOutcome(uncrawled.Count, false);
+        var written = 0;
+        if (uncrawled.Count > 0)
+        {
+            if (await publisher.Treatments.PublishRecentTreatmentsAsync(
+                    uncrawled, ConnectorSource, await TreatmentPublishOriginAsync(), cancellationToken) is not { } count)
+                return new PagedCrawlOutcome(0, false);
+            written = count;
+        }
 
-        await DeleteTreatmentsGoneUpstreamAsync(
-            publisher.Treatments, recent.WindowStart, identified.Select(t => t.Id!).ToHashSet(), cancellationToken);
+        var read = new Dictionary<string, DateTime>();
+        foreach (var treatment in identified)
+        {
+            if (ParseCreatedAt(treatment.CreatedAt) is { } at)
+                read.TryAdd(treatment.Id!, at.UtcDateTime);
+        }
 
-        return new PagedCrawlOutcome(uncrawled.Count, true);
+        await DeleteTreatmentsGoneUpstreamAsync(publisher.Treatments, recent.WindowStart, read, cancellationToken);
+
+        return new PagedCrawlOutcome(written, true);
     }
 
     /// <summary>
     ///     Deletes this connector's stored treatments from <paramref name="windowStart"/> on that
     ///     <paramref name="read"/> lacks, once a lookup by id finds each one gone. The read alone
     ///     proves nothing: a page can drop a record sharing its boundary timestamp, and a stored time
-    ///     can differ from its created_at. The lookup is trusted only once it finds a treatment the read
-    ///     did return, so a source that cannot answer it deletes nothing. A failed lookup, or more missing than <see cref="MaxLookupsPerSync"/> or
-    ///     <see cref="FewMissing"/> allow, also deletes nothing, and leaves the sync's result alone.
+    ///     can differ from its created_at. The lookup is trusted only once it finds a treatment the
+    ///     read did return, so a source that cannot answer it deletes nothing. A failed lookup also
+    ///     deletes nothing and leaves the sync's result alone, as does more missing than
+    ///     <see cref="MaxLookupsPerSync"/> or <see cref="FewMissing"/> allow.
     /// </summary>
+    /// <param name="read">The ids the read returned, each with its created_at.</param>
     private async Task DeleteTreatmentsGoneUpstreamAsync(
-        ITreatmentPublisher treatments, DateTime windowStart, HashSet<string> read, CancellationToken cancellationToken)
+        ITreatmentPublisher treatments,
+        DateTime windowStart,
+        IReadOnlyDictionary<string, DateTime> read,
+        CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var stored = await treatments.GetStoredTreatmentIdsAsync(ConnectorSource, windowStart, now, cancellationToken);
         var candidates = stored
-            .Where(id => !read.Contains(id) && !IsConfirmedPresent(id, now))
+            .Where(s => !read.ContainsKey(s.Key) && !IsConfirmedPresent(s.Key, now))
             .ToList();
 
         if (candidates.Count == 0)
@@ -777,12 +815,12 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         var gone = new HashSet<string>();
         try
         {
-            foreach (var kind in candidates.GroupBy(IsObjectId))
+            foreach (var kind in candidates.GroupBy(c => IsObjectId(c.Key)))
             {
-                if (read.FirstOrDefault(id => IsObjectId(id) == kind.Key) is not { } canary)
+                if (read.FirstOrDefault(r => IsObjectId(r.Key) == kind.Key) is not { Key: not null } canary)
                     continue;
 
-                if (!await TreatmentExistsUpstreamAsync(canary))
+                if (!await TreatmentExistsUpstreamAsync(canary.Key, canary.Value))
                 {
                     _logger.LogWarning(
                         "[{ConnectorSource}] The source could not find a treatment it had just returned by id; deleting none",
@@ -790,9 +828,9 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                     return;
                 }
 
-                foreach (var id in kind)
+                foreach (var (id, at) in kind)
                 {
-                    if (await TreatmentExistsUpstreamAsync(id))
+                    if (await TreatmentExistsUpstreamAsync(id, at))
                         ConfirmedPresent[PresenceKey(id)] = now;
                     else
                         gone.Add(id);
@@ -831,20 +869,21 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     /// <summary>
     ///     Looks a treatment up by the field its id was read from. A document carrying both an
     ///     <c>_id</c> and an uploader's own <c>id</c> (Trio) is read under the latter. An id that is not
-    ///     an ObjectId is therefore looked up by <c>id</c>; asking for it by <c>_id</c> is an error on
+    ///     an ObjectId is therefore looked up by <c>id</c>. Asking for it by <c>_id</c> is an error on
     ///     Nightscout releases that cast the value to an ObjectId. An ObjectId-shaped id is looked up by
-    ///     <c>_id</c> and then by <c>id</c>. The created_at floor is there only because Nightscout
-    ///     applies its implicit recency window to a query carrying no date filter (see
-    ///     <see cref="AnchorUnboundedFetch"/>).
+    ///     <c>_id</c> and then by <c>id</c>. Neither field is indexed, so the lookup is bounded to the
+    ///     created_at range the treatment can sit in: <paramref name="at"/>, give or take
+    ///     <see cref="MaxUtcOffset"/> and <see cref="ReconcileReadMargin"/>.
     /// </summary>
-    private async Task<bool> TreatmentExistsUpstreamAsync(string id)
+    private async Task<bool> TreatmentExistsUpstreamAsync(string id, DateTime at)
     {
+        var reach = MaxUtcOffset + ReconcileReadMargin;
         return (IsObjectId(id) && await AnyAsync("_id")) || await AnyAsync("id");
 
         async Task<bool> AnyAsync(string field)
         {
             const string operation = "LookUpTreatment";
-            var url = BuildCreatedAtUrl("treatments", DateTime.UnixEpoch, null)
+            var url = BuildCreatedAtUrl("treatments", at - reach, at + reach)
                 + $"&find[{field}]={Uri.EscapeDataString(id)}";
 
             var found = await FetchDataAsync<Treatment[]>(url, operation) ?? throw FetchFailed(operation);

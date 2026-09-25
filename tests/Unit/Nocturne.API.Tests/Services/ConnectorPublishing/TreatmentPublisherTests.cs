@@ -359,30 +359,26 @@ public class TreatmentPublisherTests
     }
 
     [Fact]
-    public async Task PublishRecentTreatmentsAsync_PublishesOnlyWhatCanBeDecomposedAgain()
+    public async Task PublishRecentTreatmentsAsync_WritesWhatTheDecomposerSelectsAndStampsIt()
     {
+        var changed = new Treatment { Id = "changed" };
         _mockDecomposer
-            .Setup(d => d.GetHeldLegacyIdsAsync(It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new HashSet<string> { "stored-edit", "stored-override" });
-        _mockDecomposer
-            .Setup(d => d.CanRepublish(It.IsAny<Treatment>(), It.IsAny<bool>()))
-            .Returns((Treatment t, bool stored) => t.Id != "unsupported" && !(stored && t.Id == "stored-override"));
+            .Setup(d => d.SelectForRepublishAsync(
+                "nightscout-connector", It.IsAny<IReadOnlyList<Treatment>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([(changed, "fp-changed")]);
         _mockTreatmentService
             .Setup(s => s.CreateTreatmentsAsync(It.IsAny<IEnumerable<Treatment>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new BulkWrite<Treatment>([], 0));
 
-        var published = await _publisher.PublishRecentTreatmentsAsync(
-            [
-                new Treatment { Id = "stored-edit" }, new Treatment { Id = "stored-override" },
-                new Treatment { Id = "late" }, new Treatment { Id = "unsupported" },
-            ],
-            "nightscout-connector", WriteOrigin.Live);
+        var written = await _publisher.PublishRecentTreatmentsAsync(
+            [changed, new Treatment { Id = "unchanged" }], "nightscout-connector", WriteOrigin.Live);
 
-        published.Should().BeTrue();
-        _mockDecomposer.Verify(d => d.CanRepublish(It.Is<Treatment>(t => t.Id == "stored-edit"), true));
-        _mockDecomposer.Verify(d => d.CanRepublish(It.Is<Treatment>(t => t.Id == "late"), false));
+        written.Should().Be(1);
         _mockTreatmentService.Verify(s => s.CreateTreatmentsAsync(
-            It.Is<IEnumerable<Treatment>>(ts => ts.Select(t => t.Id).SequenceEqual(new[] { "stored-edit", "late" })),
+            It.Is<IEnumerable<Treatment>>(ts => ts.Single().Id == "changed"), It.IsAny<CancellationToken>()), Times.Once);
+        _mockDecomposer.Verify(d => d.StampUpstreamFingerprintsAsync(
+            "nightscout-connector",
+            It.Is<IReadOnlyDictionary<string, string>>(f => f.Count == 1 && f["changed"] == "fp-changed"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

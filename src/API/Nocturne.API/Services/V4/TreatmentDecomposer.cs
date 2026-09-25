@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Nocturne.Connectors.Core.Constants;
@@ -1419,40 +1420,191 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlySet<string>> GetLegacyIdsFromSourceAsync(
+    public async Task<IReadOnlyDictionary<string, DateTime>> GetLegacyIdsFromSourceAsync(
         string source, DateTime from, DateTime to, CancellationToken ct = default)
     {
-        var ids = new HashSet<string>();
+        var stored = new Dictionary<string, DateTime>();
         foreach (var table in DecomposedTables)
-            ids.UnionWith(await table.LegacyIdsFromSourceAsync(source, from, to, ct));
-        return ids;
+        {
+            foreach (var row in await table.StoredFromSourceAsync(source, from, to, ct))
+                stored.TryAdd(row.LegacyId, row.At);
+        }
+
+        return stored;
+    }
+
+    /// <summary>The additional-properties key an upstream fingerprint is stamped under.</summary>
+    internal const string UpstreamFingerprintKey = "nocturneUpstreamFingerprint";
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A source's rows are stamped with the <see cref="UpstreamFingerprint"/> of the document they
+    /// were last written from. A stored treatment is decomposed again only when its fingerprint has
+    /// moved. An edit made in Nocturne therefore survives until the source itself changes the
+    /// record, and then the source wins. A row with no fingerprint yet, written before fingerprints or stripped
+    /// of it by an edit, counts as unchanged and is stamped here. A treatment the user deleted
+    /// stays deleted.
+    /// </remarks>
+    public async Task<IReadOnlyList<(Treatment Treatment, string Fingerprint)>> SelectForRepublishAsync(
+        string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default)
+    {
+        var identified = treatments.Where(t => t.Id is { Length: > 0 }).ToList();
+        if (identified.Count == 0)
+            return [];
+
+        var (held, deletedByUser) = await GetHeldLegacyIdsAsync(identified.Select(t => t.Id!).ToHashSet(), ct);
+        var stamped = await GetUpstreamFingerprintsAsync(source, held, ct);
+
+        var republish = new List<(Treatment, string)>();
+        var unstamped = new Dictionary<string, string>();
+        foreach (var treatment in identified)
+        {
+            var id = treatment.Id!;
+            var stored = held.Contains(id);
+            if (deletedByUser.Contains(id) || !CanRepublish(treatment, stored))
+                continue;
+
+            var fingerprint = UpstreamFingerprint(treatment);
+            if (!stored)
+            {
+                republish.Add((treatment, fingerprint));
+                continue;
+            }
+
+            var prior = stamped.GetValueOrDefault(id) ?? [];
+            if (prior.All(f => f is null))
+                unstamped[id] = fingerprint;
+            else if (!prior.Contains(fingerprint))
+                republish.Add((treatment, fingerprint));
+            else if (prior.Contains(null))
+                unstamped[id] = fingerprint;
+        }
+
+        await StampUpstreamFingerprintsAsync(source, unstamped, ct);
+        return republish;
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
-        IReadOnlySet<string> legacyIds, CancellationToken ct = default)
+    public async Task StampUpstreamFingerprintsAsync(
+        string source, IReadOnlyDictionary<string, string> fingerprints, CancellationToken ct = default)
     {
-        var held = new HashSet<string>();
-        if (legacyIds.Count == 0)
-            return held;
+        if (fingerprints.Count == 0)
+            return;
 
-        var wanted = legacyIds.ToHashSet();
         foreach (var table in DecomposedTables)
-            held.UnionWith(await table.HeldAsync(wanted, ct));
+            await table.StampAsync(source, fingerprints, ct);
+    }
+
+    /// <summary>
+    /// The fingerprints this source's rows carry, per legacy id: one entry per row, null for a row
+    /// that has none. An id with no row of this source's is absent.
+    /// </summary>
+    private async Task<Dictionary<string, HashSet<string?>>> GetUpstreamFingerprintsAsync(
+        string source, IReadOnlySet<string> legacyIds, CancellationToken ct)
+    {
+        var fingerprints = new Dictionary<string, HashSet<string?>>();
+        if (legacyIds.Count == 0)
+            return fingerprints;
+
+        var ids = legacyIds.ToArray();
+        foreach (var table in DecomposedTables)
+        {
+            foreach (var (legacyId, json) in await table.AdditionalPropertiesFromSourceAsync(source, ids, ct))
+            {
+                if (!fingerprints.TryGetValue(legacyId, out var set))
+                    fingerprints[legacyId] = set = [];
+                set.Add(ReadFingerprint(json));
+            }
+        }
+
+        return fingerprints;
+    }
+
+    private static string? ReadFingerprint(string? additionalPropertiesJson)
+    {
+        try
+        {
+            return additionalPropertiesJson is null
+                ? null
+                : (JsonNode.Parse(additionalPropertiesJson) as JsonObject)?[UpstreamFingerprintKey]?.GetValue<string>();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="additionalPropertiesJson"/> with <paramref name="fingerprint"/> under
+    /// <see cref="UpstreamFingerprintKey"/>, or null when it holds something other than a JSON object.
+    /// </summary>
+    private static string? WithFingerprint(string? additionalPropertiesJson, string fingerprint)
+    {
+        JsonObject properties;
+        try
+        {
+            properties = additionalPropertiesJson is null
+                ? []
+                : JsonNode.Parse(additionalPropertiesJson) as JsonObject ?? throw new FormatException();
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException)
+        {
+            return null;
+        }
+
+        properties[UpstreamFingerprintKey] = fingerprint;
+        return properties.ToJsonString();
+    }
+
+    /// <summary>
+    /// A stable hash of the fields that define what an upstream treatment says. The field list is
+    /// fixed: adding a field re-applies every stored record once, overwriting edits made in Nocturne.
+    /// </summary>
+    internal static string UpstreamFingerprint(Treatment t)
+    {
+        var canonical = JsonSerializer.Serialize(new object?[]
+        {
+            t.EventType, t.CreatedAt, t.Mills, t.EnteredBy, t.Insulin, t.Carbs, t.Protein, t.Fat,
+            t.AbsorptionTime, t.Glucose, t.GlucoseType, t.Units, t.Duration, t.Absolute, t.Rate,
+            t.Percent, t.Notes, t.Reason, t.TargetTop, t.TargetBottom, t.Profile, t.PreBolus,
+            t.SplitNow, t.SplitExt, t.BolusType, t.Automatic, t.InsulinDelivered, t.InsulinProgrammed,
+        });
+
+        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(canonical)));
+    }
+
+    /// <summary>
+    /// The subset of <paramref name="legacyIds"/> a re-upload would find stored, from any source,
+    /// and of those the ones held only by a row the user deleted.
+    /// </summary>
+    private async Task<(IReadOnlySet<string> Held, IReadOnlySet<string> DeletedByUser)> GetHeldLegacyIdsAsync(
+        HashSet<string> legacyIds, CancellationToken ct)
+    {
+        var rows = new List<(string Key, bool Live)>();
+        foreach (var table in DecomposedTables)
+            rows.AddRange(await table.BlockingAsync(legacyIds, ct));
 
         // Profile switches, overrides and temporary targets land as state spans keyed by OriginalId.
-        var ids = wanted.ToArray();
-        held.UnionWith(await _dbContext.StateSpans.IgnoreQueryFilters().AsNoTracking()
-            .Where(s => s.TenantId == _dbContext.TenantId && s.OriginalId != null && ids.Contains(s.OriginalId))
-            .WhereBlocksRecreation()
-            .Select(s => s.OriginalId!)
-            .ToListAsync(ct));
+        var ids = legacyIds.ToArray();
+        rows.AddRange((await _dbContext.StateSpans.IgnoreQueryFilters().AsNoTracking()
+                .Where(s => s.TenantId == _dbContext.TenantId && s.OriginalId != null && ids.Contains(s.OriginalId))
+                .WhereBlocksRecreation()
+                .Select(s => new { Key = s.OriginalId!, Live = s.DeletedAt == null })
+                .ToListAsync(ct))
+            .Select(s => (s.Key, s.Live)));
 
-        return held;
+        var blocks = RecreationBlocks<string>.From(rows);
+        return (blocks.Held, blocks.DeletedByUser);
     }
 
-    /// <inheritdoc />
-    public bool CanRepublish(Treatment treatment, bool stored)
+    /// <summary>
+    /// Whether decomposing <paramref name="treatment"/> again is safe and worthwhile. A treatment
+    /// that stores nothing is not. Nor is a <paramref name="stored"/> one whose type re-derives state
+    /// that later writes have moved on. A profile switch, override or temporary target resets its
+    /// span's end, and a pump suspend or resume reopens or closes the current suspension.
+    /// </summary>
+    internal bool CanRepublish(Treatment treatment, bool stored)
     {
         var c = ClassifyTreatment(treatment);
         if (c.ProducesNothing)
@@ -1517,21 +1669,32 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     /// user-issued one is attributed, and blocks a later connector resync from re-creating the row
     /// (<see cref="SoftDeleteDedupExtensions"/>).
     /// </summary>
-    private IDecomposedTable[] DecomposedTables =>
+    private IDecomposedTable[] DecomposedTables => _decomposedTables ??=
     [
-        Table(RecordType.Bolus, _dbContext.Boluses, ByTimeRange),
-        Table(RecordType.TempBasal, _dbContext.TempBasals, SpansByTimeRange),
-        Table(RecordType.CarbIntake, _dbContext.CarbIntakes, ByTimeRange),
-        Table(RecordType.BGCheck, _dbContext.BGChecks, ByTimeRange),
-        Table(RecordType.Note, _dbContext.Notes, ByTimeRange),
-        Table(RecordType.DeviceEvent, _dbContext.DeviceEvents, ByTimeRange),
-        Table(RecordType.BolusCalculation, _dbContext.BolusCalculations, ByTimeRange),
+        Table(RecordType.Bolus, _dbContext.Boluses, ByTimeRange, StoredAt),
+        Table(RecordType.TempBasal, _dbContext.TempBasals, SpansByTimeRange,
+            rows => rows.Select(e => new StoredRow(e.LegacyId!, e.StartTimestamp))),
+        Table(RecordType.CarbIntake, _dbContext.CarbIntakes, ByTimeRange, StoredAt),
+        Table(RecordType.BGCheck, _dbContext.BGChecks, ByTimeRange, StoredAt),
+        Table(RecordType.Note, _dbContext.Notes, ByTimeRange, StoredAt),
+        Table(RecordType.DeviceEvent, _dbContext.DeviceEvents, ByTimeRange, StoredAt),
+        Table(RecordType.BolusCalculation, _dbContext.BolusCalculations, ByTimeRange, StoredAt),
     ];
 
+    private IDecomposedTable[]? _decomposedTables;
+
     private DecomposedTable<T> Table<T>(
-        RecordType recordType, DbSet<T> rows, Func<IQueryable<T>, DateTime?, DateTime?, IQueryable<T>> inRange)
-        where T : class, IV4Entity, ISourcedEntity, IAuditable
-        => new(_dbContext, _auditContext, recordType, rows, inRange);
+        RecordType recordType,
+        DbSet<T> rows,
+        Func<IQueryable<T>, DateTime?, DateTime?, IQueryable<T>> inRange,
+        Func<IQueryable<T>, IQueryable<StoredRow>> storedAt)
+        where T : class, IV4Entity, ISourcedEntity, IAuditable, IAdditionalPropertiesEntity
+        => new(_dbContext, _auditContext, recordType, rows, inRange, storedAt);
+
+    private static IQueryable<StoredRow> StoredAt<T>(IQueryable<T> rows) where T : IV4TimeSeriesEntity
+        => rows.Select(e => new StoredRow(e.LegacyId!, e.Timestamp));
+
+    private sealed record StoredRow(string LegacyId, DateTime At);
 
     private interface IDecomposedTable
     {
@@ -1548,9 +1711,15 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
         Task<int> SoftDeleteInRangeAsync(DateTime? from, DateTime? to, string scope, CancellationToken ct);
 
-        Task<List<string>> LegacyIdsFromSourceAsync(string source, DateTime from, DateTime to, CancellationToken ct);
+        Task<List<StoredRow>> StoredFromSourceAsync(string source, DateTime from, DateTime to, CancellationToken ct);
 
-        Task<IReadOnlySet<string>> HeldAsync(HashSet<string> legacyIds, CancellationToken ct);
+        /// <summary>The ids of <paramref name="legacyIds"/> that block re-creation, and whether a live row holds each.</summary>
+        Task<IEnumerable<(string Key, bool Live)>> BlockingAsync(HashSet<string> legacyIds, CancellationToken ct);
+
+        Task<List<(string LegacyId, string? Json)>> AdditionalPropertiesFromSourceAsync(
+            string source, string[] legacyIds, CancellationToken ct);
+
+        Task StampAsync(string source, IReadOnlyDictionary<string, string> fingerprints, CancellationToken ct);
     }
 
     private sealed class DecomposedTable<T>(
@@ -1558,8 +1727,9 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         IAuditContext auditContext,
         RecordType recordType,
         DbSet<T> rows,
-        Func<IQueryable<T>, DateTime?, DateTime?, IQueryable<T>> inRange) : IDecomposedTable
-        where T : class, IV4Entity, ISourcedEntity, IAuditable
+        Func<IQueryable<T>, DateTime?, DateTime?, IQueryable<T>> inRange,
+        Func<IQueryable<T>, IQueryable<StoredRow>> storedAt) : IDecomposedTable
+        where T : class, IV4Entity, ISourcedEntity, IAuditable, IAdditionalPropertiesEntity
     {
         public RecordType RecordType => recordType;
 
@@ -1573,15 +1743,46 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         public Task<int> SoftDeleteInRangeAsync(DateTime? from, DateTime? to, string scope, CancellationToken ct)
             => context.AuditedSoftDeleteAsync(inRange(rows, from, to), auditContext, scope, ct);
 
-        public Task<List<string>> LegacyIdsFromSourceAsync(
+        public Task<List<StoredRow>> StoredFromSourceAsync(
             string source, DateTime from, DateTime to, CancellationToken ct)
-            => inRange(rows.AsNoTracking(), from, to)
-                .Where(e => e.DataSource == source && e.LegacyId != null)
-                .Select(e => e.LegacyId!)
+            => storedAt(inRange(rows.AsNoTracking(), from, to)
+                    .Where(e => e.DataSource == source && e.LegacyId != null))
                 .ToListAsync(ct);
 
-        public async Task<IReadOnlySet<string>> HeldAsync(HashSet<string> legacyIds, CancellationToken ct)
-            => (await context.GetBlockingLegacyIdsAsync<T>(legacyIds, ct)).Held;
+        public async Task<IEnumerable<(string Key, bool Live)>> BlockingAsync(
+            HashSet<string> legacyIds, CancellationToken ct)
+        {
+            var blocks = await context.GetBlockingLegacyIdsAsync<T>(legacyIds, ct);
+            return blocks.Held.Select(id => (id, !blocks.DeletedByUser.Contains(id)));
+        }
+
+        public async Task<List<(string LegacyId, string? Json)>> AdditionalPropertiesFromSourceAsync(
+            string source, string[] legacyIds, CancellationToken ct)
+            => (await FromSource(rows.AsNoTracking(), source, legacyIds)
+                    .Select(e => new { LegacyId = e.LegacyId!, Json = e.AdditionalPropertiesJson })
+                    .ToListAsync(ct))
+                .Select(e => (e.LegacyId, e.Json))
+                .ToList();
+
+        public async Task StampAsync(
+            string source, IReadOnlyDictionary<string, string> fingerprints, CancellationToken ct)
+        {
+            var stored = await FromSource(rows.AsNoTracking(), source, fingerprints.Keys.ToArray())
+                .Select(e => new { e.Id, LegacyId = e.LegacyId!, Json = e.AdditionalPropertiesJson })
+                .ToListAsync(ct);
+
+            foreach (var row in stored)
+            {
+                if (WithFingerprint(row.Json, fingerprints[row.LegacyId]) is not { } json)
+                    continue;
+
+                await rows.Where(e => e.Id == row.Id)
+                    .ExecuteUpdateAsync(u => u.SetProperty(e => e.AdditionalPropertiesJson, json), ct);
+            }
+        }
+
+        private static IQueryable<T> FromSource(IQueryable<T> query, string source, string[] legacyIds)
+            => query.Where(e => e.DataSource == source && e.LegacyId != null && legacyIds.Contains(e.LegacyId));
     }
 
     private static IQueryable<T> ByTimeRange<T>(IQueryable<T> rows, DateTime? from, DateTime? to)

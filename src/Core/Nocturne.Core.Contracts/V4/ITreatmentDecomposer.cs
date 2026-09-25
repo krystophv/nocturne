@@ -58,24 +58,24 @@ public interface ITreatmentDecomposer
 
     /// <summary>
     /// The legacy ids of <paramref name="source"/>'s live records whose event time falls in
-    /// [<paramref name="from"/>, <paramref name="to"/>].
+    /// [<paramref name="from"/>, <paramref name="to"/>], each with that event time.
     /// </summary>
-    Task<IReadOnlySet<string>> GetLegacyIdsFromSourceAsync(
+    Task<IReadOnlyDictionary<string, DateTime>> GetLegacyIdsFromSourceAsync(
         string source, DateTime from, DateTime to, CancellationToken ct = default);
 
     /// <summary>
-    /// The subset of <paramref name="legacyIds"/> a re-upload would find already stored, from any
-    /// source, or withheld because the user deleted it.
+    /// Of treatments <paramref name="source"/> delivered again, the ones to decompose again, each
+    /// with the fingerprint to stamp once it is written.
     /// </summary>
-    Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(IReadOnlySet<string> legacyIds, CancellationToken ct = default);
+    Task<IReadOnlyList<(Treatment Treatment, string Fingerprint)>> SelectForRepublishAsync(
+        string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default);
 
     /// <summary>
-    /// Whether decomposing <paramref name="treatment"/> again is safe and worthwhile. A treatment
-    /// that stores nothing is not. One already <paramref name="stored"/> is not when its type
-    /// re-derives state later writes have moved on: a profile switch, override or temporary target
-    /// resets its span's end, and a pump suspend or resume reopens or closes the current suspension.
+    /// Records, on <paramref name="source"/>'s rows under each legacy id, the fingerprint of the
+    /// upstream document they were written from.
     /// </summary>
-    bool CanRepublish(Treatment treatment, bool stored);
+    Task StampUpstreamFingerprintsAsync(
+        string source, IReadOnlyDictionary<string, string> fingerprints, CancellationToken ct = default);
 
     /// <summary>
     /// Bulk-deletes V4 treatment records matching the optional find filter (time range).

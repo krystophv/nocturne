@@ -99,7 +99,7 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
 
         var row = await _context.CarbIntakes.IgnoreQueryFilters().AsNoTracking().SingleAsync(c => c.Id == named);
         _context.Entry(row).Property<bool>("DeletedByUser").CurrentValue.Should().BeFalse();
-        (await _decomposer.GetHeldLegacyIdsAsync(new HashSet<string> { "t-1" })).Should().BeEmpty();
+        (await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 20)])).Should().ContainSingle();
     }
 
     [Fact]
@@ -148,19 +148,28 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
         await SoftDeleteAsync<CarbIntakeEntity>(gone, byUser: false);
         await AddTempBasalAsync("temp-basal", Connector);
 
-        var ids = await _decomposer.GetLegacyIdsFromSourceAsync(Connector, At.AddHours(-1), At.AddHours(1));
+        var stored = await _decomposer.GetLegacyIdsFromSourceAsync(Connector, At.AddHours(-1), At.AddHours(1));
 
-        ids.Should().BeEquivalentTo(["in-window", "temp-basal"]);
+        stored.Should().BeEquivalentTo(new Dictionary<string, DateTime> { ["in-window"] = At, ["temp-basal"] = At });
     }
 
     [Fact]
-    public async Task Held_ids_are_stored_rows_of_any_source_and_user_deletions()
+    public async Task A_treatment_nothing_holds_is_selected()
     {
-        await AddCarbAsync("live", Other);
-        var userDeleted = await AddCarbAsync("user-deleted", Connector);
-        await SoftDeleteAsync<CarbIntakeEntity>(userDeleted, byUser: true);
         var swept = await AddCarbAsync("swept", Connector);
         await SoftDeleteAsync<CarbIntakeEntity>(swept, byUser: false);
+
+        var selected = await _decomposer.SelectForRepublishAsync(Connector, [Upstream("new", 20), Upstream("swept", 20)]);
+
+        selected.Select(s => s.Treatment.Id).Should().BeEquivalentTo(["new", "swept"]);
+    }
+
+    [Fact]
+    public async Task What_the_user_deleted_another_source_holds_or_a_span_carries_is_not_selected()
+    {
+        var userDeleted = await AddCarbAsync("user-deleted", Connector);
+        await SoftDeleteAsync<CarbIntakeEntity>(userDeleted, byUser: true);
+        await AddCarbAsync("other-source", Other);
         _context.StateSpans.Add(new StateSpanEntity
         {
             Id = Guid.CreateVersion7(), TenantId = TenantId, Category = nameof(StateSpanCategory.Override),
@@ -168,10 +177,49 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
         });
         await _context.SaveChangesAsync();
 
-        var held = await _decomposer.GetHeldLegacyIdsAsync(
-            new HashSet<string> { "live", "user-deleted", "swept", "override", "new" });
+        var selected = await _decomposer.SelectForRepublishAsync(Connector,
+        [
+            Upstream("user-deleted", 20), Upstream("other-source", 20),
+            new Treatment { Id = "override", EventType = "Temporary Override", Created_at = "2026-03-01T12:00:00.000Z" },
+        ]);
 
-        held.Should().BeEquivalentTo(["live", "user-deleted", "override"]);
+        selected.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_row_stored_before_fingerprints_is_stamped_and_not_overwritten()
+    {
+        var row = await AddCarbAsync("t-1", Connector);
+
+        var selected = await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 35)]);
+
+        selected.Should().BeEmpty();
+        (await FingerprintOfAsync(row)).Should().Be(TreatmentDecomposer.UpstreamFingerprint(Upstream("t-1", 35)));
+    }
+
+    [Fact]
+    public async Task A_stored_treatment_is_selected_only_once_the_source_changes_it()
+    {
+        await AddCarbAsync("t-1", Connector);
+        await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 35)]);
+
+        (await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 35)])).Should().BeEmpty();
+        (await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 50)]))
+            .Should().ContainSingle().Which.Fingerprint.Should().Be(TreatmentDecomposer.UpstreamFingerprint(Upstream("t-1", 50)));
+    }
+
+    [Fact]
+    public async Task Stamping_keeps_the_rows_other_properties()
+    {
+        var row = await AddCarbAsync("t-1", Connector);
+        await _context.CarbIntakes.Where(c => c.Id == row)
+            .ExecuteUpdateAsync(u => u.SetProperty(c => c.AdditionalPropertiesJson, """{"app":"trio"}"""));
+
+        await _decomposer.StampUpstreamFingerprintsAsync(Connector, new Dictionary<string, string> { ["t-1"] = "fp" });
+
+        var json = await _context.CarbIntakes.AsNoTracking().Where(c => c.Id == row)
+            .Select(c => c.AdditionalPropertiesJson).SingleAsync();
+        json.Should().Contain("\"app\":\"trio\"").And.Contain("\"fp\"");
     }
 
     [Theory]
@@ -192,6 +240,21 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
         var treatment = new Treatment { Id = "t-1", EventType = eventType, Created_at = "2026-03-01T12:00:00.000Z" };
 
         _decomposer.CanRepublish(treatment, stored).Should().Be(republished);
+    }
+
+    private static Treatment Upstream(string id, double carbs) => new()
+    {
+        Id = id, EventType = "Carb Correction", Carbs = carbs,
+        Created_at = "2026-03-01T12:00:00.000Z", DataSource = Connector,
+    };
+
+    private async Task<string?> FingerprintOfAsync(Guid id)
+    {
+        var json = await _context.CarbIntakes.AsNoTracking().Where(c => c.Id == id)
+            .Select(c => c.AdditionalPropertiesJson).SingleAsync();
+        return json is null
+            ? null
+            : System.Text.Json.Nodes.JsonNode.Parse(json)?[TreatmentDecomposer.UpstreamFingerprintKey]?.GetValue<string>();
     }
 
     private async Task<Guid> AddCarbAsync(string legacyId, string source, DateTime? at = null)
