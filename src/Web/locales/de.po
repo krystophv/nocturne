@@ -25471,3 +25471,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
 msgid "See the full daily curve in the Glucose Profile <0/>"
 msgstr ""
+
+#: src/routes/(authenticated)/settings/account/+page.svelte
+msgid "Your old recovery codes stopped working after a Nocturne update. Generate new codes to keep a backup way to sign in."
+msgstr ""
