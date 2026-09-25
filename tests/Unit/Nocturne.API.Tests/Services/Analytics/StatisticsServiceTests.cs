@@ -1053,7 +1053,7 @@ public class StatisticsServiceTests
             });
 
         // Act
-        var result = _statisticsService.CalculateAveragedStats(entries).ToList();
+        var result = _statisticsService.CalculateAveragedStats(entries, TimeZoneInfo.Utc).ToList();
 
         // Assert
         result.Should().HaveCount(24);
@@ -1068,7 +1068,7 @@ public class StatisticsServiceTests
         var entries = Array.Empty<SensorGlucose>();
 
         // Act
-        var result = _statisticsService.CalculateAveragedStats(entries).ToList();
+        var result = _statisticsService.CalculateAveragedStats(entries, TimeZoneInfo.Utc).ToList();
 
         // Assert
         result.Should().HaveCount(24);

@@ -1169,26 +1169,56 @@ public class StatisticsService : IStatisticsService
         );
 
     /// <summary>
-    /// The hourly zone set, which splits the target band at 63 and 140 and hyperglycaemia at 200
-    /// rather than following the tenant's thresholds.
+    /// The per-hour consensus bands: the default <see cref="GlycemicThresholds"/>, never a tenant's,
+    /// with each edge on the side <see cref="CalculateTimeInRange"/> puts it (the target and
+    /// tight-target bands closed), and the target band split at the tight-target top so the six
+    /// partition the hour.
     /// </summary>
-    private enum ExtendedZone
+    private enum HourlyBand
     {
         VeryLow,
         Low,
-        Normal,
-        AboveTarget,
+        TightTarget,
+        AboveTightTarget,
         High,
         VeryHigh,
     }
 
-    private static readonly GlucoseZoneScale ExtendedZones = new(
-        GlucoseZoneBound.Under(GlucoseConstants.VeryLowMgdl),
-        GlucoseZoneBound.Under(63),
-        GlucoseZoneBound.Under(140),
-        GlucoseZoneBound.Under(GlucoseConstants.TargetTopMgdl),
-        GlucoseZoneBound.Under(200)
-    );
+    private static readonly GlycemicThresholds Consensus = new();
+
+    /// <inheritdoc/>
+    public GlycemicThresholds HourlyBandThresholds => CopyOfConsensus();
+
+    /// <summary>
+    /// A fresh copy of <see cref="Consensus"/>. The model is mutable and the instance is shared by
+    /// every tenant, so it never leaves the service itself.
+    /// </summary>
+    private static GlycemicThresholds CopyOfConsensus() =>
+        new()
+        {
+            VeryLow = Consensus.VeryLow,
+            Low = Consensus.Low,
+            TargetBottom = Consensus.TargetBottom,
+            TargetTop = Consensus.TargetTop,
+            TightTargetBottom = Consensus.TightTargetBottom,
+            TightTargetTop = Consensus.TightTargetTop,
+            High = Consensus.High,
+            VeryHigh = Consensus.VeryHigh,
+        };
+
+    /// <summary>The widest UTC offset any zone uses; a recorded offset beyond it is treated as none.</summary>
+    private const int MaxUtcOffsetMinutes = 14 * 60;
+
+    private static readonly GlucoseZoneScale HourlyBands = HourlyBandScale(Consensus);
+
+    private static GlucoseZoneScale HourlyBandScale(GlycemicThresholds consensus) =>
+        new(
+            GlucoseZoneBound.Under(consensus.VeryLow),
+            GlucoseZoneBound.Under(consensus.Low),
+            GlucoseZoneBound.UpTo(consensus.TightTargetTop),
+            GlucoseZoneBound.UpTo(consensus.TargetTop),
+            GlucoseZoneBound.UpTo(consensus.VeryHigh)
+        );
 
     /// <summary>
     /// Calculate time in range metrics
@@ -1525,82 +1555,284 @@ public class StatisticsService : IStatisticsService
     }
 
     /// <summary>
-    /// Calculate averaged statistics for each hour of the day (0-23)
-    /// Groups glucose readings by hour across multiple days and calculates BasicGlucoseStats for each hour
+    /// Distinct local days an hour needs readings on before
+    /// <see cref="CalculateHourlyPatterns"/> ranks it. Counted in days rather than readings alone so
+    /// that one day of dense data cannot pass as a pattern.
     /// </summary>
-    /// <param name="entries">Collection of glucose entries</param>
-    /// <returns>Collection of averaged statistics for each hour</returns>
-    public IEnumerable<AveragedStats> CalculateAveragedStats(IEnumerable<SensorGlucose> entries)
+    public const int HourlyPatternsMinimumDays = 5;
+
+    /// <summary>
+    /// Readings an hour needs in all before <see cref="CalculateHourlyPatterns"/> ranks it: five
+    /// days of a fifteen-minute sensor, so a sensor that drops out for most of each day does not
+    /// rank on a handful of values.
+    /// </summary>
+    public const int HourlyPatternsMinimumReadings = 20;
+
+    /// <summary>
+    /// Percentage points of time in range the best and worst ranked hours must differ by before
+    /// <see cref="CalculateHourlyPatterns"/> names either. Five points is the smallest step the
+    /// consensus time-in-range guidance treats as meaningful, about 72 minutes a day; below it the
+    /// ordering is noise, and the report would call 70.1% better than 70.0%.
+    /// </summary>
+    public const double HourlyPatternsMinimumSpread = 5;
+
+    /// <summary>
+    /// Distinct local days an hour needs a reading below range on before
+    /// <see cref="CalculateHourlyPatterns"/> lists it as most below range, so one low reading, or one
+    /// bad day at that hour, does not read as a pattern.
+    /// </summary>
+    public const int HourlyPatternsMinimumLowDays = 2;
+
+    private const int HourlyPatternsListLength = 3;
+
+    /// <inheritdoc/>
+    public IEnumerable<AveragedStats> CalculateAveragedStats(
+        IEnumerable<SensorGlucose> entries,
+        TimeZoneInfo? tenantTimeZone
+    )
     {
-        var entriesList = entries.ToList();
-
-        // Group entries by hour of day
-        var hourlyGroups = new Dictionary<int, List<SensorGlucose>>();
-
-        // Initialize all 24 hours
-        for (int hour = 0; hour < 24; hour++)
-        {
-            hourlyGroups[hour] = new List<SensorGlucose>(entriesList.Count / 24 + 1);
-        }
-
-        // Group entries by hour (only if we have entries)
-        if (entriesList.Any())
-        {
-            foreach (var entry in entriesList)
-            {
-                if (entry.Mills <= 0)
-                {
-                    continue; // Skip entries without valid timestamps
-                }
-
-                var dateTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(entry.Mills);
-                if (entry.UtcOffset.HasValue)
-                {
-                    dateTimeOffset = dateTimeOffset.ToOffset(
-                        TimeSpan.FromMinutes(entry.UtcOffset.Value)
-                    );
-                }
-
-                var hour = dateTimeOffset.Hour;
-                if (hour >= 0 && hour < 24)
-                {
-                    hourlyGroups[hour].Add(entry);
-                }
-            }
-        }
-
-        // Calculate statistics for each hour
-        var averagedStats = new List<AveragedStats>();
-
-        for (int hourIndex = 0; hourIndex < 24; hourIndex++)
-        {
-            var hourEntries = hourlyGroups[hourIndex];
-
-            // Extract glucose values and calculate basic stats
-            var glucoseValues = ExtractGlucoseValues(hourEntries).ToList();
-            var basicStats = CalculateBasicStats(glucoseValues);
-
-            // Calculate extended 7-range time in range percentages for this hour
-            var extendedTir = CalculateExtendedTimeInRange(glucoseValues);
-
-            var hourlyStats = new AveragedStats
-            {
-                Hour = hourIndex,
-                Count = basicStats.Count,
-                Mean = basicStats.Mean,
-                Median = basicStats.Median,
-                Min = basicStats.Min,
-                Max = basicStats.Max,
-                StandardDeviation = basicStats.StandardDeviation,
-                Percentiles = basicStats.Percentiles,
-                TimeInRange = extendedTir,
-            };
-
-            averagedStats.Add(hourlyStats);
-        }
-
-        return averagedStats;
+        var byHour = GroupByLocalHour(entries, tenantTimeZone);
+        return Enumerable.Range(0, 24).Select(hour => HourStats<AveragedStats>(hour, byHour[hour], out _)).ToList();
     }
+
+    /// <inheritdoc/>
+    public HourlyPatterns CalculateHourlyPatterns(
+        IEnumerable<SensorGlucose> entries,
+        TimeZoneInfo? tenantTimeZone
+    )
+    {
+        var byHour = GroupByLocalHour(entries, tenantTimeZone);
+        var hours = new List<HourlyPattern>(24);
+        var lowDays = new int[24];
+
+        for (var hour = 0; hour < 24; hour++)
+        {
+            var pattern = HourStats<HourlyPattern>(hour, byHour[hour], out var bands);
+            var total = byHour[hour].Count;
+            var below = bands[(int)HourlyBand.VeryLow] + bands[(int)HourlyBand.Low];
+            var above = bands[(int)HourlyBand.High] + bands[(int)HourlyBand.VeryHigh];
+
+            pattern.BelowRange = RoundedPercent(below, total);
+            pattern.AboveRange = RoundedPercent(above, total);
+            pattern.InRange = RoundedPercent(total - below - above, total);
+            pattern.MainExcursion = (below, above) switch
+            {
+                (0, 0) => HourlyExcursion.None,
+                _ when below > above => HourlyExcursion.Below,
+                _ when above > below => HourlyExcursion.Above,
+                _ => HourlyExcursion.Mixed,
+            };
+            pattern.IsRanked =
+                pattern.DayCount >= HourlyPatternsMinimumDays
+                && total >= HourlyPatternsMinimumReadings;
+            lowDays[hour] = byHour[hour]
+                .Where(r => r.Mgdl < Consensus.Low)
+                .Select(r => r.Day)
+                .Distinct()
+                .Count();
+
+            hours.Add(pattern);
+        }
+
+        // One order, best first. The hour only fixes where equal hours sit in it; which hours are
+        // named never depends on it (see SelectBestAndWorst).
+        var ranked = hours
+            .Where(h => h.IsRanked)
+            .OrderByDescending(h => h.InRange)
+            .ThenBy(h => h.BelowRange)
+            .ThenBy(h => h.Hour)
+            .ToList();
+
+        var (best, worst) = SelectBestAndWorst(ranked);
+
+        var belowCandidates = ranked
+            .Where(h => h.BelowRange > 0 && lowDays[h.Hour] >= HourlyPatternsMinimumLowDays)
+            .OrderByDescending(h => h.BelowRange)
+            .ThenBy(h => h.Hour)
+            .ToList();
+        var belowCount = Math.Min(HourlyPatternsListLength, belowCandidates.Count);
+        while (belowCount > 0
+            && belowCount < belowCandidates.Count
+            && belowCandidates[belowCount - 1].BelowRange == belowCandidates[belowCount].BelowRange)
+            belowCount--;
+        var mostBelow = belowCandidates.Take(belowCount).ToList();
+
+        return new HourlyPatterns
+        {
+            Comparison = hours.All(h => h.Count == 0) ? HourlyComparison.NoReadings
+                : ranked.Count < 2 ? HourlyComparison.TooLittleData
+                : best.Count == 0 && worst.Count == 0 ? HourlyComparison.CloseTogether
+                : HourlyComparison.Ranked,
+            Hours = hours,
+            BestHours = best,
+            WorstHours = worst,
+            MostBelowRangeHours = mostBelow,
+            RankedHourCount = ranked.Count,
+            MinimumDaysToRank = HourlyPatternsMinimumDays,
+            MinimumReadingsToRank = HourlyPatternsMinimumReadings,
+            MinimumSpreadToRank = HourlyPatternsMinimumSpread,
+            MinimumLowDaysToList = HourlyPatternsMinimumLowDays,
+            Thresholds = CopyOfConsensus(),
+            ClockBasis = tenantTimeZone is null ? HourlyClockBasis.ReadingOffsets : HourlyClockBasis.TenantTimeZone,
+            TimeZone = tenantTimeZone?.Id,
+        };
+    }
+
+    /// <summary>
+    /// The best hours from the head of <paramref name="ranked"/> and the worst from its tail, each
+    /// at most <see cref="HourlyPatternsListLength"/> and at most half the hours, so the two never
+    /// share an hour. From there the lists shrink from their inner ends until three rules hold:
+    /// <list type="bullet">
+    /// <item>No listed hour ties, on time in range and time below range, the first hour left off
+    /// its list; which of two equal hours makes the list would otherwise come down to the clock.</item>
+    /// <item>Every best hour beats the worst ranked hour, and every worst hour trails the best,
+    /// by at least <see cref="HourlyPatternsMinimumSpread"/>.</item>
+    /// <item>Every best hour beats every worst hour by at least the same spread. When they do not,
+    /// the longer list gives up its innermost hour, or both do when they are the same length.</item>
+    /// </list>
+    /// Either list may end up empty while the other is not: one hour well below 23 equal ones is
+    /// named worst with no best.
+    /// </summary>
+    private static (List<HourlyPattern> Best, List<HourlyPattern> Worst) SelectBestAndWorst(
+        List<HourlyPattern> ranked
+    )
+    {
+        var count = ranked.Count;
+        var bestCount = Math.Min(HourlyPatternsListLength, count / 2);
+        var worstCount = bestCount;
+
+        static bool Ties(HourlyPattern a, HourlyPattern b) =>
+            a.InRange == b.InRange && a.BelowRange == b.BelowRange;
+
+        HourlyPattern InnermostBest() => ranked[bestCount - 1];
+        HourlyPattern InnermostWorst() => ranked[count - worstCount];
+
+        bool changed;
+        do
+        {
+            changed = false;
+
+            if (bestCount > 0 && Ties(InnermostBest(), ranked[bestCount]))
+            {
+                bestCount--;
+                changed = true;
+            }
+            else if (worstCount > 0 && Ties(InnermostWorst(), ranked[count - worstCount - 1]))
+            {
+                worstCount--;
+                changed = true;
+            }
+            else if (bestCount > 0 && InnermostBest().InRange - ranked[^1].InRange < HourlyPatternsMinimumSpread)
+            {
+                bestCount--;
+                changed = true;
+            }
+            else if (worstCount > 0 && ranked[0].InRange - InnermostWorst().InRange < HourlyPatternsMinimumSpread)
+            {
+                worstCount--;
+                changed = true;
+            }
+            else if (bestCount > 0
+                && worstCount > 0
+                && InnermostBest().InRange - InnermostWorst().InRange < HourlyPatternsMinimumSpread)
+            {
+                if (bestCount > worstCount)
+                    bestCount--;
+                else if (worstCount > bestCount)
+                    worstCount--;
+                else
+                {
+                    bestCount--;
+                    worstCount--;
+                }
+                changed = true;
+            }
+        } while (changed);
+
+        var best = ranked.Take(bestCount).ToList();
+        var worst = ranked
+            .Skip(count - worstCount)
+            .OrderBy(h => h.InRange)
+            .ThenByDescending(h => h.BelowRange)
+            .ThenBy(h => h.Hour)
+            .ToList();
+
+        return (best, worst);
+    }
+
+    private readonly record struct LocalReading(double Mgdl, DateOnly Day);
+
+    /// <summary>
+    /// Plausible readings grouped by hour of the tenant's local clock. A reading's own
+    /// <c>UtcOffset</c> is ignored when <paramref name="tenantTimeZone"/> is given: it records the
+    /// uploader's offset, which differs between devices and would split one local hour across
+    /// several buckets. Without a timezone it is the only local clock there is, so each reading is
+    /// placed by its own offset, and on UTC when it has none.
+    /// <para>
+    /// On the day the clock falls back, the repeated hour receives both of its occurrences and so
+    /// carries double weight for that day; on the day it springs forward the skipped hour has no
+    /// readings.
+    /// </para>
+    /// </summary>
+    private static List<LocalReading>[] GroupByLocalHour(
+        IEnumerable<SensorGlucose> entries,
+        TimeZoneInfo? tenantTimeZone
+    )
+    {
+        var byHour = new List<LocalReading>[24];
+        for (var hour = 0; hour < 24; hour++)
+            byHour[hour] = [];
+
+        foreach (var entry in entries)
+        {
+            if (entry.Mills <= 0 || !IsPlausibleReading(entry))
+                continue;
+
+            var instant = DateTimeOffset.FromUnixTimeMilliseconds(entry.Mills);
+            var local = tenantTimeZone is not null
+                ? TimeZoneInfo.ConvertTime(instant, tenantTimeZone)
+                : instant.ToOffset(TimeSpan.FromMinutes(entry.UtcOffset is { } minutes && Math.Abs(minutes) <= MaxUtcOffsetMinutes ? minutes : 0));
+            byHour[local.Hour].Add(new LocalReading(entry.Mgdl, DateOnly.FromDateTime(local.DateTime)));
+        }
+
+        return byHour;
+    }
+
+    private T HourStats<T>(int hour, List<LocalReading> readings, out int[] bandCounts)
+        where T : AveragedStats, new()
+    {
+        var values = readings.Select(r => r.Mgdl).ToList();
+        var basicStats = CalculateBasicStats(values);
+        bandCounts = HourlyBands.Count(values);
+        var counts = bandCounts;
+
+        double Percent(HourlyBand band) => RoundedPercent(counts[(int)band], values.Count);
+
+        return new T
+        {
+            Hour = hour,
+            Count = basicStats.Count,
+            DayCount = readings.Select(r => r.Day).Distinct().Count(),
+            Mean = basicStats.Mean,
+            Median = basicStats.Median,
+            Min = basicStats.Min,
+            Max = basicStats.Max,
+            StandardDeviation = basicStats.StandardDeviation,
+            Percentiles = basicStats.Percentiles,
+            TimeInRange = new ExtendedTimeInRangePercentages
+            {
+                VeryLow = Percent(HourlyBand.VeryLow),
+                Low = Percent(HourlyBand.Low),
+                TightTarget = Percent(HourlyBand.TightTarget),
+                AboveTightTarget = Percent(HourlyBand.AboveTightTarget),
+                High = Percent(HourlyBand.High),
+                VeryHigh = Percent(HourlyBand.VeryHigh),
+            },
+        };
+    }
+
+    private static double RoundedPercent(int count, int total) =>
+        total == 0 ? 0 : Math.Round((double)count / total * 100, 1);
 
     /// <inheritdoc/>
     public IEnumerable<WeekdayGlucoseSlot> CalculateWeekdayAverages(
@@ -1638,35 +1870,6 @@ public class StatisticsService : IStatisticsService
                 Mean = slot.Value.ToDictionary(w => w.Key, w => w.Value.Sum / w.Value.Count),
             })
             .ToList();
-    }
-
-    /// <summary>
-    /// Calculate extended time in range percentages over the hourly zone set
-    /// Ranges: &lt;54, 54-63, 63-140, 140-180, 180-200, &gt;=200
-    /// </summary>
-    /// <param name="glucoseValues">Collection of glucose values in mg/dL</param>
-    /// <returns>Extended time in range percentages</returns>
-    private ExtendedTimeInRangePercentages CalculateExtendedTimeInRange(IList<double> glucoseValues)
-    {
-        if (glucoseValues.Count == 0)
-        {
-            return new ExtendedTimeInRangePercentages();
-        }
-
-        var total = glucoseValues.Count;
-        var counts = ExtendedZones.Count(glucoseValues);
-
-        double Percent(ExtendedZone zone) => Math.Round((double)counts[(int)zone] / total * 100, 1);
-
-        return new ExtendedTimeInRangePercentages
-        {
-            VeryLow = Percent(ExtendedZone.VeryLow),
-            Low = Percent(ExtendedZone.Low),
-            Normal = Percent(ExtendedZone.Normal),
-            AboveTarget = Percent(ExtendedZone.AboveTarget),
-            High = Percent(ExtendedZone.High),
-            VeryHigh = Percent(ExtendedZone.VeryHigh),
-        };
     }
 
     #endregion
