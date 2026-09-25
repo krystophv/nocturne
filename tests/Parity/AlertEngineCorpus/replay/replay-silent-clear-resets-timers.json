@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "name": "tracker-hysteresis-expiry-on-gap",
-  "description": "the per-evaluation expiry proxy is the previous tick\u0027s UpdatedAt: with HysteresisMinutes=10, 5-minute ticks never expire, but a 10-minute evaluation gap closes",
+  "name": "replay-silent-clear-resets-timers",
+  "description": "a clear resets every timer of the rule, the auto-resolve tree\u0027s included, so after a re-fire the resolve hold starts over",
   "rules": [
     {
       "id": "00000000-0000-0000-0000-000000000001",
@@ -12,8 +12,21 @@
         "value": 70
       },
       "confirmation_readings": 1,
-      "hysteresis_minutes": 10,
-      "auto_resolve_enabled": false
+      "hysteresis_minutes": 0,
+      "auto_resolve_enabled": true,
+      "auto_resolve_params": {
+        "type": "sustained",
+        "sustained": {
+          "minutes": 10,
+          "child": {
+            "type": "threshold",
+            "threshold": {
+              "direction": "above",
+              "value": 60
+            }
+          }
+        }
+      }
     }
   ],
   "ticks": [
@@ -34,7 +47,7 @@
     {
       "at": "2026-01-05T12:05:00Z",
       "context": {
-        "latest_value": 100,
+        "latest_value": 66,
         "latest_timestamp": "2026-01-05T12:05:00Z",
         "trend_rate": 0,
         "last_reading_at": "2026-01-05T12:05:00Z",
@@ -48,7 +61,7 @@
     {
       "at": "2026-01-05T12:10:00Z",
       "context": {
-        "latest_value": 100,
+        "latest_value": 90,
         "latest_timestamp": "2026-01-05T12:10:00Z",
         "trend_rate": 0,
         "last_reading_at": "2026-01-05T12:10:00Z",
@@ -62,7 +75,7 @@
     {
       "at": "2026-01-05T12:15:00Z",
       "context": {
-        "latest_value": 100,
+        "latest_value": 65,
         "latest_timestamp": "2026-01-05T12:15:00Z",
         "trend_rate": 0,
         "last_reading_at": "2026-01-05T12:15:00Z",
@@ -74,12 +87,40 @@
       }
     },
     {
+      "at": "2026-01-05T12:20:00Z",
+      "context": {
+        "latest_value": 65,
+        "latest_timestamp": "2026-01-05T12:20:00Z",
+        "trend_rate": 0,
+        "last_reading_at": "2026-01-05T12:20:00Z",
+        "has_ever_aps_cycled": false,
+        "has_ever_pump_snapshot": false,
+        "has_ever_uploader_snapshot": false,
+        "has_ever_aps_sensitivity": false,
+        "sleep_session_active": false
+      }
+    },
+    {
       "at": "2026-01-05T12:25:00Z",
       "context": {
-        "latest_value": 100,
+        "latest_value": 65,
         "latest_timestamp": "2026-01-05T12:25:00Z",
         "trend_rate": 0,
         "last_reading_at": "2026-01-05T12:25:00Z",
+        "has_ever_aps_cycled": false,
+        "has_ever_pump_snapshot": false,
+        "has_ever_uploader_snapshot": false,
+        "has_ever_aps_sensitivity": false,
+        "sleep_session_active": false
+      }
+    },
+    {
+      "at": "2026-01-05T12:30:00Z",
+      "context": {
+        "latest_value": 65,
+        "latest_timestamp": "2026-01-05T12:30:00Z",
+        "trend_rate": 0,
+        "last_reading_at": "2026-01-05T12:30:00Z",
         "has_ever_aps_cycled": false,
         "has_ever_pump_snapshot": false,
         "has_ever_uploader_snapshot": false,
