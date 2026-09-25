@@ -5796,6 +5796,7 @@ msgstr ""
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 #: src/routes/(authenticated)/reports/heart-rate/+page.svelte
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
 msgid "Readings"
 msgstr ""
 
@@ -18272,8 +18273,10 @@ msgstr ""
 #~ msgid "Mean ({0})"
 #~ msgstr ""
 
-#~ msgid "Median ({0})"
-#~ msgstr ""
+#. 0: bgLabel()
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Median ({0})"
+msgstr ""
 
 #~ msgid "Std Dev ({0})"
 #~ msgstr ""
@@ -22035,6 +22038,7 @@ msgid "Target: at least 70% CGM active time over 14 days; the statistics on this
 msgstr ""
 
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
 msgid "No readings in this date range"
 msgstr ""
 
@@ -25213,4 +25217,261 @@ msgstr ""
 
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "Automatic boluses"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "Mostly below range"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "Mostly above range"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "As often below range as above"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "Never out of range"
+msgstr ""
+
+#. 0: spread
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "The compared hours were all within {0} percentage points of each other in time in range, too close to call any of them better or worse."
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "No hour stood out on its own above the rest. The hours at that end tied with one another."
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "No hour stood out on its own below the rest. The hours at that end tied with one another."
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "Not enough data to compare hours yet"
+msgstr ""
+
+#. 0: minimumDays; 1: minimumReadings
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "An hour is compared with the others once it has readings on at least {0} different days, and at least {1} readings in all. Try a longer date range."
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "Most time in range"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "The hours with the largest share of readings in range."
+msgstr ""
+
+#. 0: percent(hour.belowRange, 1); 1: percent(hour.aboveRange, 1)
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "{0} below, {1} above range"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "Least time in range"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "The hours with the smallest share of readings in range, and which way they went."
+msgstr ""
+
+#. 0: excursionText(hour); 1: percent(hour.belowRange, 1); 2: percent(hour.aboveRange, 1)
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "{0}: {1} below, {2} above"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "Most time below range"
+msgstr ""
+
+#. 0: low != null ? `under ${bg(low)} ${bgLabel()}` \\: "below range"; 1: minimumLowDays
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "The hours with the largest share of readings {0}, among those that went below range on at least {1} days."
+msgstr ""
+
+#. 0: percent(hour.timeInRange?.veryLow, 1); 1: bg(veryLow); 2: bgLabel()
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "{0} under {1} {2}"
+msgstr ""
+
+#. 0: percent(hour.timeInRange?.veryLow, 1)
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "{0} very low"
+msgstr ""
+
+#. 0: minimumLowDays
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "No compared hour went below range on {0} or more days."
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyGlance.svelte
+msgid "At a glance"
+msgstr ""
+
+#: src/lib/components/reports/hourly-patterns/HourlyRangeBars.svelte
+msgid "Stacked bar chart of the share of each hour's readings in each glucose range, one bar per hour from midnight. The table below gives the same figures."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Error Loading Hourly Patterns"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Which hours of the day spend the most and least time in the glucose target range"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Hourly Patterns - Nocturne Reports"
+msgstr ""
+
+#. 0: bgRange(edges.low, edges.targetTop)
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "In range means a reading between {0}."
+msgstr ""
+
+#. 0: dateRangeDisplay; 1: patternsResource.date.dayCount
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "{0} • {1} days"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "This report lays every day in the range over one 24-hour clock, so you can see which hours of the day tend to go well and which tend to be harder. <0/>"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Hourly patterns need glucose readings. Try a wider date range."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Hour by hour"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Each bar is one hour of the day. Its bands show what share of that hour's readings fell in each range, lowest at the bottom."
+msgstr ""
+
+#. 0: hourList(unranked)
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Too little data to compare: {0}. These hours are shown but left out of the lists above."
+msgstr ""
+
+#. 0: hourList(emptyHours)
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "No readings at all: {0}."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Every hour"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "The same figures as a table, with the typical glucose in each hour. The middle half is the range the central 50% of that hour's readings fell in."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Hour"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "In range"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Below"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Above"
+msgstr ""
+
+#. 0: bgLabel()
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Middle half ({0})"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Days"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Too little data"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "No readings"
+msgstr ""
+
+#. 0: bgRange(edges.low, edges.targetTop); 1: bg(edges.low); 2: bgLabel(); 3: bg(edges.veryLow); 4: bgLabel(); 5: bgRange(edges.low, edges.tightTop)
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "In range is {0}, the international consensus target. Below range is under {1} {2}, and very low is under {3} {4}. Tight range, {5}, is a narrower part of the target that some people and care teams also look at."
+msgstr ""
+
+#. 0: report.timeZone
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Hours follow the time zone set in the profile settings ({0})."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "A shared link cannot see the time zone this data belongs to,"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "The time zone for this data could not be loaded just now,"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "The time zone in the profile settings for this data isn't one this server recognises,"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "No time zone is set in the profile settings for this data,"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Setting a time zone in the profile settings fixes this."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Correcting the time zone in the profile settings fixes this."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Reloading the report later may fix this."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "<0/> so each reading is placed at the local time the device that recorded it reported. If readings came from devices set to different time zones, some hours may be off. <1/>"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "How to read this report"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "Which hours are compared"
+msgstr ""
+
+#. 0: minimumDays; 1: minimumReadings; 2: spread
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "An hour is only compared with the others once it has readings on at least {0} different days, and at least {1} readings in all. With less data, a single unusual day could make an hour look much better or worse than it usually is. Those hours still appear in the chart and table. Best and worst hours are only named when they differ by at least {2} percentage points of time in range."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "<0/> Not medical advice"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "This report describes what happened in your data. It does not say why, or what to change: meals, activity, sleep, illness and sensor problems can all shape an hour. Talk any pattern through with your diabetes care team before changing your treatment."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
+msgid "See the full daily curve in the Glucose Profile <0/>"
+msgstr ""
+
+#: src/routes/(authenticated)/settings/account/+page.svelte
+msgid "Your old recovery codes stopped working after a Nocturne update. Generate new codes to keep a backup way to sign in."
 msgstr ""
