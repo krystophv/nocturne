@@ -20,7 +20,10 @@ namespace Nocturne.API.Tests.Controllers.V4.Identity;
 /// </summary>
 public sealed class ShareAppearanceControllerTests
 {
-    private readonly Mock<IShareLinkService> _service = new();
+    // The narrow interface, not IShareLinkService: mocking the wide one would still compile if
+    // the controller took a dependency that can hand out the share token, which is the thing this
+    // seam exists to prevent.
+    private readonly Mock<IShareAppearanceReader> _service = new();
 
     private ShareAppearanceController BuildController(bool onShareHost)
     {
@@ -82,17 +85,26 @@ public sealed class ShareAppearanceControllerTests
             NightModeSchedule = true,
             Prediction = new PredictionPreferences { Enabled = true },
             Chart = new ChartPreferences { ShowPoints = true },
+            YearOverviewColors = new YearOverviewColorPreferences { Tdd = [10, 70] },
             DashboardTopWidgets = [WidgetId.Tdd],
         };
 
         var disclosed = everythingSet.ToPresentationOnly();
 
         SetPropertyNames(disclosed).Should().BeEquivalentTo(
-            "GlucoseUnits", "TimeFormat", "RegionFormat", "ColorTheme", "Prediction", "Chart");
+            "GlucoseUnits", "TimeFormat", "RegionFormat", "ColorTheme", "Prediction", "Chart", "YearOverviewColors");
 
         // Both are carried whole rather than field by field, so the projection cannot withhold a
         // field added inside them: everything these two types declare is disclosed. Pinning the
         // declarations is what makes adding one a decision rather than a default.
+        PropertyNames(typeof(YearOverviewColorPreferences)).Should().BeEquivalentTo(
+            "AdvancedMode", "OutOfBandTransparency", "LowColor", "HighColor",
+            "AvgGlucose", "AvgGlucoseBand", "AvgGlucoseColors", "AvgGlucoseInvert",
+            "Tir", "TirBand", "TirColors", "TirInvert",
+            "Bolus", "BolusBand", "BolusColors", "BolusInvert",
+            "Basal", "BasalBand", "BasalColors", "BasalInvert",
+            "Tdd", "TddBand", "TddColors", "TddInvert",
+            "Carbs", "CarbsBand", "CarbsColors", "CarbsInvert");
         PropertyNames(typeof(PredictionPreferences)).Should().BeEquivalentTo(
             "Enabled", "Minutes", "DisplayMode");
         PropertyNames(typeof(ChartPreferences)).Should().BeEquivalentTo(

@@ -1,7 +1,7 @@
 // The supported-SDK list is DERIVED from sdk/<lang>/config.yaml at build time
 // (see scripts/generate-sdk-manifest.mjs) so it can never drift from what we
 // actually publish. This module only adds the presentation details that aren't
-// in those configs — display name, registry, and install command — keyed by the
+// in those configs (display name, registry, and install command) keyed by the
 // SDK directory name. A newly added SDK shows up automatically; if it has no
 // presentation entry yet it still lists with its package name and a sane default.
 
@@ -86,12 +86,14 @@ const PRESENTATION: Record<string, Presentation> = {
   },
 };
 
-export const SDKS: Sdk[] = (manifest as SdkManifestEntry[]).map((entry) => {
+const MANIFEST: SdkManifestEntry[] = manifest;
+
+export const SDKS: Sdk[] = MANIFEST.map((entry) => {
   const p = PRESENTATION[entry.dir];
   return {
     ...entry,
     name: p?.name ?? entry.dir,
-    registry: p?.registry ?? "—",
+    registry: p?.registry ?? "n/a",
     registryUrl: p ? p.registryUrl(entry.package) : "#",
     install: p ? p.install(entry.package) : entry.package,
   };

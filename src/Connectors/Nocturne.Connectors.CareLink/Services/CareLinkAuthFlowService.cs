@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -97,22 +98,21 @@ public partial class CareLinkAuthFlowService : IDisposable
         var postResponse = await _httpClient.SendAsync(postRequest, HttpCompletionOption.ResponseHeadersRead, ct);
         var postBody = await postResponse.Content.ReadAsStringAsync(ct);
 
-        // Check for CAPTCHA
+        // Auth0 answers a refused credential with 200 and an error page, so there is no status for
+        // AuthTokenProviderBase.ExecuteWithRetryAsync to classify. These two are refusals that
+        // repeating the request cannot clear, so give them the status the page stands in for —
+        // anything else buys the caller another identical login and risks vendor lockout.
         if (postBody.Contains("captcha", StringComparison.OrdinalIgnoreCase) ||
             postBody.Contains("arkose", StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogError(
+            throw new HttpRequestException(
                 "CareLink login requires CAPTCHA verification. Please obtain a refresh token externally " +
-                "(e.g., using carelink-bridge's login tool) and configure it as the RefreshToken connector secret.");
-            return null;
-        }
+                "(e.g., using carelink-bridge's login tool) and configure it as the RefreshToken connector secret.",
+                null,
+                HttpStatusCode.Forbidden);
 
-        // Check for wrong credentials
         if (postBody.Contains("Wrong username or password", StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogError("CareLink login failed: wrong username or password");
-            return null;
-        }
+            throw new HttpRequestException(
+                "CareLink login failed: wrong username or password", null, HttpStatusCode.Unauthorized);
 
         // 7. Follow redirects to capture auth code
         var authCode = await ExtractAuthCode(postResponse, postBody, ct);
@@ -390,8 +390,8 @@ public partial class CareLinkAuthFlowService : IDisposable
         for (var i = 0; i < maxRedirects; i++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 
-            var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             if (response.Headers.Location != null && (int)response.StatusCode is >= 300 and < 400)
             {
                 currentUrl = response.Headers.Location.IsAbsoluteUri
@@ -403,6 +403,12 @@ public partial class CareLinkAuthFlowService : IDisposable
             var html = await response.Content.ReadAsStringAsync(ct);
             if (html.Contains("<form", StringComparison.OrdinalIgnoreCase))
                 return new FormPageResult(html, currentUrl);
+
+            var pageUrl = new Uri(currentUrl);
+            _logger.LogWarning(
+                "CareLink authorize page returned {StatusCode} with no login form at {Url}",
+                response.StatusCode, pageUrl.GetLeftPart(UriPartial.Path));
+            return null;
         }
 
         return null;

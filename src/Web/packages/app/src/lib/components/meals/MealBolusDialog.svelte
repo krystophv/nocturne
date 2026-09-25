@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { formatClock, formatLocale } from "$lib/utils/formatting";
+  import {
+    formatClock,
+    formatInsulinDisplay,
+    formatLocale,
+  } from "$lib/utils/formatting";
   import type { MealEvent, Bolus, BolusType, PatientInsulin } from "$lib/api";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
@@ -30,15 +34,27 @@
   let deletingBolusId = $state<string | null>(null);
   const deletion = useToastSubmission("Failed to delete bolus");
 
-  let editForm = $state({
-    insulin: null as number | null,
-    bolusType: undefined as BolusType | undefined,
-    programmed: undefined as number | undefined,
-    delivered: undefined as number | undefined,
-    duration: undefined as number | undefined,
+  interface BolusEditForm {
+    insulin: number | null;
+    bolusType: BolusType | undefined;
+    programmed: number | undefined;
+    delivered: number | undefined;
+    duration: number | undefined;
+    automatic: boolean;
+    insulinType: string;
+    patientInsulinId: string | undefined;
+    isBasalInsulin: boolean;
+  }
+
+  let editForm = $state<BolusEditForm>({
+    insulin: null,
+    bolusType: undefined,
+    programmed: undefined,
+    delivered: undefined,
+    duration: undefined,
     automatic: false,
     insulinType: "",
-    patientInsulinId: undefined as string | undefined,
+    patientInsulinId: undefined,
     isBasalInsulin: false,
   });
 
@@ -52,9 +68,7 @@
 
   // Fetch patient insulins for the form dropdown
   const insulinsResource = patientRemote.getInsulins();
-  let patientInsulins = $derived(
-    (insulinsResource.current ?? []) as PatientInsulin[],
-  );
+  let patientInsulins: PatientInsulin[] = $derived(insulinsResource.current ?? []);
 
   // Reset to list mode when dialog opens
   $effect(() => {
@@ -214,8 +228,7 @@
         <div class="flex items-center gap-2">
           <Button
             variant="ghost"
-            size="icon"
-            class="h-8 w-8"
+            size="icon-sm"
             onclick={returnToList}
           >
             <ArrowLeft class="h-4 w-4" />
@@ -272,9 +285,9 @@
                     <span class="text-sm font-medium">
                       {formatBolusTime(bolus.mills)}
                     </span>
-                    <span class="text-sm">{bolus.insulin}U</span>
+                    <span class="text-sm">{formatInsulinDisplay(bolus.insulin)}U</span>
                     {#if bolus.bolusType}
-                      <Badge variant="secondary" class="text-xs">
+                      <Badge variant="secondary">
                         {bolus.bolusType}
                       </Badge>
                     {/if}
@@ -288,16 +301,14 @@
                 <div class="flex gap-1">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    class="h-8 w-8"
+                    size="icon-sm"
                     onclick={() => startEdit(bolus)}
                   >
                     <Pencil class="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    class="h-8 w-8"
+                    size="icon-sm"
                     onclick={() => (deletingBolusId = bolus.id ?? null)}
                   >
                     <Trash2 class="h-4 w-4" />

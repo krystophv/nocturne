@@ -186,15 +186,6 @@ export const items: CommandPaletteItem[] = [
 		href: "/reports/week-to-week",
 	},
 	{
-		id: "report-month-to-month",
-		label: "Month to Month",
-		group: "reports",
-		description: "Monthly comparison of glucose data",
-		keywords: ["comparison", "trend", "monthly"],
-		icon: CalendarDays,
-		href: "/reports/month-to-month",
-	},
-	{
 		id: "report-year-overview",
 		label: "Year Overview",
 		group: "reports",
@@ -332,7 +323,7 @@ export const items: CommandPaletteItem[] = [
 		id: "page-calendar",
 		label: "Calendar",
 		group: "pages",
-		keywords: ["calendar", "schedule", "dates"],
+		keywords: ["calendar", "schedule", "dates", "monthly"],
 		icon: CalendarDays,
 		href: "/calendar",
 	},
@@ -430,12 +421,15 @@ export const items: CommandPaletteItem[] = [
 		href: "/settings/connectors",
 	},
 	{
+		// Kept while the label and href moved on: pinned and recent ids persist in local storage,
+		// and one that no longer matches an item is dropped from a user's pins without a word.
 		id: "settings-integrations",
-		label: "Integrations",
+		// The parent /settings/integrations has no page of its own; only this child does.
+		label: "Discord",
 		group: "settings",
-		keywords: ["integrations", "api", "webhooks"],
+		keywords: ["discord", "bot", "chat", "integrations", "alerts"],
 		icon: Link,
-		href: "/settings/integrations",
+		href: "/settings/integrations/discord",
 	},
 	{
 		id: "settings-data-quality",

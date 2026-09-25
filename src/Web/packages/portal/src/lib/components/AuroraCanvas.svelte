@@ -1,26 +1,37 @@
 <script lang="ts">
     import { onMount } from "svelte";
+    import { auroraTime } from "$lib/utils/aurora-noise";
+    import { FLOW_H, FLOW_VMAX, FLOW_W, type FlowField } from "$lib/utils/aurora-flow";
 
     let {
         height = 880,
         intensity = 1.0,
         speed = 1.0,
+        flow = null,
         class: className = "",
     }: {
         height?: number;
         intensity?: number;
         speed?: number;
+        flow?: FlowField | null;
         class?: string;
     } = $props();
 
     let canvasEl: HTMLCanvasElement;
 
-    // Fragment shader — domain-warped FBM noise into the Nocturne glucose palette
+    // Fragment shader: domain-warped FBM noise into the Nocturne glucose palette.
+    // aurora-noise.ts is a JS port of this chain; keep the two in step. The flow
+    // field's warp is deliberately not mirrored there: the pool takes the current
+    // straight from the field instead.
     const FRAG = `
 precision highp float;
 uniform vec2  u_res;
 uniform float u_t;
 uniform float u_intensity;
+uniform sampler2D u_flow;
+
+const float FLOW_VMAX = ${FLOW_VMAX.toFixed(4)};
+const float FLOW_WARP = 0.22;
 
 const vec3 C_VLOW  = vec3(0.835, 0.149, 0.192);
 const vec3 C_LOW   = vec3(0.165, 0.608, 0.608);
@@ -51,16 +62,27 @@ vec3 ramp(float t){
 void main(){
   vec2 uv=gl_FragCoord.xy/u_res.xy;
   vec2 p=(gl_FragCoord.xy-0.5*u_res.xy)/u_res.y;
+  // Flow rows run top-down like the DOM; gl_FragCoord runs bottom-up.
+  vec4 flow=texture2D(u_flow,vec2(uv.x,1.0-uv.y));
+  // Current in widths/s and heights/s with DOM y down; p is height-normalised, y up.
+  // The pattern is sampled from where the water came from, so it rides the current.
+  vec2 cur=(flow.rg-0.5)*2.0*FLOW_VMAX;
+  vec2 pw=p-vec2(cur.x*u_res.x/u_res.y,-cur.y)*FLOW_WARP;
   float t=u_t*0.06;
-  vec2 q=vec2(fbm(p*1.4+vec2(0.,t)),fbm(p*1.4+vec2(5.2,-t*0.8)));
-  vec2 r=vec2(fbm(p*2.1+1.8*q+vec2(1.7,9.2)+t*1.3),fbm(p*2.1+1.8*q+vec2(8.3,2.8)-t*1.1));
-  float n=fbm(p*1.6+2.2*r);
+  vec2 q=vec2(fbm(pw*1.4+vec2(0.,t)),fbm(pw*1.4+vec2(5.2,-t*0.8)));
+  vec2 r=vec2(fbm(pw*2.1+1.8*q+vec2(1.7,9.2)+t*1.3),fbm(pw*2.1+1.8*q+vec2(8.3,2.8)-t*1.1));
+  float n=fbm(pw*1.6+2.2*r);
   float yb=p.y*1.15+0.05;
   float band=smoothstep(0.0,0.55,1.0-yb*yb);
   float v=pow(n,1.15)*(0.55+0.6*band);
   vec3 col=ramp(v);
   float vign=smoothstep(0.95,0.2,length(p*vec2(0.55,1.05)));
   col=mix(C_BG,col,vign*u_intensity);
+  // Stirred water heats from blue through orange to red.
+  float heat=flow.b;
+  vec3 hot=heat<0.5?mix(C_HIGH,C_IN,heat*2.0):mix(C_IN,C_VLOW,(heat-0.5)*2.0);
+  col=mix(col,hot,smoothstep(0.02,0.3,heat)*0.85);
+  col+=hot*heat*0.25;
   float g=(hash(gl_FragCoord.xy+u_t*0.001)-0.5)*0.025;
   col+=g;
   gl_FragColor=vec4(col,1.0);
@@ -75,17 +97,27 @@ void main(){
         const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
         if (!gl) return;
 
+        // A shader that fails to compile or link draws a silent black hero; surface why.
         const compile = (type: number, src: string) => {
             const s = gl.createShader(type)!;
             gl.shaderSource(s, src);
             gl.compileShader(s);
-            return s;
+            if (gl.getShaderParameter(s, gl.COMPILE_STATUS)) return s;
+            console.error(gl.getShaderInfoLog(s));
+            return null;
         };
 
+        const vert = compile(gl.VERTEX_SHADER, VERT);
+        const frag = compile(gl.FRAGMENT_SHADER, FRAG);
+        if (!vert || !frag) return;
         const prog = gl.createProgram()!;
-        gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
-        gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+        gl.attachShader(prog, vert);
+        gl.attachShader(prog, frag);
         gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+            console.error(gl.getProgramInfoLog(prog));
+            return;
+        }
         gl.useProgram(prog);
 
         const buf = gl.createBuffer();
@@ -98,10 +130,23 @@ void main(){
         const uRes = gl.getUniformLocation(prog, "u_res");
         const uT = gl.getUniformLocation(prog, "u_t");
         const uI = gl.getUniformLocation(prog, "u_intensity");
+        const uFlow = gl.getUniformLocation(prog, "u_flow");
+        const flowTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, flowTex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        if (flow) {
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, FLOW_W, FLOW_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, flow.texture);
+        } else {
+            // Still water: zero velocity, no heat.
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128, 128, 0, 255]));
+        }
+        gl.uniform1i(uFlow, 0);
 
         let raf: number;
         let running = true;
-        const t0 = performance.now();
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         const resize = () => {
@@ -116,10 +161,14 @@ void main(){
 
         const tick = () => {
             if (!running) return;
-            const t = ((performance.now() - t0) / 1000) * speed;
+            const now = auroraTime();
             gl.uniform2f(uRes, canvas.width, canvas.height);
-            gl.uniform1f(uT, t);
+            gl.uniform1f(uT, now * speed);
             gl.uniform1f(uI, intensity);
+            if (flow) {
+                flow.advance(now);
+                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, FLOW_W, FLOW_H, gl.RGBA, gl.UNSIGNED_BYTE, flow.texture);
+            }
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             raf = requestAnimationFrame(tick);
         };
@@ -135,7 +184,7 @@ void main(){
 
 <canvas
     bind:this={canvasEl}
-    class="block w-full object-cover {className}"
-    style="height: {height}px"
+    class="block w-full h-(--canvas-h) object-cover {className}"
+    style:--canvas-h="{height}px"
     aria-hidden="true"
 ></canvas>

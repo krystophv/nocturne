@@ -1,3 +1,4 @@
+using Nocturne.API.Services.Alerts;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -164,7 +165,7 @@ public class EntriesController : BaseV3Controller<Entry>
 
         // Set appropriate headers
         Response.Headers["ETag"] = FormatCursorETag(entry.Mills);
-        Response.Headers["Cache-Control"] = "public, max-age=60";
+        Response.Headers["Cache-Control"] = "private, max-age=60";
 
         return Ok(entry.ToV3Response());
     }
@@ -256,7 +257,7 @@ public class EntriesController : BaseV3Controller<Entry>
 
             _logger.LogDebug("Successfully created V3 entry {Id}", createdEntry.Id);
 
-            await EvaluateAlertsAsync(new[] { createdEntry }, cancellationToken);
+            await _alertEvaluator.EvaluateForEntriesAsync([createdEntry], cancellationToken);
 
             // Location resolves to the 24-hex ObjectId that matches the response body identifier.
             return CreatedAtAction(
@@ -333,7 +334,7 @@ public class EntriesController : BaseV3Controller<Entry>
                 createdEntries.Count()
             );
 
-            await EvaluateAlertsAsync(createdEntries.ToArray(), cancellationToken);
+            await _alertEvaluator.EvaluateForEntriesAsync(createdEntries, cancellationToken);
 
             return StatusCode(201, createdEntries.ToV3Responses());
         }
@@ -410,6 +411,49 @@ public class EntriesController : BaseV3Controller<Entry>
             _logger.LogWarning(ex, "Invalid V3 entry update data for {Id}", id);
             return CreateV3ErrorResponse(400, "Invalid entry data", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Partially update an entry via V3 API (JSON merge-patch).
+    /// </summary>
+    /// <remarks>
+    /// AAPS's NSClientV3 sends <c>PATCH</c> rather than <c>PUT</c> to update entries (e.g. marking
+    /// a value invalid); without this endpoint every such update returns 405.
+    /// </remarks>
+    /// <param name="id">Entry ID to patch</param>
+    /// <param name="patchData">JSON merge-patch data to apply to the existing entry</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The patched entry</returns>
+    [HttpPatch("{id}")]
+    [Authorize]
+    [RequireScope(Scope.GlucoseReadWrite)]
+    [NightscoutEndpoint("/api/v3/entries/:id")]
+    [ProducesResponseType(typeof(Entry), 200)]
+    [ProducesResponseType(typeof(V3ErrorResponse), 404)]
+    [ProducesResponseType(500)]
+    [ErrorEnvelope]
+    public async Task<ActionResult> PatchEntry(
+        string id,
+        [FromBody] JsonElement patchData,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _logger.LogDebug("V3 entry PATCH requested for {Id}", id);
+
+        var patchedEntry = await _entryService.PatchEntryAsync(id, patchData, cancellationToken);
+
+        if (patchedEntry == null)
+        {
+            return CreateV3ErrorResponse(
+                404,
+                "Entry not found",
+                $"No entry found with ID: {id}"
+            );
+        }
+
+        _logger.LogDebug("Successfully patched V3 entry {Id}", id);
+
+        return Ok(patchedEntry.ToV3Response());
     }
 
     /// <summary>
@@ -625,14 +669,6 @@ public class EntriesController : BaseV3Controller<Entry>
         // Use the most recent entry's date as last modified
         var latestMills = entries.Max(e => e.Mills);
         return DateTimeOffset.FromUnixTimeMilliseconds(latestMills);
-    }
-
-    private async Task EvaluateAlertsAsync(Entry[] entries, CancellationToken ct)
-    {
-        // Alarms evaluate against the canonical stream, not the just-uploaded batch — a losing
-        // CGM's readings must not trigger or suppress an alarm.
-        if (entries.Any(e => e.Sgv is > 0))
-            await _alertEvaluator.EvaluateAsync(ct);
     }
 
     #endregion

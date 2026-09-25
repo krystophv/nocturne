@@ -48,8 +48,13 @@ public abstract class DecomposerBase
     /// siblings orphans that row outright.
     /// </para>
     /// </remarks>
-    /// <returns>The persisted record, and whether it was inserted rather than updated.</returns>
-    protected async Task<(TRecord Record, bool Created)> UpsertByLegacyIdAsync<TRecord>(
+    /// <returns>
+    /// The persisted record and whether it was inserted rather than updated, or <see langword="null"/>
+    /// when the write was refused because the record's identity is already held
+    /// (<see cref="RecreationBlockedException"/>) — the outcome the batch path reaches by dropping
+    /// the record from its insert set. It is counted in <see cref="DecompositionResult.SkippedDeleted"/>.
+    /// </returns>
+    protected async Task<(TRecord Record, bool Created)?> UpsertByLegacyIdAsync<TRecord>(
         ILegacyKeyedRepository<TRecord> repository,
         string? legacyId,
         TRecord model,
@@ -69,7 +74,19 @@ public abstract class DecomposerBase
 
         if (existing is null)
         {
-            var created = await repository.CreateAsync(model, origin, ct);
+            TRecord created;
+            try
+            {
+                created = await repository.CreateAsync(model, origin, ct);
+            }
+            catch (RecreationBlockedException)
+            {
+                // No live row carries the legacy id, so what holds it is the user's deletion.
+                result.SkippedDeleted++;
+                Logger.LogDebug("Skipped a {RecordType}: its identity is held by a deleted record", recordType);
+                return null;
+            }
+
             result.CreatedRecords.Add(created);
             Logger.LogDebug("Created {RecordType} from legacy record {LegacyId}", recordType, legacyId);
             return (created, true);
@@ -124,8 +141,9 @@ public abstract class DecomposerBase
     /// attribution: it is reached from a genuine per-record edit, and since a legacy record
     /// persists only as its decomposed v4 rows, their audit rows are the whole trail of that edit.
     /// Connector re-syncs of the single path are system-attributed by the sync scope's own audit
-    /// context rather than here. <see cref="ProfileDecomposer"/> has no batch path at all, so it
-    /// takes no scope.
+    /// context rather than here. <see cref="ProfileDecomposer"/> takes no scope on either path: a
+    /// profile persists only as its decomposed rows, so their audit rows are the whole trail of a
+    /// user's profile edit, and an unchanged re-upsert writes nothing to audit.
     /// </remarks>
     protected static IDisposable SystemAttributedBatchWrites(IAuditContext auditContext)
         => SystemAuditScope.Push(auditContext);
@@ -141,6 +159,8 @@ public abstract class DecomposerBase
         if (records.Count == 0)
             return;
 
-        result.CreatedRecords.AddRange(await repository.BulkCreateAsync(records, origin, ct));
+        var written = await repository.BulkCreateAsync(records, origin, ct);
+        result.CreatedRecords.AddRange(written);
+        result.SkippedDeleted += written.SkippedDeleted;
     }
 }

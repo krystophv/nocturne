@@ -2,9 +2,11 @@
   import type { EntryRecord } from "$lib/constants/entry-categories";
   import { ENTRY_CATEGORIES } from "$lib/constants/entry-categories";
   import { Badge } from "$lib/components/ui/badge";
+  import { Item } from "$lib/components/ui/item";
   import { Button } from "$lib/components/ui/button";
   import * as Dialog from "$lib/components/ui/dialog";
   import { time } from "$lib/utils/formatting";
+  import { entrySummary } from "$lib/utils/entry-summary";
 
   interface Props {
     open: boolean;
@@ -14,29 +16,6 @@
   }
 
   let { open = $bindable(), entries, onSelect, onClose }: Props = $props();
-
-  function formatEntrySummary(entry: EntryRecord): string {
-    const parts: string[] = [];
-    switch (entry.kind) {
-      case "bolus":
-        if (entry.data.insulin) parts.push(`${entry.data.insulin}U`);
-        if (entry.data.bolusType) parts.push(entry.data.bolusType);
-        break;
-      case "carbs":
-        if (entry.data.carbs) parts.push(`${entry.data.carbs}g carbs`);
-        break;
-      case "bgCheck":
-        if (entry.data.mgdl) parts.push(`${entry.data.mgdl} mg/dL`);
-        break;
-      case "note":
-        if (entry.data.text) parts.push(entry.data.text.slice(0, 50));
-        break;
-      case "deviceEvent":
-        if (entry.data.eventType) parts.push(entry.data.eventType);
-        break;
-    }
-    return parts.join(" · ") || ENTRY_CATEGORIES[entry.kind].name;
-  }
 </script>
 
 <Dialog.Root bind:open>
@@ -50,14 +29,10 @@
     <div class="space-y-2 py-2">
       {#each entries as entry, i (entry.data.id ?? `${entry.data.mills}-${i}`)}
         {@const category = ENTRY_CATEGORIES[entry.kind]}
-        <button
-          type="button"
-          class="w-full flex items-center gap-3 p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-left"
-          onclick={() => onSelect(entry)}
-        >
+        <Item variant="muted" onclick={() => onSelect(entry)}>
           <div class="flex-1">
             <div class="font-medium text-sm">
-              {formatEntrySummary(entry)}
+              {entrySummary(entry)}
             </div>
             <div class="text-xs text-muted-foreground">
               {entry.data.mills
@@ -65,10 +40,10 @@
                 : ""}
             </div>
           </div>
-          <Badge variant="outline" class="text-xs {category.colorClass}">
+          <Badge variant={category.badge}>
             {category.name}
           </Badge>
-        </button>
+        </Item>
       {/each}
     </div>
     <Dialog.Footer>

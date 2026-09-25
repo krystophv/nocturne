@@ -1,10 +1,12 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Nocturne.API.Authorization;
 using Nocturne.Connectors.Core.Utilities;
 using Nocturne.Core.Models.Authorization;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Entities;
+using Nocturne.Infrastructure.Data.Extensions;
 
 namespace Nocturne.API.Services.Auth;
 
@@ -52,42 +54,6 @@ public class SubjectService : ISubjectService
             .Include(s => s.SubjectRoles)
             .ThenInclude(sr => sr.Role)
             .FirstOrDefaultAsync(s => s.Id == subjectId);
-
-        return entity == null ? null : MapToModel(entity);
-    }
-
-    /// <inheritdoc />
-    public async Task<Subject?> GetSubjectByAccessTokenHashAsync(string accessTokenHash)
-    {
-        var entity = await _dbContext
-            .Subjects.AsNoTracking()
-            .Include(s => s.SubjectRoles)
-            .ThenInclude(sr => sr.Role)
-            .FirstOrDefaultAsync(s => s.AccessTokenHash == accessTokenHash && s.IsActive);
-
-        return entity == null ? null : MapToModel(entity);
-    }
-
-    /// <inheritdoc />
-    public async Task<Subject?> FindSubjectByLegacyTokenAsync(string legacyAccessToken)
-    {
-        var prefix = LegacyNightscoutToken.ExtractDigestPrefix(legacyAccessToken);
-        if (prefix == null)
-        {
-            return null;
-        }
-
-        // Push Nightscout's digest-prefix rule to the database. The prefix is validated hex, so it
-        // is safe as a LIKE pattern; StartsWith translates to an index-friendly LIKE on PostgreSQL
-        // (against the filtered ix_subjects_legacy_token_digest) and still evaluates on the InMemory
-        // provider used in tests. Both stored digest and prefix are lowercase, so a case-sensitive
-        // match is correct. Returns at most one row rather than materialising every migrated subject.
-        var entity = await _dbContext
-            .Subjects.AsNoTracking()
-            .Include(s => s.SubjectRoles)
-            .ThenInclude(sr => sr.Role)
-            .Where(s => s.LegacyTokenDigest != null && s.IsActive && s.LegacyTokenDigest!.StartsWith(prefix))
-            .FirstOrDefaultAsync();
 
         return entity == null ? null : MapToModel(entity);
     }
@@ -144,7 +110,6 @@ public class SubjectService : ISubjectService
             Name = name ?? email ?? oidcSubjectId,
             Email = email,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
 
@@ -207,8 +172,6 @@ public class SubjectService : ISubjectService
     /// <inheritdoc />
     public async Task<SubjectCreationResult> CreateSubjectAsync(Subject subject)
     {
-        string? plainAccessToken = null;
-
         var entity = new SubjectEntity
         {
             Id = subject.Id == Guid.Empty ? Guid.CreateVersion7() : subject.Id,
@@ -216,17 +179,8 @@ public class SubjectService : ISubjectService
             Email = subject.Email,
             Notes = subject.Notes,
             IsActive = subject.IsActive,
-            CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
-
-        // Generate access token for device/service subjects
-        if (subject.Type == SubjectType.Device || subject.Type == SubjectType.Service)
-        {
-            plainAccessToken = GenerateAccessToken();
-            entity.AccessTokenHash = HashUtils.Sha256Hex(plainAccessToken);
-            entity.AccessTokenPrefix = $"{subject.Name.ToLowerInvariant()}-{plainAccessToken[..8]}";
-        }
 
         _dbContext.Subjects.Add(entity);
         await _dbContext.SaveChangesAsync();
@@ -267,7 +221,6 @@ public class SubjectService : ISubjectService
         return new SubjectCreationResult
         {
             Subject = MapToModel(entity),
-            AccessToken = plainAccessToken,
         };
     }
 
@@ -328,29 +281,6 @@ public class SubjectService : ISubjectService
         await _auditService.LogAsync(AuthAuditEventType.SubjectDeleted, subjectId, success: true);
 
         return true;
-    }
-
-    /// <inheritdoc />
-    public async Task<string?> RegenerateAccessTokenAsync(Guid subjectId)
-    {
-        var entity = await _dbContext.Subjects.FindAsync(subjectId);
-        if (entity == null)
-        {
-            return null;
-        }
-
-        var plainAccessToken = GenerateAccessToken();
-        entity.AccessTokenHash = HashUtils.Sha256Hex(plainAccessToken);
-        entity.AccessTokenPrefix = $"{entity.Name.ToLowerInvariant()}-{plainAccessToken[..8]}";
-        // Rotation must revoke the legacy Nightscout token too, otherwise the old (possibly
-        // leaked) migrated token would keep authenticating through the legacy digest fallback.
-        entity.LegacyTokenDigest = null;
-        entity.UpdatedAt = DateTime.UtcNow;
-
-        await _dbContext.SaveChangesAsync();
-
-        _logger.LogInformation("Regenerated access token for subject {SubjectId}", subjectId);
-        return plainAccessToken;
     }
 
     /// <inheritdoc />
@@ -599,7 +529,6 @@ public class SubjectService : ISubjectService
             Notes = "Represents unauthenticated access. Assign roles to control what the public can see.",
             IsActive = true,
             IsSystemSubject = true,
-            CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
 
@@ -740,7 +669,7 @@ public class SubjectService : ISubjectService
 
             var remainingPasskeys = await _dbContext.PasskeyCredentials
                 .CountAsync(p => p.SubjectId == subjectId);
-            var remainingOidc = await _dbContext.SubjectOidcIdentities
+            var remainingOidc = await _dbContext.WorkingOidcIdentities()
                 .CountAsync(i => i.SubjectId == subjectId && i.Id != identityId);
             if (remainingPasskeys + remainingOidc < 1)
             {
@@ -780,7 +709,7 @@ public class SubjectService : ISubjectService
 
             var remainingPasskeys = await _dbContext.PasskeyCredentials
                 .CountAsync(p => p.SubjectId == subjectId && p.Id != credentialId);
-            var remainingOidc = await _dbContext.SubjectOidcIdentities
+            var remainingOidc = await _dbContext.WorkingOidcIdentities()
                 .CountAsync(i => i.SubjectId == subjectId);
             if (remainingPasskeys + remainingOidc < 1)
             {
@@ -803,7 +732,8 @@ public class SubjectService : ISubjectService
     public async Task<int> CountPrimaryAuthFactorsAsync(Guid subjectId)
     {
         var passkeys = await _dbContext.PasskeyCredentials.CountAsync(p => p.SubjectId == subjectId);
-        var oidc = await _dbContext.SubjectOidcIdentities.CountAsync(i => i.SubjectId == subjectId);
+        var oidc = await _dbContext.WorkingOidcIdentities()
+            .CountAsync(i => i.SubjectId == subjectId);
         return passkeys + oidc;
     }
 
@@ -830,15 +760,6 @@ public class SubjectService : ISubjectService
     }
 
     /// <summary>
-    /// Generate a secure access token
-    /// </summary>
-    private static string GenerateAccessToken()
-    {
-        var bytes = RandomNumberGenerator.GetBytes(32);
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    /// <summary>
     /// Map entity to domain model
     /// </summary>
     private static Subject MapToModel(SubjectEntity entity)
@@ -861,20 +782,9 @@ public class SubjectService : ISubjectService
             Permissions = new List<string>(),
         };
 
-        // Determine type from columns on the entity itself (no navigation required).
-        // Device/Service subjects are distinguished by the presence of an access token hash;
-        // everything else is treated as a User (including OIDC-linked users whose identities
-        // live in the SubjectOidcIdentities join table).
-        //
-        // SubjectType.Service is no longer derived here — with the OIDC columns gone,
-        // MapToModel cannot distinguish a Service subject from a regular User without
-        // loading the OidcIdentities navigation, which would be a hidden N+1. Service
-        // subjects are explicitly constructed in AuthorizationService. Follow-up:
-        // consider collapsing Service/User in the enum, or persisting the type as a
-        // column on SubjectEntity.
-        subject.Type = !string.IsNullOrEmpty(entity.AccessTokenHash)
-            ? SubjectType.Device
-            : SubjectType.User;
+        // Every subject is a person: a device or service credential is a direct grant, not a
+        // subject, so nothing here can distinguish one.
+        subject.Type = SubjectType.User;
 
         // Map roles and aggregate permissions
         var permissions = new HashSet<string>();

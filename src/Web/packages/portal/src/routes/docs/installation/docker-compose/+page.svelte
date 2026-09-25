@@ -1,11 +1,12 @@
 <script lang="ts">
+    import { resolve } from "$app/paths";
     import SystemRequirements from "$lib/components/docs/SystemRequirements.svelte";
     import VerificationSteps from "$lib/components/docs/VerificationSteps.svelte";
     import NextSteps from "$lib/components/docs/NextSteps.svelte";
     import SupportNocturne from "$lib/components/docs/SupportNocturne.svelte";
     import PasswordGenerator from "$lib/components/docs/PasswordGenerator.svelte";
     import CodeBlock from "$lib/components/docs/CodeBlock.svelte";
-    import envExample from "$lib/release/docker-compose/.env.example?raw";
+    import envExample from "$lib/release/docker-compose/default.env.example?raw";
     import dockerCompose from "$lib/release/docker-compose/docker-compose.yaml?raw";
 </script>
 
@@ -34,7 +35,7 @@
             (<code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">*.example.com</code>)
             so each tenant subdomain resolves.
         </li>
-        <li>Ports <strong>80</strong> and <strong>443</strong> open to the internet — the bundled proxy uses them to obtain and serve TLS certificates.</li>
+        <li>Ports <strong>80</strong> and <strong>443</strong> open to the internet. The bundled proxy uses them to obtain and serve TLS certificates.</li>
     </ul>
 
     <SystemRequirements />
@@ -45,16 +46,17 @@
         bundle from the
         <a href="https://github.com/nightscout/nocturne/releases/latest" class="text-primary hover:underline">
             latest GitHub Release
-        </a>. The bundle is self-contained — just
+        </a>. The bundle is self-contained: just
         <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker-compose.yaml</code>
-        and <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">.env.example</code>.
+        and the environment template, which GitHub lists as
+        <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">default.env.example</code>.
         The database init script and the TLS proxy config are embedded directly in
         the compose file, so there are no extra directories to keep alongside it. The
         bundle also ships a
         <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker-compose.byo-proxy.yaml</code>
         override for operators who run their own reverse proxy (see below).
     </p>
-    <CodeBlock code={"mkdir nocturne && cd nocturne\n# Download docker-compose.yaml and .env.example from the release page, then:\ncp .env.example .env"} class="mb-4" />
+    <CodeBlock code={"mkdir nocturne && cd nocturne\ncurl -LO https://github.com/nightscout/nocturne/releases/latest/download/docker-compose.yaml\ncurl -L -o .env https://github.com/nightscout/nocturne/releases/latest/download/default.env.example"} class="mb-4" />
 
     <details class="mb-8">
         <summary class="text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground">View docker-compose.yaml</summary>
@@ -64,7 +66,7 @@
     <h2 class="text-2xl font-bold mt-8 mb-4">Step 2: Configure environment variables</h2>
     <p class="text-muted-foreground mb-4">
         Edit <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">.env</code> and fill in your
-        values. Required fields are left blank; optional bot integrations are commented out.
+        values. The required fields come first and are left blank; optional bot integrations are commented out.
         Use the generator below for each password field and <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">INSTANCE_KEY</code>.
     </p>
     <PasswordGenerator label="password" />
@@ -79,7 +81,7 @@
     <h2 class="text-2xl font-bold mt-8 mb-4">HTTPS is automatic</h2>
     <p class="text-muted-foreground mb-4">
         The bundled Caddy reverse proxy obtains and renews Let's Encrypt TLS
-        certificates automatically — no API keys or certificate files to manage.
+        certificates automatically, with no API keys or certificate files to manage.
         Set <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">BASE_DOMAIN</code>,
         point your DNS at the server, and open ports 80 and 443. The apex domain
         is issued a certificate on first start, and each tenant subdomain gets one
@@ -90,13 +92,13 @@
         bring-your-own-proxy override to disable the bundled Caddy and expose the
         gateway on plain HTTP port 8080 for your proxy to forward to:
     </p>
-    <CodeBlock code={"docker compose -f docker-compose.yaml -f docker-compose.byo-proxy.yaml up -d"} class="mb-4" />
+    <CodeBlock code="docker compose -f docker-compose.yaml -f docker-compose.byo-proxy.yaml up -d" class="mb-4" />
     <p class="text-muted-foreground mb-8">
         Your proxy must forward the original <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">Host</code>
         along with <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">X-Forwarded-Proto</code> and
         <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">X-Forwarded-Host</code>, or logins will
         fail with a 403. See
-        <a href="/docs/installation/reverse-proxy" class="text-primary hover:underline">Bring your own reverse proxy</a>
+        <a href={resolve("/docs/installation/reverse-proxy")} class="text-primary hover:underline">Bring your own reverse proxy</a>
         for worked nginx, Traefik, and Caddy configurations.
     </p>
 

@@ -160,6 +160,10 @@ static EnvVarGroups ParseAspireEnv(string aspireEnvPath, EnvVarMeta[] metadata)
         "WHATSAPP_APP_SECRET",
         "WHATSAPP_PHONE_NUMBER_ID",
         "WHATSAPP_VERIFY_TOKEN",
+        "RESEND_API_KEY",
+        "RESEND_FROM_ADDRESS",
+        "RESEND_FROM_NAME",
+        "RESEND_WEBHOOK_SECRET",
     };
 
     var seen = new HashSet<string>();
@@ -230,17 +234,17 @@ static string GenerateEnvExample(EnvVarGroups groups, EnvVarMeta[] metadata)
     sb.AppendLine("# Copy this file to .env and fill in the required values.");
     sb.AppendLine("# Passwords are only used on first database initialization.");
     sb.AppendLine();
-    sb.AppendLine("# -- Configuration ---------------------------------------------");
-    sb.AppendLine();
-    foreach (var (name, value) in groups.Config)
-        AppendVar(name, value);
-    sb.AppendLine();
     sb.AppendLine("# -- Required (set these before first run) ----------------------");
     sb.AppendLine();
     foreach (var (name, _) in groups.RequiredConfig)
         AppendVar(name, "");
     foreach (var (name, _) in groups.Secrets)
         AppendVar(name, "");
+    sb.AppendLine();
+    sb.AppendLine("# -- Configuration (defaults work; change if you need to) --------");
+    sb.AppendLine();
+    foreach (var (name, value) in groups.Config)
+        AppendVar(name, value);
     sb.AppendLine();
     sb.AppendLine("# -- Optional --------------------------------------------------");
     sb.AppendLine();

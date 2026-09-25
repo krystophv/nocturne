@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nocturne.Connectors.Core.Interfaces;
+using Nocturne.Connectors.Core.Models;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Core.Contracts.Health;
@@ -32,9 +33,13 @@ internal sealed class MetadataPublisher : IMetadataPublisher
     private readonly IStateSpanService _stateSpanService;
     private readonly ISystemEventRepository _systemEventRepository;
     private readonly INoteRepository _noteRepository;
+    private readonly IBodyWeightService _bodyWeightService;
+    private readonly IStepCountService _stepCountService;
+    private readonly IHeartRateService _heartRateService;
     private readonly ITenantOwnerResolver _tenantOwnerResolver;
     private readonly ITenantAccessor _tenantAccessor;
     private readonly NocturneDbContext _db;
+    private readonly PublishSkipTally _skips;
     private readonly ILogger<MetadataPublisher> _logger;
 
     public MetadataPublisher(
@@ -45,9 +50,13 @@ internal sealed class MetadataPublisher : IMetadataPublisher
         IStateSpanService stateSpanService,
         ISystemEventRepository systemEventRepository,
         INoteRepository noteRepository,
+        IBodyWeightService bodyWeightService,
+        IStepCountService stepCountService,
+        IHeartRateService heartRateService,
         ITenantOwnerResolver tenantOwnerResolver,
         ITenantAccessor tenantAccessor,
         NocturneDbContext db,
+        PublishSkipTally skips,
         ILogger<MetadataPublisher> logger)
     {
         _profileWriteService = profileWriteService ?? throw new ArgumentNullException(nameof(profileWriteService));
@@ -57,9 +66,13 @@ internal sealed class MetadataPublisher : IMetadataPublisher
         _stateSpanService = stateSpanService ?? throw new ArgumentNullException(nameof(stateSpanService));
         _systemEventRepository = systemEventRepository ?? throw new ArgumentNullException(nameof(systemEventRepository));
         _noteRepository = noteRepository ?? throw new ArgumentNullException(nameof(noteRepository));
+        _bodyWeightService = bodyWeightService ?? throw new ArgumentNullException(nameof(bodyWeightService));
+        _stepCountService = stepCountService ?? throw new ArgumentNullException(nameof(stepCountService));
+        _heartRateService = heartRateService ?? throw new ArgumentNullException(nameof(heartRateService));
         _tenantOwnerResolver = tenantOwnerResolver ?? throw new ArgumentNullException(nameof(tenantOwnerResolver));
         _tenantAccessor = tenantAccessor ?? throw new ArgumentNullException(nameof(tenantAccessor));
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _skips = skips ?? throw new ArgumentNullException(nameof(skips));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -258,7 +271,8 @@ internal sealed class MetadataPublisher : IMetadataPublisher
             var recordList = records.ToList();
             if (recordList.Count == 0) return true;
 
-            await _noteRepository.BulkCreateAsync(recordList, origin, cancellationToken);
+            var written = await _noteRepository.BulkCreateAsync(recordList, origin, cancellationToken);
+            _skips.AddSkippedDeleted(written.SkippedDeleted);
             _logger.LogDebug("Published {Count} Note records for {Source}", recordList.Count, source);
             return true;
         }
@@ -266,6 +280,115 @@ internal sealed class MetadataPublisher : IMetadataPublisher
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to publish Note records for {Source}", source);
+            return false;
+        }
+    }
+
+    public async Task<bool> PublishBodyWeightsAsync(
+        IEnumerable<BodyWeight> records,
+        string source,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var list = records.ToList();
+            if (list.Count == 0) return true;
+
+            var toCreate = new List<BodyWeight>();
+            foreach (var record in list)
+            {
+                // Upsert on the connector's deterministic Id so re-syncs update the same row.
+                var existing = record.Id != null
+                    ? await _bodyWeightService.GetBodyWeightByIdAsync(record.Id, cancellationToken)
+                    : null;
+                if (existing != null)
+                    await _bodyWeightService.UpdateBodyWeightAsync(record.Id!, record, cancellationToken);
+                else
+                    toCreate.Add(record);
+            }
+
+            if (toCreate.Count > 0)
+                await _bodyWeightService.CreateBodyWeightsAsync(toCreate, cancellationToken);
+
+            _logger.LogDebug("Published {Count} BodyWeight records for {Source}", list.Count, source);
+            return true;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish BodyWeight records for {Source}", source);
+            return false;
+        }
+    }
+
+    public async Task<bool> PublishStepCountsAsync(
+        IEnumerable<StepCount> records,
+        string source,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var list = records.ToList();
+            if (list.Count == 0) return true;
+
+            var toCreate = new List<StepCount>();
+            foreach (var record in list)
+            {
+                var existing = record.Id != null
+                    ? await _stepCountService.GetStepCountByIdAsync(record.Id, cancellationToken)
+                    : null;
+                if (existing != null)
+                    await _stepCountService.UpdateStepCountAsync(record.Id!, record, cancellationToken);
+                else
+                    toCreate.Add(record);
+            }
+
+            if (toCreate.Count > 0)
+                await _stepCountService.CreateStepCountsAsync(toCreate, cancellationToken);
+
+            _logger.LogDebug("Published {Count} StepCount records for {Source}", list.Count, source);
+            return true;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish StepCount records for {Source}", source);
+            return false;
+        }
+    }
+
+    public async Task<bool> PublishHeartRatesAsync(
+        IEnumerable<HeartRate> records,
+        string source,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var list = records.ToList();
+            if (list.Count == 0) return true;
+
+            var toCreate = new List<HeartRate>();
+            foreach (var record in list)
+            {
+                var existing = record.Id != null
+                    ? await _heartRateService.GetHeartRateByIdAsync(record.Id, cancellationToken)
+                    : null;
+                if (existing != null)
+                    await _heartRateService.UpdateHeartRateAsync(record.Id!, record, cancellationToken);
+                else
+                    toCreate.Add(record);
+            }
+
+            if (toCreate.Count > 0)
+                await _heartRateService.CreateHeartRatesAsync(toCreate, cancellationToken);
+
+            _logger.LogDebug("Published {Count} HeartRate records for {Source}", list.Count, source);
+            return true;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish HeartRate records for {Source}", source);
             return false;
         }
     }
@@ -372,9 +495,10 @@ internal sealed class MetadataPublisher : IMetadataPublisher
         CancellationToken cancellationToken)
     {
         const string suffix = "-connector";
-        var name = source.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
-            ? source[..^suffix.Length]
-            : source;
+        var canonicalSource = ConnectorNames.Canonical(source);
+        var canonicalName = canonicalSource.EndsWith(suffix, StringComparison.Ordinal)
+            ? canonicalSource[..^suffix.Length]
+            : canonicalSource;
 
         var query = _db.Database.IsNpgsql()
             ? _db.ConnectorConfigurations.AsNoTracking()
@@ -382,8 +506,7 @@ internal sealed class MetadataPublisher : IMetadataPublisher
 
         return await query
             .FirstOrDefaultAsync(
-                c => c.ConnectorName.ToLower() == name.ToLower()
-                    || c.ConnectorName.ToLower() == source.ToLower(),
+                c => c.ConnectorName == canonicalName || c.ConnectorName == canonicalSource,
                 cancellationToken);
     }
 }

@@ -186,7 +186,7 @@ public class TenantSetupMiddleware
             .Where(m => m.TenantId == tenantId)
             .AnyAsync(m =>
                 db.PasskeyCredentials.Any(c => c.SubjectId == m.SubjectId) ||
-                db.SubjectOidcIdentities.Any(i => i.SubjectId == m.SubjectId), ct);
+                db.WorkingOidcIdentities().Any(i => i.SubjectId == m.SubjectId), ct);
         if (!hasCredentials)
         {
             var passkeyCount = memberCount > 0
@@ -198,7 +198,7 @@ public class TenantSetupMiddleware
             var oidcCount = memberCount > 0
                 ? await db.TenantMembers
                     .Where(m => m.TenantId == tenantId)
-                    .SelectMany(m => db.SubjectOidcIdentities.Where(i => i.SubjectId == m.SubjectId))
+                    .SelectMany(m => db.WorkingOidcIdentities().Where(i => i.SubjectId == m.SubjectId))
                     .CountAsync(ct)
                 : 0;
 
@@ -211,25 +211,14 @@ public class TenantSetupMiddleware
             return SetupGate.SetupRequired;
         }
 
-        // Check 2: Does this tenant have any orphaned subjects?
-        // Subjects are not tenant-scoped — join through TenantMembers to scope to this tenant.
-        var orphanedSubjects = await db.TenantMembers
-            .Where(tm => tm.TenantId == tenantId)
-            .Join(
-                db.Subjects.Where(s => s.IsActive && !s.IsSystemSubject),
-                tm => tm.SubjectId,
-                s => s.Id,
-                (tm, s) => s)
-            .Where(s =>
-                !db.SubjectOidcIdentities.Any(i => i.SubjectId == s.Id) &&
-                !db.PasskeyCredentials.Any(p => p.SubjectId == s.Id))
+        var orphanedSubjects = await db.OrphanedSubjectsOf(tenantId)
             .Select(s => new { s.Id, s.Name, s.Username })
             .ToListAsync(ct);
 
         if (orphanedSubjects.Count > 0)
         {
             _logger.LogWarning(
-                "Tenant {TenantId} has orphaned subjects — returning 503 recovery_mode. " +
+                "Tenant {TenantId} has orphaned subjects, returning 503 recovery_mode. " +
                 "Path={Path}, OrphanedSubjects={@OrphanedSubjects}",
                 tenantId, path, orphanedSubjects);
 

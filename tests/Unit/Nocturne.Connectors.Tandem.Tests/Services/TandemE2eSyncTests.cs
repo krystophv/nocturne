@@ -671,6 +671,7 @@ public class TandemE2eSyncTests
         public ITreatmentPublisher Treatments => this;
         public IDevicePublisher Device => this;
         public IMetadataPublisher Metadata => this;
+        public int SkippedDeleted => 0;
 
         private static Task<bool> Record<T>(List<T> sink, IEnumerable<T> records)
         {
@@ -726,6 +727,14 @@ public class TandemE2eSyncTests
         public Task<bool> PublishSystemEventsAsync(IEnumerable<SystemEvent> systemEvents, string source, WriteOrigin origin, CancellationToken ct = default) =>
             Record(SystemEvents, systemEvents);
         public Task<bool> PublishNotesAsync(IEnumerable<Note> records, string source, WriteOrigin origin, CancellationToken ct = default) =>
+            Task.FromResult(true);
+        public Task<bool> PublishPatientDevicesAsync(IEnumerable<PatientDevice> devices, string source, WriteOrigin origin, CancellationToken ct = default) =>
+            Task.FromResult(true);
+        public Task<bool> PublishBodyWeightsAsync(IEnumerable<BodyWeight> records, string source, CancellationToken ct = default) =>
+            Task.FromResult(true);
+        public Task<bool> PublishStepCountsAsync(IEnumerable<StepCount> records, string source, CancellationToken ct = default) =>
+            Task.FromResult(true);
+        public Task<bool> PublishHeartRatesAsync(IEnumerable<HeartRate> records, string source, CancellationToken ct = default) =>
             Task.FromResult(true);
         public Task<DateTime?> GetLatestActivityTimestampAsync(string source, CancellationToken ct = default) =>
             Task.FromResult<DateTime?>(null);

@@ -59,6 +59,18 @@ public class DeduplicationService : IDeduplicationService
     private const double ExactValueEpsilon = 1e-6;
 
     /// <summary>
+    /// How far two sources' temp basal durations may disagree and still describe one delivery.
+    /// Unlike a value, a duration is a measurement each source rounds for itself: mylife reports
+    /// the pump's raw clock quantised to ten seconds while Glooko re-anchors and reports to the
+    /// second, so the same eleven-minute temp basal arrives as 650s from one and 654s from the
+    /// other. Demanding equality refused those outright — on one two-connector tenant that was
+    /// ~2800 unmerged pairs in thirty days against 125 merged, nearly every temp basal doubled.
+    /// Ten seconds covers the quantisation without reaching a neighbouring delivery, which on that
+    /// tenant still leaves the pairs disagreeing by a minute or more refused.
+    /// </summary>
+    private static readonly TimeSpan ExactDurationTolerance = TimeSpan.FromSeconds(10);
+
+    /// <summary>
     /// Record types eligible for <see cref="WideMatchingWindow"/>. Continuous streams
     /// (<see cref="RecordType.SensorGlucose"/>), free-text records (<see cref="RecordType.Note"/>)
     /// and interval records (<see cref="RecordType.StateSpan"/>) are excluded: repeating the same
@@ -84,11 +96,14 @@ public class DeduplicationService : IDeduplicationService
     private const int DedupChunkSize = 500;
 
     /// <summary>
-    /// How far before the watermark each reconcile chunk re-reads. Covers links whose
-    /// SysCreatedAt straddles a previous batch boundary; re-processing them is idempotent
-    /// because <see cref="MergeDuplicateGroupsAsync"/> is a no-op once a region is merged.
+    /// How far behind the present <see cref="ReconcileNewLinksAsync"/> reads. A link's
+    /// <c>sys_created_at</c> is the API clock when its insert's <c>SaveChanges</c> began
+    /// (<see cref="NocturneDbContext"/> stamps it before opening the transaction), so an insert
+    /// still committing when a pass reads past that instant would land a link the cursor has
+    /// already passed. Links younger than this are left for a later pass, by which time any
+    /// insert shorter than the lag has committed. The horizon is taken from the same clock.
     /// </summary>
-    private static readonly TimeSpan ReconcileOverlap = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan CommitVisibilityLag = TimeSpan.FromMinutes(2);
 
     /// <summary>
     /// A record's match criteria paired with its soft-deleted status, keyed by record id
@@ -709,11 +724,7 @@ public class DeduplicationService : IDeduplicationService
             // canonicals' primary links to learn their event timestamps, then DB-bound the
             // neighbour query to [minCandidateTs - window, maxCandidateTs + window]. This keeps
             // the candidate path O(candidates + window-slice) rather than O(all primaries).
-            var candidatePrimaries = await _context.LinkedRecords
-                .AsNoTracking()
-                .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary
-                             && candidateCanonicalIds.Contains(lr.CanonicalId))
-                .ToListAsync(ct);
+            var candidatePrimaries = await PrimariesOf(recordTypeStr, candidateCanonicalIds).ToListAsync(ct);
 
             if (candidatePrimaries.Count == 0)
                 return 0;
@@ -1076,27 +1087,15 @@ public class DeduplicationService : IDeduplicationService
         int maxBatches,
         CancellationToken cancellationToken = default)
     {
-        var watermark = await GetWatermarkAsync(cancellationToken);
-
-        // Re-read from a little before the watermark so links whose SysCreatedAt straddled the
-        // previous batch's boundary aren't missed. Re-processing is idempotent: once a region is
-        // merged, MergeDuplicateGroupsAsync finds nothing more to collapse there.
-        // A fresh tenant (deploy-day backfill) has no watermark yet, so it defaults to
-        // DateTime.MinValue — subtracting the overlap would underflow, so skip it and start at MinValue.
-        var cutoff = watermark == DateTime.MinValue ? DateTime.MinValue : watermark - ReconcileOverlap;
+        var cursor = await GetCursorAsync(cancellationToken);
+        var horizon = DateTime.UtcNow - CommitVisibilityLag;
 
         var merged = 0;
         var caughtUp = false;
-        var previousMaxCreated = DateTime.MinValue;
 
         for (var batchNo = 0; batchNo < maxBatches; batchNo++)
         {
-            // Tenant-scoped automatically via the global query filter.
-            var batch = await _context.LinkedRecords
-                .Where(lr => lr.SysCreatedAt >= cutoff)
-                .OrderBy(lr => lr.SysCreatedAt)
-                .Take(batchSize)
-                .ToListAsync(cancellationToken);
+            var batch = await LinksAfter(cursor, horizon).Take(batchSize).ToListAsync(cancellationToken);
 
             if (batch.Count == 0)
             {
@@ -1118,21 +1117,11 @@ public class DeduplicationService : IDeduplicationService
                 merged += await MergeDuplicateGroupsAsync(type, candidateCanonicalIds, cancellationToken);
             }
 
-            var maxCreated = batch.Max(l => l.SysCreatedAt);
-            await SetWatermarkAsync(maxCreated, cancellationToken);
+            var last = batch[^1];
+            cursor = new ReconcileCursor(last.SysCreatedAt, last.Id);
+            await SetCursorAsync(cursor.Value, cancellationToken);
 
-            // Forward-progress guard: if the batch's max SysCreatedAt did not advance past the
-            // previous batch (e.g. many links share the same instant and a full batch sits on one
-            // boundary), re-reading from cutoff would loop forever — so stop here.
-            if (batchNo > 0 && maxCreated <= previousMaxCreated)
-            {
-                caughtUp = true;
-                break;
-            }
-            previousMaxCreated = maxCreated;
-            cutoff = maxCreated - ReconcileOverlap;
-
-            // A partial batch means we've drained everything at/after the cutoff.
+            // A partial batch means we've drained everything up to the horizon.
             if (batch.Count < batchSize)
             {
                 caughtUp = true;
@@ -1141,6 +1130,46 @@ public class DeduplicationService : IDeduplicationService
         }
 
         return new ReconcileResult(merged, caughtUp);
+    }
+
+    /// <summary>
+    /// The tenant's links in (SysCreatedAt, Id) order, strictly after <paramref name="after"/> and
+    /// created before <paramref name="horizon"/>. Ordering on the id as well lets a page end inside
+    /// a run of links sharing one <c>sys_created_at</c> (a bulk insert stamps every link in the
+    /// transaction with the same instant) and the next page continue from there; a cursor on the
+    /// timestamp alone would re-read or skip the rest of the run.
+    /// </summary>
+    internal IQueryable<LinkedRecordEntity> LinksAfter(ReconcileCursor? after, DateTime horizon)
+    {
+        // Tenant-scoped automatically via the global query filter.
+        var query = _context.LinkedRecords
+            .AsNoTracking()
+            .Where(lr => lr.SysCreatedAt < horizon);
+
+        if (after is { } c)
+        {
+            // The redundant lower bound is what the planner ranges the (tenant_id, sys_created_at)
+            // index on; the disjunction alone is not recognised as a range.
+            query = query.Where(lr => lr.SysCreatedAt >= c.CreatedAt
+                && (lr.SysCreatedAt > c.CreatedAt || lr.Id.CompareTo(c.Id) > 0));
+        }
+
+        return query
+            .OrderBy(lr => lr.SysCreatedAt)
+            .ThenBy(lr => lr.Id);
+    }
+
+    /// <summary>
+    /// The primary links of <paramref name="canonicalIds"/>. The set is copied to an array because
+    /// EF expands an <see cref="IReadOnlySet{T}"/> operand into one parameter per element, so every
+    /// set size would get its own statement and plan; an array binds as one parameter.
+    /// </summary>
+    internal IQueryable<LinkedRecordEntity> PrimariesOf(string recordTypeStr, IReadOnlySet<Guid> canonicalIds)
+    {
+        var ids = canonicalIds.ToArray();
+        return _context.LinkedRecords
+            .AsNoTracking()
+            .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary && ids.Contains(lr.CanonicalId));
     }
 
     /// <summary>
@@ -1235,6 +1264,14 @@ public class DeduplicationService : IDeduplicationService
     }
 
     /// <summary>
+    /// True when two temp basal durations describe one delivery. Both must be known: an open-ended
+    /// temp basal carries no duration, and admitting a null would reduce the wide comparison to
+    /// rate alone, which for a stream that repeats the same rate all day is no evidence at all.
+    /// </summary>
+    private static bool DurationsAgree(TimeSpan? a, TimeSpan? b) =>
+        a.HasValue && b.HasValue && (a.Value - b.Value).Duration() <= ExactDurationTolerance;
+
+    /// <summary>
     /// Per-type value comparison shared by the tight and wide paths. With <paramref name="exact"/>
     /// the criteria tolerances are replaced by <see cref="ExactValueEpsilon"/> and each type adds
     /// whatever the wide window needs to keep the comparison meaningful over ten minutes.
@@ -1255,10 +1292,10 @@ public class DeduplicationService : IDeduplicationService
         return recordType switch
         {
             // An open-ended temp basal carries no duration, and null == null would quietly reduce
-            // the exact comparison to rate alone; both intervals must be known and equal.
+            // the exact comparison to rate alone; both intervals must be known.
             RecordType.TempBasal => a.Rate.HasValue && b.Rate.HasValue
                 && Math.Abs(a.Rate.Value - b.Rate.Value) <= Tolerance(a.RateTolerance, b.RateTolerance)
-                && (!exact || (a.Duration.HasValue && a.Duration == b.Duration)),
+                && (!exact || DurationsAgree(a.Duration, b.Duration)),
             RecordType.SensorGlucose or RecordType.BGCheck => a.GlucoseValue.HasValue && b.GlucoseValue.HasValue
                 && Math.Abs(a.GlucoseValue.Value - b.GlucoseValue.Value) <= Tolerance(a.GlucoseTolerance, b.GlucoseTolerance),
             RecordType.Bolus => a.Insulin.HasValue && b.Insulin.HasValue
@@ -1875,30 +1912,34 @@ public class DeduplicationService : IDeduplicationService
     }
 
     /// <summary>
-    /// Returns the current tenant's reconciliation watermark — the ingestion time of the last
-    /// reconciled link — or <see cref="DateTime.MinValue"/> if reconciliation has never run.
+    /// Returns the current tenant's reconciliation cursor — the last reconciled link — or null if
+    /// reconciliation has never run. A row written before the id column existed resumes at the
+    /// first link of its instant, so the rest of that instant is reconciled again; the merge is
+    /// idempotent.
     /// </summary>
-    internal async Task<DateTime> GetWatermarkAsync(CancellationToken ct)
+    internal async Task<ReconcileCursor?> GetCursorAsync(CancellationToken ct)
     {
         var state = await _context.DedupReconcileState
             .Where(s => s.TenantId == _context.TenantId)
             .FirstOrDefaultAsync(ct);
 
-        return state?.LastReconciledLinkCreatedAt ?? DateTime.MinValue;
+        return state is null
+            ? null
+            : new ReconcileCursor(state.LastReconciledLinkCreatedAt, state.LastReconciledLinkId ?? Guid.Empty);
     }
 
     /// <summary>
-    /// Upserts the current tenant's reconciliation watermark, inserting a row if none exists
+    /// Upserts the current tenant's reconciliation cursor, inserting a row if none exists
     /// or updating the existing one otherwise.
     /// </summary>
-    internal async Task SetWatermarkAsync(DateTime value, CancellationToken ct)
+    internal async Task SetCursorAsync(ReconcileCursor cursor, CancellationToken ct)
     {
         // Npgsql requires Kind=Utc to persist a timestamptz; SQLite tests won't catch a bad caller.
-        value = value.Kind switch
+        var createdAt = cursor.CreatedAt.Kind switch
         {
-            DateTimeKind.Utc => value,
-            DateTimeKind.Local => value.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            DateTimeKind.Utc => cursor.CreatedAt,
+            DateTimeKind.Local => cursor.CreatedAt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(cursor.CreatedAt, DateTimeKind.Utc)
         };
 
         var state = await _context.DedupReconcileState
@@ -1908,17 +1949,19 @@ public class DeduplicationService : IDeduplicationService
         if (state is null)
         {
             // single-threaded per tenant; PK guards accidental concurrent insert
-            _context.DedupReconcileState.Add(new DedupReconcileStateEntity
-            {
-                TenantId = _context.TenantId,
-                LastReconciledLinkCreatedAt = value
-            });
+            state = new DedupReconcileStateEntity { TenantId = _context.TenantId };
+            _context.DedupReconcileState.Add(state);
         }
-        else
-        {
-            state.LastReconciledLinkCreatedAt = value;
-        }
+
+        state.LastReconciledLinkCreatedAt = createdAt;
+        state.LastReconciledLinkId = cursor.Id;
 
         await _context.SaveChangesAsync(ct);
     }
 }
+
+/// <summary>
+/// Keyset position of <see cref="DeduplicationService.ReconcileNewLinksAsync"/> in the tenant's
+/// links: the <c>sys_created_at</c> and id of the last link reconciled.
+/// </summary>
+internal readonly record struct ReconcileCursor(DateTime CreatedAt, Guid Id);

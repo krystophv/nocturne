@@ -2,10 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { transformWithEsbuild } from "vite";
-import { error, isHttpError } from "@sveltejs/kit";
+import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
 import config from "../../../../../remote-codegen.config";
 import {
   describeSubmitError,
+  errorStatus,
   MISSING_ITEM_ERROR,
   RATE_LIMITED_ERROR,
 } from "../forms/submit-error";
@@ -40,15 +41,15 @@ async function crossTheBoundary(thrown: unknown): Promise<unknown> {
   const source = compiled.code.trim().replace(/;$/, "");
 
   // The helpers are passed in because the real arm reaches them by import.
-  const flatten = new Function(`return ${source}`)() as (
+  const flatten: (
     err: unknown,
     status: unknown,
     error: typeof import("@sveltejs/kit").error,
     parseErrorBody: typeof import("./error-body").parseErrorBody
-  ) => never;
+  ) => never = new Function(`return ${source}`)();
 
   try {
-    flatten(thrown, (thrown as { status?: number })?.status, error, parseErrorBody);
+    flatten(thrown, errorStatus(thrown), error, parseErrorBody);
   } catch (crossed) {
     return crossed;
   }
@@ -118,7 +119,7 @@ describe("the status a generated remote function lets through", () => {
     const crossed = await crossTheBoundary(nswagApiException(429, RATE_LIMIT_BODY));
 
     expect(isHttpError(crossed)).toBe(true);
-    expect((crossed as { status: number }).status).toBe(429);
+    expect(errorStatus(crossed)).toBe(429);
   });
 
   it("keeps NSwag's boilerplate out of the message it carries", async () => {
@@ -236,7 +237,7 @@ describe("the status a generated remote function lets through", () => {
       )
     );
 
-    expect((crossed as { status: number }).status).toBe(409);
+    expect(errorStatus(crossed)).toBe(409);
     expect(describeSubmitError(crossed, "Couldn't save your changes.")).toBe(
       "Already redeemed."
     );
@@ -260,16 +261,68 @@ describe("the status a generated remote function lets through", () => {
       nswagApiException(503, "<html>503 Service Unavailable</html>")
     );
 
-    expect((crossed as { status: number }).status).toBe(500);
+    expect(errorStatus(crossed)).toBe(500);
   });
 
   it("still flattens a status it does not forward", async () => {
     const crossed = await crossTheBoundary(nswagApiException(503, "unavailable"));
 
-    expect((crossed as { status: number }).status).toBe(500);
+    expect(errorStatus(crossed)).toBe(500);
     expect(describeSubmitError(crossed, "Couldn't load the invite.")).toBe(
       "Couldn't load the invite."
     );
+  });
+});
+
+/**
+ * What a generated query answers a 401 with. The event carries only what the
+ * hooks leave on it, so the arm has to take the share-host decision from
+ * `locals` rather than reading the host again.
+ */
+async function queryAnswerTo401(isShareHost: boolean): Promise<unknown> {
+  const compiled = await transformWithEsbuild(
+    `(getRequestEvent, error, redirect) => { ${config.errorHandling.on401("query")}; }`,
+    "on401.ts",
+    { loader: "ts" }
+  );
+  const source = compiled.code.trim().replace(/;$/, "");
+
+  const answer: (
+    getRequestEvent: () => { locals: { isShareHost: boolean }; url: URL },
+    error: typeof import("@sveltejs/kit").error,
+    redirect: typeof import("@sveltejs/kit").redirect
+  ) => never = new Function(`return ${source}`)();
+
+  const event = {
+    locals: { isShareHost },
+    url: new URL("https://abc123.share.example.test/dashboard?range=24h"),
+  };
+
+  try {
+    answer(() => event, error, redirect);
+  } catch (thrown) {
+    return thrown;
+  }
+
+  throw new Error("the 401 arm returned without throwing");
+}
+
+describe("a generated query refused as unauthenticated", () => {
+  it("fails on a share host rather than sending the viewer to sign in", async () => {
+    const answer = await queryAnswerTo401(true);
+
+    expect(isHttpError(answer) && answer.status).toBe(401);
+    expect(answer).not.toHaveProperty("location");
+  });
+
+  it("sends an expired session to the login route", async () => {
+    const answer = await queryAnswerTo401(false);
+
+    expect(isRedirect(answer)).toBe(true);
+    expect(answer).toMatchObject({
+      status: 302,
+      location: "/auth/login?returnUrl=%2Fdashboard%3Frange%3D24h",
+    });
   });
 });
 
@@ -390,7 +443,7 @@ describe("an error body that is not RFC-7807", () => {
 
     const crossed = await crossTheBoundary(withoutStatus);
 
-    expect((crossed as { status: number }).status).toBe(500);
+    expect(errorStatus(crossed)).toBe(500);
   });
 });
 
@@ -460,7 +513,7 @@ describe("every typed error body a remote operation declares", () => {
 
   it("declares a status, so the status arm can forward it", (ctx) => {
     if (!existsSync(fileURLToPath(SPEC_URL))) ctx.skip(SPEC_ABSENT);
-    const spec = JSON.parse(readFileSync(SPEC_URL, "utf8")) as Spec;
+    const spec: Spec = JSON.parse(readFileSync(SPEC_URL, "utf8"));
 
     const bodies = declaredErrorBodies(spec);
     expect(bodies.length).toBeGreaterThan(0);

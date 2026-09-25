@@ -35,7 +35,7 @@ export const OAUTH_SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   [OAuthScope.FullAccess]: "Full access to all data and settings",
   [DEVICE_NOTIFY_SCOPE]: "Send notifications to this device",
   [DEVICE_ACTUATE_SCOPE]:
-    "Use this device's alarms — sound, vibration, flashlight, and full-screen alerts",
+    "Use this device's alarms: sound, vibration, flashlight, and full-screen alerts",
 } as const;
 
 /** Scopes that grant hardware/device actuation and warrant extra emphasis in consent UI. */
@@ -48,10 +48,10 @@ export function isSensitiveDeviceScope(scope: string): boolean {
   return SENSITIVE_DEVICE_SCOPES.has(scope);
 }
 
-export const OAUTH_AVAILABLE_SCOPES = Object.values(OAuthScope) as ReadonlyArray<OAuthScope>;
+export const OAUTH_AVAILABLE_SCOPES: ReadonlyArray<OAuthScope> = Object.values(OAuthScope);
 
 export function getOAuthScopeDescription(scope: OAuthScope): string;
 export function getOAuthScopeDescription(scope: string): string;
 export function getOAuthScopeDescription(scope: string): string {
-  return (OAUTH_SCOPE_DESCRIPTIONS as Record<string, string>)[scope] ?? scope;
+  return Object.hasOwn(OAUTH_SCOPE_DESCRIPTIONS, scope) ? OAUTH_SCOPE_DESCRIPTIONS[scope] : scope;
 }

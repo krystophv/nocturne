@@ -2,7 +2,9 @@
  * Chart color utilities for resolving backend ChartColor enum values to CSS variables
  * ChartColor enum values are kebab-case strings that match CSS custom property names
  */
-import { type ChartColor } from '$lib/api';
+// Type-only so the generated client is not loaded at runtime; this module is imported by
+// code whose tests run without codegen.
+import type { ChartColor } from '$lib/api';
 
 /**
  * Resolve a ChartColor enum value to a CSS variable reference
@@ -113,7 +115,7 @@ export function getGlucoseColorContinuous(mgdl: number): string {
 const GLUCOSE_HEATMAP_STOPS: ReadonlyArray<readonly [number, string]> = [
 	[40, '--glucose-heatmap-1'],
 	[54, '--glucose-heatmap-2'],
-	[70, '--glucose-heatmap-3'],
+	[72, '--glucose-heatmap-3'],
 	[100, '--glucose-heatmap-4'],
 	[140, '--glucose-heatmap-5'],
 	[180, '--glucose-heatmap-6'],
@@ -127,23 +129,35 @@ export const GLUCOSE_HEATMAP_LEGEND_STOPS: ReadonlyArray<{ mgdl: number; color: 
 	GLUCOSE_HEATMAP_STOPS.map(([mgdl, cssVar]) => ({ mgdl, color: `var(${cssVar})` }));
 
 /**
+ * Days outside the focused band. Not a ramp anchor: it recedes in both schemes, where
+ * `--glucose-heatmap-1` inverts to contrast with them, and drawing hyperglycaemia in the
+ * ramp's hypo colour would contradict the reading shown on the same cell.
+ */
+export const GLUCOSE_HEATMAP_OUTSIDE_COLOR = "var(--glucose-heatmap-outside)";
+
+/**
  * Blend the two heatmap stops bracketing `mgdl`, clamping outside the anchors.
  *
  * Mixes in sRGB rather than interpolating in JS so the stops can stay theme
  * variables: interpolation would have to read their computed values back out of
  * the document and re-read them on every theme change.
  */
-export function getGlucoseHeatmapFill(mgdl: number): string {
-	const upper = GLUCOSE_HEATMAP_STOPS.findIndex(([anchor]) => mgdl <= anchor);
+export function getGlucoseHeatmapFill(
+	mgdl: number,
+	stops = GLUCOSE_HEATMAP_LEGEND_STOPS
+): string {
+	const upper = stops.findIndex(({ mgdl: anchor }) => mgdl <= anchor);
 
 	// Above every anchor (no match) or at/below the first one — clamp to an end stop.
-	if (upper === -1) return `var(${GLUCOSE_HEATMAP_STOPS[GLUCOSE_HEATMAP_STOPS.length - 1][1]})`;
-	if (upper === 0) return `var(${GLUCOSE_HEATMAP_STOPS[0][1]})`;
+	if (upper === -1) return stops[stops.length - 1].color;
+	if (upper === 0) return stops[0].color;
+	// An exact anchor is its own colour; blending would nest a 0%-weighted mix of it.
+	if (stops[upper].mgdl === mgdl) return stops[upper].color;
 
-	const [loAnchor, loVar] = GLUCOSE_HEATMAP_STOPS[upper - 1];
-	const [hiAnchor, hiVar] = GLUCOSE_HEATMAP_STOPS[upper];
+	const { mgdl: loAnchor, color: loColor } = stops[upper - 1];
+	const { mgdl: hiAnchor, color: hiColor } = stops[upper];
 	const loShare = ((hiAnchor - mgdl) / (hiAnchor - loAnchor)) * 100;
-	return `color-mix(in srgb, var(${loVar}) ${loShare.toFixed(2)}%, var(${hiVar}))`;
+	return `color-mix(in srgb, ${loColor} ${loShare.toFixed(2)}%, ${hiColor})`;
 }
 
 /**

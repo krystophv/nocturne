@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Nocturne.API.Services.Alerts;
 using Nocturne.Connectors.Core.Interfaces;
+using Nocturne.Connectors.Core.Models;
 using Nocturne.Core.Contracts.Audit;
 using Nocturne.Core.Contracts.Devices;
 using Nocturne.Core.Contracts.Glucose;
@@ -34,8 +36,9 @@ internal sealed class GlucosePublisher : ConnectorPublisherBase, IGlucosePublish
         IPatientDeviceStamper patientDeviceStamper,
         ICanonicalAlertEvaluator alertEvaluator,
         IAuditContext auditContext,
+        PublishSkipTally skips,
         ILogger<GlucosePublisher> logger)
-        : base(auditContext, logger)
+        : base(auditContext, skips, logger)
     {
         _entryService = entryService ?? throw new ArgumentNullException(nameof(entryService));
         _sensorGlucoseRepository = sensorGlucoseRepository ?? throw new ArgumentNullException(nameof(sensorGlucoseRepository));
@@ -44,6 +47,11 @@ internal sealed class GlucosePublisher : ConnectorPublisherBase, IGlucosePublish
         _alertEvaluator = alertEvaluator ?? throw new ArgumentNullException(nameof(alertEvaluator));
     }
 
+    /// <remarks>
+    /// Empty batches skip the write for the reason <see cref="ConnectorPublisherBase.PublishAsync"/>
+    /// does: a connector sync that found nothing new still calls its publishers, and a write of no
+    /// records has nothing for the entry service or for an alert pass to decide against.
+    /// </remarks>
     public async Task<bool> PublishEntriesAsync(
         IEnumerable<Entry> entries,
         string source,
@@ -52,8 +60,11 @@ internal sealed class GlucosePublisher : ConnectorPublisherBase, IGlucosePublish
         try
         {
             var entryList = entries.ToList();
-            await _entryService.CreateEntriesAsync(entryList, origin, cancellationToken);
-            await _alertEvaluator.EvaluateAsync(cancellationToken);
+            if (entryList.Count == 0) return true;
+
+            var written = await _entryService.CreateEntriesAsync(entryList, origin, cancellationToken);
+            RecordSkippedDeleted(written.SkippedDeleted);
+            await _alertEvaluator.EvaluateForEntriesAsync(entryList, cancellationToken);
             return true;
         }
         catch (OperationCanceledException) { throw; }
@@ -65,9 +76,9 @@ internal sealed class GlucosePublisher : ConnectorPublisherBase, IGlucosePublish
     }
 
     /// <remarks>
-    /// Alert evaluation after the write is this publisher's one addition to the shared shape: a CGM
-    /// reading is the trigger every glucose alert condition is written against.
+    /// Alert evaluation after the write is this publisher's one addition to the shared shape.
     /// </remarks>
+    /// <seealso cref="CanonicalAlertEvaluatorExtensions.EvaluateForReadingsAsync"/>
     public Task<bool> PublishSensorGlucoseAsync(
         IEnumerable<SensorGlucose> records,
         string source,
@@ -76,7 +87,7 @@ internal sealed class GlucosePublisher : ConnectorPublisherBase, IGlucosePublish
             records, _sensorGlucoseRepository, source, origin, cancellationToken,
             beforeWrite: recordList => _patientDeviceStamper.StampAsync(
                 recordList, DeviceAttributionCategories.SensorGlucose, source, cancellationToken),
-            afterWrite: () => _alertEvaluator.EvaluateAsync(cancellationToken));
+            afterWrite: recordList => _alertEvaluator.EvaluateForReadingsAsync(recordList, cancellationToken));
 
     /// <inheritdoc cref="ConnectorPublisherBase.LatestTimestampAsync" />
     /// <remarks>

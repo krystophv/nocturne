@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Nocturne.API.Authorization;
 using Nocturne.API.Models.DevOnly;
@@ -38,6 +39,7 @@ public class DevAdminController : ControllerBase
     private readonly IConnectorSyncService _syncService;
     private readonly ITenantAccessor _tenantAccessor;
     private readonly ITenantService _tenantService;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<DevAdminController> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -53,6 +55,7 @@ public class DevAdminController : ControllerBase
     /// <param name="syncService">Service for triggering connector synchronisation.</param>
     /// <param name="tenantAccessor">Accessor for the current request tenant context.</param>
     /// <param name="tenantService">Service for tenant lifecycle management.</param>
+    /// <param name="cache">Tenant-resolution cache, which a restored snapshot invalidates.</param>
     /// <param name="logger">Logger instance.</param>
     public DevAdminController(
         NocturneDbContext db,
@@ -60,6 +63,7 @@ public class DevAdminController : ControllerBase
         IConnectorSyncService syncService,
         ITenantAccessor tenantAccessor,
         ITenantService tenantService,
+        IMemoryCache cache,
         ILogger<DevAdminController> logger
     )
     {
@@ -68,6 +72,7 @@ public class DevAdminController : ControllerBase
         _syncService = syncService;
         _tenantAccessor = tenantAccessor;
         _tenantService = tenantService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -148,8 +153,6 @@ public class DevAdminController : ControllerBase
                     Id = s.Id,
                     Name = s.Name,
                     Username = s.Username,
-                    AccessTokenHash = s.AccessTokenHash,
-                    AccessTokenPrefix = s.AccessTokenPrefix,
                     Email = s.Email,
                     Notes = s.Notes,
                     IsActive = s.IsActive,
@@ -285,6 +288,11 @@ public class DevAdminController : ControllerBase
     /// Import a snapshot, replacing all identity/config data.
     /// Wraps the entire operation in a transaction.
     /// </summary>
+    /// <remarks>
+    /// Creation timestamps do not round-trip: every restored row is stamped with the restore time,
+    /// because <see cref="Infrastructure.Data.Entities.ISystemCreated"/> and
+    /// <see cref="Infrastructure.Data.Entities.IEntityCreated"/> are server-assigned on insert.
+    /// </remarks>
     [HttpPost("snapshot")]
     public async Task<ActionResult> ImportSnapshot(
         [FromBody] DevSnapshotDto snapshot,
@@ -300,6 +308,9 @@ public class DevAdminController : ControllerBase
             await strategy.ExecuteAsync(async () =>
             {
                 await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+                // Declared inside the retryable body so a second attempt starts from an empty set.
+                var resolvableSlugs = new HashSet<string>(StringComparer.Ordinal);
 
                 // Collect all subject IDs and passkey IDs from the snapshot for non-scoped upsert
                 var allSubjectDtos = snapshot.Tenants.SelectMany(t => t.Subjects).ToList();
@@ -365,13 +376,15 @@ public class DevAdminController : ControllerBase
 
                     if (existingTenant is not null)
                     {
+                        // A rename leaves the outgoing slug cached and still resolving to this row.
+                        resolvableSlugs.Add(existingTenant.Slug);
+
                         // Update scalar properties in-place
                         existingTenant.Slug = td.Slug;
                         existingTenant.DisplayName = td.DisplayName;
                         existingTenant.IsActive = td.IsActive;
                         existingTenant.LastReadingAt = td.LastReadingAt;
                         existingTenant.AllowAccessRequests = td.AllowAccessRequests;
-                        existingTenant.SysCreatedAt = td.SysCreatedAt;
                         existingTenant.SysUpdatedAt = td.SysUpdatedAt;
                     }
                     else
@@ -384,10 +397,11 @@ public class DevAdminController : ControllerBase
                             IsActive = td.IsActive,
                             LastReadingAt = td.LastReadingAt,
                             AllowAccessRequests = td.AllowAccessRequests,
-                            SysCreatedAt = td.SysCreatedAt,
                             SysUpdatedAt = td.SysUpdatedAt,
                         });
                     }
+
+                    resolvableSlugs.Add(td.Slug);
                 }
                 await _db.SaveChangesAsync(ct);
 
@@ -401,13 +415,10 @@ public class DevAdminController : ControllerBase
                         Id = s.Id,
                         Name = s.Name,
                         Username = s.Username,
-                        AccessTokenHash = s.AccessTokenHash,
-                        AccessTokenPrefix = s.AccessTokenPrefix,
                         Email = s.Email,
                         Notes = s.Notes,
                         IsActive = s.IsActive,
                         IsSystemSubject = s.IsSystemSubject,
-                        CreatedAt = s.CreatedAt,
                         UpdatedAt = s.UpdatedAt,
                         LastLoginAt = s.LastLoginAt,
                         OriginalId = s.OriginalId,
@@ -458,7 +469,6 @@ public class DevAdminController : ControllerBase
                             Description = r.Description,
                             Permissions = r.Permissions,
                             IsSystem = r.IsSystem,
-                            SysCreatedAt = r.SysCreatedAt,
                             SysUpdatedAt = r.SysUpdatedAt,
                         });
                     }
@@ -471,7 +481,6 @@ public class DevAdminController : ControllerBase
                             Id = m.Id,
                             TenantId = m.TenantId,
                             SubjectId = m.SubjectId,
-                            SysCreatedAt = m.SysCreatedAt,
                             SysUpdatedAt = m.SysUpdatedAt,
                             DirectPermissions = m.DirectPermissions,
                             Label = m.Label,
@@ -492,7 +501,6 @@ public class DevAdminController : ControllerBase
                             Id = mr.Id,
                             TenantMemberId = mr.TenantMemberId,
                             TenantRoleId = mr.TenantRoleId,
-                            SysCreatedAt = mr.SysCreatedAt,
                         });
                     }
 
@@ -512,7 +520,6 @@ public class DevAdminController : ControllerBase
                             DisplayName = c.DisplayName,
                             IsKnown = c.IsKnown,
                             RedirectUris = c.RedirectUris,
-                            CreatedAt = c.CreatedAt,
                             UpdatedAt = c.UpdatedAt,
                         });
                     }
@@ -546,7 +553,6 @@ public class DevAdminController : ControllerBase
                             SchemaVersion = c.SchemaVersion,
                             LastModified = c.LastModified,
                             ModifiedBy = c.ModifiedBy,
-                            SysCreatedAt = c.SysCreatedAt,
                             SysUpdatedAt = c.SysUpdatedAt,
                             LastSyncAttempt = c.LastSyncAttempt,
                             LastSuccessfulSync = c.LastSuccessfulSync,
@@ -560,6 +566,11 @@ public class DevAdminController : ControllerBase
                 }
 
                 await tx.CommitAsync(ct);
+
+                // After the commit, not beside the writes: a request served mid-transaction reads
+                // the pre-restore rows and would re-cache them for the full duration.
+                foreach (var slug in resolvableSlugs)
+                    TenantResolutionMiddleware.EvictTenant(_cache, slug);
             });
 
             _logger.LogInformation("Dev snapshot import completed successfully");
@@ -755,6 +766,9 @@ public class DevAdminController : ControllerBase
     /// provided snapshot. Upserts referenced subjects and passkeys without
     /// affecting other tenants.
     /// </summary>
+    /// <remarks>
+    /// Creation timestamps do not round-trip; see <see cref="ImportSnapshot"/>.
+    /// </remarks>
     [HttpPost("tenants/{id:guid}/import-snapshot")]
     public async Task<ActionResult> ImportScopedSnapshot(
         Guid id,
@@ -821,9 +835,8 @@ public class DevAdminController : ControllerBase
                 _db.Subjects.Add(new()
                 {
                     Id = s.Id, Name = s.Name, Username = s.Username,
-                    AccessTokenHash = s.AccessTokenHash, AccessTokenPrefix = s.AccessTokenPrefix,
                     Email = s.Email, Notes = s.Notes, IsActive = s.IsActive,
-                    IsSystemSubject = s.IsSystemSubject, CreatedAt = s.CreatedAt, UpdatedAt = s.UpdatedAt,
+                    IsSystemSubject = s.IsSystemSubject, UpdatedAt = s.UpdatedAt,
                     LastLoginAt = s.LastLoginAt, OriginalId = s.OriginalId,
                     PreferredLanguage = s.PreferredLanguage, ApprovalStatus = s.ApprovalStatus,
                     AccessRequestMessage = s.AccessRequestMessage, IsPlatformAdmin = s.IsPlatformAdmin,
@@ -853,7 +866,7 @@ public class DevAdminController : ControllerBase
                 {
                     Id = r.Id, TenantId = id, Name = r.Name, Slug = r.Slug,
                     Description = r.Description, Permissions = r.Permissions,
-                    IsSystem = r.IsSystem, SysCreatedAt = r.SysCreatedAt, SysUpdatedAt = r.SysUpdatedAt,
+                    IsSystem = r.IsSystem, SysUpdatedAt = r.SysUpdatedAt,
                 });
             }
 
@@ -862,7 +875,7 @@ public class DevAdminController : ControllerBase
                 _db.TenantMembers.Add(new()
                 {
                     Id = m.Id, TenantId = id, SubjectId = m.SubjectId,
-                    SysCreatedAt = m.SysCreatedAt, SysUpdatedAt = m.SysUpdatedAt,
+                    SysUpdatedAt = m.SysUpdatedAt,
                     DirectPermissions = m.DirectPermissions, Label = m.Label,
                     LimitTo24Hours = m.LimitTo24Hours, CreatedFromInviteId = m.CreatedFromInviteId,
                     LastUsedAt = m.LastUsedAt, LastUsedIp = m.LastUsedIp,
@@ -875,7 +888,7 @@ public class DevAdminController : ControllerBase
                 _db.TenantMemberRoles.Add(new()
                 {
                     Id = mr.Id, TenantMemberId = mr.TenantMemberId,
-                    TenantRoleId = mr.TenantRoleId, SysCreatedAt = mr.SysCreatedAt,
+                    TenantRoleId = mr.TenantRoleId,
                 });
             }
 
@@ -888,7 +901,7 @@ public class DevAdminController : ControllerBase
                     ClientUri = c.ClientUri, LogoUri = c.LogoUri,
                     CreatedFromIp = c.CreatedFromIp, DisplayName = c.DisplayName,
                     IsKnown = c.IsKnown, RedirectUris = c.RedirectUris,
-                    CreatedAt = c.CreatedAt, UpdatedAt = c.UpdatedAt,
+                    UpdatedAt = c.UpdatedAt,
                 });
             }
 
@@ -915,7 +928,7 @@ public class DevAdminController : ControllerBase
                     Id = c.Id, TenantId = id, ConnectorName = c.ConnectorName,
                     ConfigurationJson = c.ConfigurationJson, SecretsJson = secretsJson,
                     SchemaVersion = c.SchemaVersion, LastModified = c.LastModified,
-                    ModifiedBy = c.ModifiedBy, SysCreatedAt = c.SysCreatedAt, SysUpdatedAt = c.SysUpdatedAt,
+                    ModifiedBy = c.ModifiedBy, SysUpdatedAt = c.SysUpdatedAt,
                     LastSyncAttempt = c.LastSyncAttempt, LastSuccessfulSync = c.LastSuccessfulSync,
                     LastErrorMessage = c.LastErrorMessage, LastErrorAt = c.LastErrorAt, IsHealthy = c.IsHealthy,
                 });

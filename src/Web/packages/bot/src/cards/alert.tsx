@@ -1,7 +1,22 @@
 import { Card, CardText, Fields, Field, Actions, Button } from "chat";
-import type { AlertPayload } from "../types.js";
-import { formatGlucose, trendArrow } from "../lib/format.js";
+import type { ActiveExcursion, AlertPayload, AlertSeverity } from "../types.js";
+import { formatGlucose, timeAgo, trendArrow } from "../lib/format.js";
 import { encodeActionValue } from "../lib/action-value.js";
+import { isKnownSeverity } from "../lib/severity.js";
+
+/**
+ * Card titles per severity. Every platform gets this, including the ones with
+ * no colour to carry (Telegram, WhatsApp, e-mail); on Discord and Slack it sits
+ * alongside the coloured bar that `../adapters/accented-discord.ts` applies.
+ *
+ * Labels mirror `severity.ts` in `@nocturne/app`, and an unrecognised value
+ * degrades to a neutral title as the app degrades to a muted style.
+ */
+const SEVERITY_TITLES: Record<AlertSeverity, string> = {
+  critical: "CRITICAL",
+  warning: "Warning",
+  info: "Info",
+};
 
 export function AlertCard(props: {
   payload: AlertPayload;
@@ -18,9 +33,14 @@ export function AlertCard(props: {
     excursionId: payload.excursionId,
   });
 
+  const severity = isKnownSeverity(payload.severity) ? payload.severity : undefined;
+  const titlePrefix = severity ? SEVERITY_TITLES[severity] : "Alert";
+
   return (
-    <Card title={`Alert: ${payload.ruleName}`}>
-      <CardText>{`${payload.subjectName} is ${value} ${arrow}`}</CardText>
+    <Card title={`${titlePrefix}: ${payload.ruleName}`}>
+      <CardText style={severity === "critical" ? "bold" : "plain"}>
+        {`${payload.subjectName} is ${value} ${arrow}`}
+      </CardText>
       <Fields>
         <Field
           label="Time"
@@ -37,38 +57,41 @@ export function AlertCard(props: {
         <Button id="ack_alert" value={target} style="primary">
           Acknowledge
         </Button>
-        <Button id="mute_30" value={target}>
-          Mute 30 min
-        </Button>
       </Actions>
     </Card>
   );
 }
 
-export function AcknowledgedCard(props: {
-  originalTitle: string;
-  acknowledgedBy: string;
-}) {
+/**
+ * Posted in the thread once Acknowledge is tapped. The alert card is left
+ * standing rather than edited: an `ActionEvent` carries the message id but
+ * none of the card's content, so an edit would have to replace the reading,
+ * trend, subject and timestamp with this summary.
+ */
+export function AcknowledgedCard(props: { detail: string }) {
   return (
-    <Card title={`${props.originalTitle} [Acknowledged]`}>
-      <CardText>{`Acknowledged by ${props.acknowledgedBy}`}</CardText>
+    <Card title="Alert acknowledged">
+      <CardText>{props.detail}</CardText>
     </Card>
   );
 }
 
-export function ResolvedCard(props: {
-  originalTitle: string;
-  resolvedValue?: number;
-  unit?: "mg/dL" | "mmol/L";
-}) {
-  const { unit = "mg/dL" } = props;
-  const valueStr =
-    props.resolvedValue != null
-      ? formatGlucose(props.resolvedValue, unit)
-      : "";
+export function ActiveAlertsCard(props: { excursions: ActiveExcursion[] }) {
   return (
-    <Card title={`${props.originalTitle} [Resolved]`}>
-      <CardText>{`Resolved${valueStr ? ` -- back in range (${valueStr})` : ""}`}</CardText>
+    <Card title="Active alerts">
+      <Fields>
+        {props.excursions.map((excursion) => (
+          <Field
+            key={excursion.id}
+            label={excursion.ruleName ?? "Alert"}
+            value={`${excursion.acknowledgedAt ? "Acknowledged" : "Firing"}, started ${
+              excursion.startedAt
+                ? timeAgo(new Date(excursion.startedAt).getTime())
+                : "at an unknown time"
+            }`}
+          />
+        ))}
+      </Fields>
     </Card>
   );
 }

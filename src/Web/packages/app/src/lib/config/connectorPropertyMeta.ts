@@ -173,6 +173,11 @@ export const connectorPropertyMeta = {
     description: 'Site URL (e.g., https://yoursite.herokuapp.com)',
     category: 'General',
   },
+  RealtimeUrl: {
+    label: 'Realtime URL',
+    description: 'Optional Nightscout origin used for live Socket.IO updates when the data URL is an adapter',
+    category: 'Advanced',
+  },
   ApiSecret: {
     label: 'API Secret',
     description: 'Nightscout API_SECRET for authentication',
@@ -188,6 +193,12 @@ export const connectorPropertyMeta = {
   UseV3Api: {
     label: 'Use V3 API',
     description: 'Use the newer Glooko V3 API for data retrieval',
+    category: 'Advanced',
+  },
+  UseSsv2Sync: {
+    label: 'Use Granular Sync (Experimental)',
+    description:
+      'Sync each kind of data from its own Glooko feed, resuming where the last sync stopped instead of re-reading a date window. Imports pen injections, app-logged doses, extended boluses and more. Replaces the V3 API setting when on.',
     category: 'Advanced',
   },
   V3IncludeCgmBackfill: {
@@ -234,10 +245,10 @@ export const connectorPropertyMeta = {
     category: 'Advanced',
   },
 
-  // MyFitnessPal-specific
+  // MyFitnessPal and Glooko
   LookbackDays: {
     label: 'Lookback Days',
-    description: 'Number of days of historical data to retrieve',
+    description: 'How many days back each sync reaches',
     category: 'Sync',
   },
   LastFullWalkAt: {
@@ -322,6 +333,10 @@ export const connectorPropertyMeta = {
 /** String key names, taken from the entries above. */
 export type ConnectorPropertyKeyName = keyof typeof connectorPropertyMeta;
 
+const PROPERTY_META_BY_KEY: ReadonlyMap<string, PropertyMeta> = new Map<string, PropertyMeta>(
+  Object.entries(connectorPropertyMeta)
+);
+
 /**
  * Convert PascalCase/camelCase to Title Case with spaces.
  * Used as fallback for unknown property keys.
@@ -341,14 +356,16 @@ export function formatPropertyName(name: string): string {
  */
 export function getPropertyMeta(key: string): PropertyMeta {
   // Direct match (PascalCase from enum)
-  if (key in connectorPropertyMeta) {
-    return connectorPropertyMeta[key as ConnectorPropertyKeyName];
+  const direct = PROPERTY_META_BY_KEY.get(key);
+  if (direct) {
+    return direct;
   }
 
   // Convert camelCase to PascalCase for lookup (schema keys are camelCased)
   const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
-  if (pascalKey in connectorPropertyMeta) {
-    return connectorPropertyMeta[pascalKey as ConnectorPropertyKeyName];
+  const pascal = PROPERTY_META_BY_KEY.get(pascalKey);
+  if (pascal) {
+    return pascal;
   }
 
   return {

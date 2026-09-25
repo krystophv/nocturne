@@ -1,141 +1,45 @@
 <script lang="ts">
     import { page } from "$app/state";
-    import { Rocket, Download, Settings, Shield, Share2, Bell, Bot, Code2, KeyRound, Activity, LayoutGrid, Package, ChevronRight, ChevronDown } from "@lucide/svelte";
+    import { Rocket, Download, Settings, Shield, Share2, Bell, Bot, Code2, KeyRound, Activity, LayoutGrid, Package, Utensils, ChevronRight } from "@lucide/svelte";
+    import { DOCS_NAV_SECTIONS, type DocsSectionId } from "$lib/data/docs-nav";
+    import { track } from "$lib/analytics";
 
-    const navSections = [
-        {
-            title: "Getting Started",
-            icon: Rocket,
-            items: [
-                { href: "/docs", label: "Overview" },
-                { href: "/docs/getting-started", label: "Quick Start" },
-            ],
-        },
-        {
-            title: "Installation",
-            icon: Download,
-            items: [
-                { href: "/docs/installation", label: "Overview" },
-                { href: "/docs/installation/docker-compose", label: "Docker Compose" },
-                { href: "/docs/installation/portainer", label: "Portainer" },
-                { href: "/docs/installation/byo-postgres", label: "Bring Your Own PostgreSQL" },
-                { href: "/docs/installation/reverse-proxy", label: "Bring Your Own Reverse Proxy" },
-            ],
-        },
-        {
-            title: "Authentication",
-            icon: Shield,
-            items: [
-                { href: "/docs/authentication", label: "Overview" },
-                { href: "/docs/authentication/passkeys", label: "Passkeys & fallbacks" },
-                { href: "/docs/authentication/request-membership", label: "Request membership" },
-                { href: "/docs/authentication/google", label: "Sign in with Google" },
-                { href: "/docs/authentication/github", label: "Sign in with GitHub" },
-                { href: "/docs/authentication/oidc", label: "Generic OIDC" },
-            ],
-        },
-        {
-            title: "Sharing & Privacy",
-            icon: Share2,
-            items: [
-                { href: "/docs/sharing", label: "Overview" },
-                { href: "/docs/sharing/public-link", label: "Public share link" },
-                { href: "/docs/sharing/members", label: "Member accounts & invites" },
-                { href: "/docs/sharing/guest-links", label: "Temporary guest links" },
-                { href: "/docs/sharing/clock", label: "Clocks" },
-            ],
-        },
-        {
-            title: "Alerts",
-            icon: Bell,
-            items: [
-                { href: "/docs/alerts/email", label: "Email (Resend)" },
-            ],
-        },
-        {
-            title: "Chat Bots",
-            icon: Bot,
-            items: [
-                { href: "/docs/bots", label: "Overview" },
-                { href: "/docs/bots/discord", label: "Discord" },
-                { href: "/docs/bots/slack", label: "Slack" },
-                { href: "/docs/bots/telegram", label: "Telegram" },
-                { href: "/docs/bots/whatsapp", label: "WhatsApp" },
-            ],
-        },
-        {
-            title: "Configuration",
-            icon: Settings,
-            items: [
-                { href: "/docs/configuration", label: "Configuration Guide" },
-            ],
-        },
-        {
-            title: "Observability",
-            icon: Activity,
-            items: [
-                { href: "/docs/observability", label: "OpenTelemetry" },
-            ],
-        },
-        {
-            title: "Windows Widget",
-            icon: LayoutGrid,
-            items: [
-                { href: "/docs/windows-widget", label: "Overview & setup" },
-            ],
-        },
-        {
-            title: "Connecting Apps",
-            icon: KeyRound,
-            items: [
-                { href: "/docs/connecting-apps", label: "App authorization (PKCE)" },
-                { href: "/docs/connecting-apps/device-flow", label: "Mobile & device flow" },
-            ],
-        },
-        {
-            title: "SDKs",
-            icon: Package,
-            items: [
-                { href: "/docs/sdks", label: "Official SDKs" },
-            ],
-        },
-        {
-            title: "API Reference",
-            icon: Code2,
-            items: [
-                { href: "/scalar", label: "Interactive API Docs" },
-            ],
-        },
-    ];
+    // Exhaustive by type: a new section in docs-nav.ts will not compile until it has an icon.
+    const ICONS: Record<DocsSectionId, typeof Rocket> = {
+        "getting-started": Rocket,
+        installation: Download,
+        authentication: Shield,
+        sharing: Share2,
+        food: Utensils,
+        alerts: Bell,
+        bots: Bot,
+        configuration: Settings,
+        observability: Activity,
+        "windows-widget": LayoutGrid,
+        "connecting-apps": KeyRound,
+        sdks: Package,
+        "api-reference": Code2,
+    };
 
     const isActive = (href: string) => {
         return page.url.pathname === href;
     };
-
-    const isSectionActive = (items: { href: string }[]) => {
-        return items.some((item) => page.url.pathname === item.href);
-    };
 </script>
 
 <nav class="space-y-6">
-    {#each navSections as section}
+    {#each DOCS_NAV_SECTIONS as section (section.id)}
+        {@const Icon = ICONS[section.id]}
         <div>
-            <div
-                class="flex items-center gap-2 text-sm font-semibold text-foreground mb-2"
-            >
-                <section.icon class="w-4 h-4" />
+            <div class="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                <Icon class="w-4 h-4" />
                 {section.title}
-                {#if isSectionActive(section.items)}
-                    <ChevronDown class="w-3 h-3 ml-auto" />
-                {:else}
-                    <ChevronRight class="w-3 h-3 ml-auto" />
-                {/if}
             </div>
             <ul class="space-y-1 ml-6">
-                {#each section.items as item}
+                {#each section.items as item (item.href)}
                     <li>
-                        <a
-                            href={item.href}
+                        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- item.href is a Pathname from docs-nav.ts, checked against the route manifest -->
+                        <a href={item.href}
+                            onclick={() => track("Docs Nav", { section: section.id })}
                             class="flex items-center gap-2 py-1.5 text-sm transition-colors {isActive(item.href)
                                 ? 'text-primary font-medium'
                                 : 'text-muted-foreground hover:text-foreground'}"

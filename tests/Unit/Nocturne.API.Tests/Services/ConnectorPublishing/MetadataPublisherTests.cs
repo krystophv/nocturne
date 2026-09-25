@@ -1,3 +1,4 @@
+using Nocturne.Connectors.Core.Models;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -65,10 +66,14 @@ public class MetadataPublisherTests
             _mockStateSpanService.Object,
             _mockSystemEventRepository.Object,
             _mockNoteRepository.Object,
+            Mock.Of<IBodyWeightService>(),
+            Mock.Of<IStepCountService>(),
+            Mock.Of<IHeartRateService>(),
             _mockTenantOwnerResolver.Object,
             _mockTenantAccessor.Object,
             new NocturneDbContext(new DbContextOptionsBuilder<NocturneDbContext>()
                 .UseInMemoryDatabase($"metadata-publisher-{Guid.NewGuid():N}").Options),
+            new PublishSkipTally(),
             NullLogger<MetadataPublisher>.Instance
         );
     }

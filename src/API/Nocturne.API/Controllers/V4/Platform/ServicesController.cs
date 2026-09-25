@@ -3,11 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenApi.Remote.Attributes;
 using Nocturne.API.Attributes;
+using Nocturne.API.Authorization;
+using Nocturne.API.Extensions;
 using Nocturne.API.Models;
 using Nocturne.API.Multitenancy;
 using Nocturne.API.Services.Connectors;
 using Nocturne.Core.Contracts.Connectors;
 using Nocturne.Core.Contracts.Multitenancy;
+using Nocturne.Core.Models.Authorization;
 using Nocturne.Core.Models.Services;
 
 namespace Nocturne.API.Controllers.V4.Platform;
@@ -281,7 +284,8 @@ public class ServicesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result of the delete operation</returns>
     [HttpDelete("data-sources/demo")]
-    [RequireAdmin]
+    [RequireScope(Scope.TenantSettings)]
+    [DenyDemoSubject]
     [RemoteCommand(Invalidates = ["GetServicesOverview", "GetActiveDataSources", "GetStatus"])]
     [ProducesResponseType(typeof(DataSourceDeleteResult), 200)]
     [ProducesResponseType(500)]
@@ -315,7 +319,8 @@ public class ServicesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result of the delete operation</returns>
     [HttpDelete("data-sources/{id}")]
-    [RequireAdmin]
+    [RequireScope(Scope.TenantSettings)]
+    [DenyDemoSubject]
     [RemoteCommand(Invalidates = ["GetServicesOverview", "GetActiveDataSources", "GetStatus"])]
     [ProducesResponseType(typeof(DataSourceDeleteResult), 200)]
     [ProducesResponseType(404)]
@@ -388,7 +393,8 @@ public class ServicesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result of the delete operation</returns>
     [HttpDelete("connectors/{id}/data")]
-    [RequireAdmin]
+    [RequireScope(Scope.TenantSettings)]
+    [DenyDemoSubject]
     [RemoteCommand(Invalidates = ["GetServicesOverview", "GetActiveDataSources", "GetStatus", "GetConnectorDataSummary"])]
     [ProducesResponseType(typeof(DataSourceDeleteResult), 200)]
     [ProducesResponseType(404)]
@@ -430,7 +436,8 @@ public class ServicesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Sync result with success status and details</returns>
     [HttpPost("connectors/{id}/sync")]
-    [RequireAdmin]
+    [RequireScope(Scope.TenantSettings)]
+    [DenyDemoSubject]
     [RemoteCommand(
         Invalidates = [
             "GetServicesOverview",
@@ -480,7 +487,8 @@ public class ServicesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Sync result with success status and details.</returns>
     [HttpPost("connectors/{id}/reset-cursor")]
-    [RequireAdmin]
+    [RequireScope(Scope.TenantSettings)]
+    [DenyDemoSubject]
     [RemoteCommand(
         Invalidates = [
             "GetServicesOverview",
@@ -639,7 +647,7 @@ public class ServicesController : ControllerBase
         }
 
         var request = HttpContext.Request;
-        return $"{request.Scheme}://{request.Host}";
+        return $"{request.PublicScheme()}://{request.Host}";
     }
 
 }

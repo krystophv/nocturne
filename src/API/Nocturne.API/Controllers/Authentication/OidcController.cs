@@ -6,6 +6,7 @@ using OpenApi.Remote.Attributes;
 using Nocturne.API.Authorization;
 using Nocturne.API.Extensions;
 using Nocturne.API.Multitenancy;
+using Nocturne.API.Services.Auth;
 using Nocturne.Core.Constants;
 using Nocturne.Core.Models.Authorization;
 using Nocturne.Core.Contracts.Multitenancy;
@@ -91,6 +92,7 @@ public class OidcController : ControllerBase
                 Name = p.Name,
                 Icon = p.Icon,
                 ButtonColor = p.ButtonColor,
+                ButtonForegroundColor = ButtonColorContrast.ForegroundFor(p.ButtonColor),
             })
             .ToList();
 
@@ -427,6 +429,12 @@ public class OidcController : ControllerBase
     /// Factor-count enforcement is handled atomically inside <see cref="ISubjectService.TryRemoveOidcIdentityAsync"/>
     /// using a serializable transaction to prevent TOCTOU races between concurrent removals.
     /// Returns <see cref="FactorRemovalResult"/> to distinguish between not-found, last-factor, and success.
+    /// <para>
+    /// Dropping a primary factor also changes the factor count that
+    /// <see cref="PasskeyController.ListCredentials"/> reports, which is what the account page reads to
+    /// decide whether a Remove is offered at all. That read lives under another OpenAPI tag, so it is
+    /// named by its full operationId — a bare name resolves only within the declaring operation's own tag.
+    /// </para>
     /// </remarks>
     /// <response code="204">Identity unlinked successfully.</response>
     /// <response code="401">Not authenticated.</response>
@@ -434,7 +442,7 @@ public class OidcController : ControllerBase
     /// <response code="409">Cannot remove the last primary sign-in method.</response>
     [HttpDelete("link/identities/{identityId:guid}")]
     [DenyDemoSubject]
-    [RemoteCommand(Invalidates = ["GetLinkedIdentities"])]
+    [RemoteCommand(Invalidates = ["GetLinkedIdentities", "Passkey_ListCredentials"])]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -748,6 +756,12 @@ public class OidcProviderInfo
     /// Button color for UI
     /// </summary>
     public string? ButtonColor { get; set; }
+
+    /// <summary>
+    /// Text colour legible on <see cref="ButtonColor"/>; null when that is not a hex colour,
+    /// in which case the button keeps its themed style.
+    /// </summary>
+    public string? ButtonForegroundColor { get; set; }
 }
 
 /// <summary>

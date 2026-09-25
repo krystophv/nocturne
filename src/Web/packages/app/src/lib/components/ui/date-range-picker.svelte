@@ -5,9 +5,9 @@
   import { queryParam } from "sveltekit-search-params";
 
   import { RangeCalendar } from "$lib/components/ui/range-calendar";
-  import { formatLocale } from "$lib/utils/formatting";
+  import { formatLocale, formatMediumDateRange } from "$lib/utils/formatting";
   import * as Popover from "$lib/components/ui/popover/index.js";
-  import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+  import { ChevronDown as ChevronDownIcon } from "lucide-svelte";
 
   interface Props {
     showDaysPresets?: boolean;
@@ -170,7 +170,10 @@
           class="w-56 justify-between font-normal"
         >
           {value?.start && value?.end
-            ? `${value.start.toDate(getLocalTimeZone()).toLocaleDateString(formatLocale())} - ${value.end.toDate(getLocalTimeZone()).toLocaleDateString(formatLocale())}`
+            ? formatMediumDateRange(
+                value.start.toDate(getLocalTimeZone()),
+                value.end.toDate(getLocalTimeZone()),
+              )
             : "Select date"}
           <ChevronDownIcon />
         </Button>
@@ -189,7 +192,7 @@
   {#if showDaysPresets}
     <!-- Quick Day Selection (right) -->
     <div class="flex flex-wrap gap-2">
-      {#each [1, 3, 7, 14, 30, 90] as daysOption}
+      {#each [1, 3, 7, 14, 30, 90] as daysOption (daysOption)}
         <Button
           variant={selectedDays === daysOption ? "default" : "outline"}
           size="sm"

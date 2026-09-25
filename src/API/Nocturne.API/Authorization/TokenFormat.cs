@@ -4,8 +4,10 @@ namespace Nocturne.API.Authorization;
 /// The shape of a presented credential, read before anything validates it.
 /// </summary>
 /// <remarks>
-/// The auth chain routes on this: a handler that recognises JWTs claims the credential and every
-/// later handler is skipped, so what counts as a JWT here decides which handler owns it.
+/// The auth chain routes on this: a handler that recognises a credential claims it and every later
+/// handler is skipped, so what counts as a given shape here decides which handler owns it.
+/// Every opaque credential is a row in <c>oauth_grants</c>, so the only distinction left to draw is
+/// JWT versus not.
 /// </remarks>
 public static class TokenFormat
 {

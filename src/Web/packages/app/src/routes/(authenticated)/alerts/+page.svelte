@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { isoNow } from "$lib/utils/now";
   import { formatClock } from "$lib/utils/formatting";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { satisfiesScope } from "$lib/authorization/scopes";
   import { toast } from "svelte-sonner";
   import { remoteErrorMessage } from "$lib/api/remote-error";
   import { permissionGatedMutationError } from "$lib/forms";
@@ -34,21 +36,19 @@
   } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import SettingsPageSkeleton from "$lib/components/settings/SettingsPageSkeleton.svelte";
-  import { Bell, Plus, AlertTriangle, Check, Loader2 } from "lucide-svelte";
+  import { Bell, Plus, AlertTriangle, Check, ChevronRight, Loader2 } from "lucide-svelte";
+  import AppLogo from "$lib/components/ui/AppLogo.svelte";
+  import { resolve } from "$app/paths";
 
   import AlertRuleRow from "$lib/components/alerts/AlertRuleRow.svelte";
   import DndNoticeStrip from "$lib/components/alerts/DndNoticeStrip.svelte";
   import { isDndActiveNow } from "$lib/components/alerts/dnd";
   import { severity, severityLabel } from "$lib/components/alerts/severity";
 
-  const effectivePermissions: string[] = $derived(
-    (page.data as any).effectivePermissions ?? [],
-  );
   // Every write on this page — rule toggle/delete/test-fire, acknowledge, and
   // clearing the manual mute — is gated on alerts.readwrite server-side.
   const canManageAlerts = $derived(
-    effectivePermissions.includes("*") ||
-      effectivePermissions.includes("alerts.readwrite"),
+    satisfiesScope(page.data.effectivePermissions ?? [], "alerts.readwrite"),
   );
   const NEEDS_ALERTS_READWRITE =
     "Changing alerts requires the alerts.readwrite permission.";
@@ -136,7 +136,7 @@
       await acknowledge({}).updates(
         activeAlertsQuery.withOverride((current) =>
           (current ?? []).map((a) =>
-            a.acknowledgedAt ? a : { ...a, acknowledgedAt: new Date() },
+            a.acknowledgedAt ? a : { ...a, acknowledgedAt: isoNow() },
           ),
         ),
       );
@@ -148,11 +148,11 @@
   }
 
   function newRule(): void {
-    goto("/alerts/new");
+    goto(resolve("/alerts/new"));
   }
 
   function editRule(rule: AlertRuleResponse): void {
-    goto(`/alerts/${rule.id}`);
+    goto(resolve(`/alerts/${rule.id}`));
   }
 </script>
 
@@ -187,7 +187,7 @@
     {/snippet}
 
     {#snippet failed(error)}
-      <Card class="border-destructive">
+      <Card variant="destructive">
         <CardContent class="flex items-center gap-3">
           <AlertTriangle class="h-5 w-5 text-destructive" />
           <div>
@@ -247,10 +247,10 @@
         </CardContent>
       </Card>
       <a
-        href="/alerts/history"
+        href={resolve("/alerts/history")}
         class="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Card class="transition-colors hover:bg-muted/40">
+        <Card interactive>
           <CardContent>
             <p class="text-xs uppercase tracking-wider text-muted-foreground">Fired this week</p>
             <p class="mt-1 text-2xl font-bold tabular-nums">
@@ -264,10 +264,10 @@
     <!-- Active alerts banner (kept as a persistent surface separate from the
          FiringToast which handles fresh-fire moments). -->
     {#if activeAlerts.length > 0}
-      <Card class="border-destructive/40 bg-destructive/5">
+      <Card variant="destructive">
         <CardHeader>
           <div class="flex flex-col gap-2 @sm:flex-row @sm:items-center @sm:justify-between">
-            <CardTitle class="flex min-w-0 items-center gap-2 text-destructive">
+            <CardTitle variant="destructive" class="flex min-w-0 items-center gap-2">
               <AlertTriangle class="h-5 w-5 shrink-0" />
               <span class="truncate">Active alerts ({activeAlerts.length})</span>
             </CardTitle>
@@ -351,6 +351,32 @@
             {/each}
           </div>
         {/if}
+      </CardContent>
+    </Card>
+
+    <!-- Lives here because it answers this page's "where you're notified". -->
+    <Card>
+      <CardHeader>
+        <CardTitle>Where alerts reach you</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <a
+          href={resolve("/settings/integrations/discord")}
+          class="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent"
+        >
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-muted">
+              <AppLogo icon="discord" />
+            </div>
+            <div>
+              <p class="font-medium">Discord</p>
+              <p class="text-sm text-muted-foreground">
+                Link a Discord account to receive alerts and use the Nocturne bot
+              </p>
+            </div>
+          </div>
+          <ChevronRight class="h-4 w-4 text-muted-foreground" />
+        </a>
       </CardContent>
     </Card>
   </svelte:boundary>

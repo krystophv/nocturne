@@ -82,6 +82,12 @@ public class GlookoV3Series
 
     [JsonPropertyName("setSiteChange")] public GlookoV3ConsumableDataPoint[]? SetSiteChange { get; set; }
 
+    /// <summary>
+    ///     CGM sensor changes. Glooko only carries these for uploaders that report sensor lifecycle;
+    ///     a CamAPS FX / Libre 3 account returns the series empty rather than omitting it.
+    /// </summary>
+    [JsonPropertyName("cgmSensorChange")] public GlookoV3ConsumableDataPoint[]? CgmSensorChange { get; set; }
+
     // LGS/PLGS events (Low Glucose Suspend / Predictive LGS)
     [JsonPropertyName("lgsPlgs")] public GlookoV3LgsPlgsDataPoint[]? LgsPlgs { get; set; }
 
@@ -342,6 +348,20 @@ public class GlookoV3CarbDataPoint : GlookoV3DataPointBase
 /// </summary>
 public class GlookoV3AlarmDataPoint : GlookoV3DataPointBase
 {
+    /// <summary>
+    ///     Human-readable alarm name Glooko actually populates on the v3 <c>pumpAlarm</c> series
+    ///     (e.g. "Occlusion", "Low Battery"). This is the field that carries the alarm identity —
+    ///     <see cref="AlarmType"/> and <see cref="Data"/> are absent on the graph payload.
+    /// </summary>
+    [JsonPropertyName("name")] public string? Name { get; set; }
+
+    /// <summary>
+    ///     Severity Glooko reports alongside the alarm ("hazard"/"warning"/"info"). Drives the
+    ///     <see cref="Nocturne.Core.Models.SystemEventType"/> directly rather than through a
+    ///     keyword heuristic.
+    /// </summary>
+    [JsonPropertyName("alarmSeverity")] public string? AlarmSeverity { get; set; }
+
     [JsonPropertyName("label")] public string? Label { get; set; }
 
     [JsonPropertyName("alarmType")] public string? AlarmType { get; set; }

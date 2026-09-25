@@ -36,6 +36,11 @@ export default {
     apiTypes: '$api',
   },
   nswagClientPath: './generated/nocturne-api-client',
+  // Matches nswag.json: the client has no date reviver, so a date-time is the ISO
+  // text the API sent, and is typed that way.
+  dateTimeType: 'string',
+  // Every generated schema `satisfies z.ZodType<Api.X>` (utils/generateZodSchemas).
+  typedSchemas: true,
   errorHandling: {
     // `parseErrorBody` recovers the reason from an error body NSwag left unparsed;
     // both the 403 and 500 arms read it. See `$lib/api/error-body`.
@@ -47,14 +52,12 @@ export default {
     // may not have shared, each 401ing — so the default bounces them to login
     // ("flash of dashboard, then redirect"). On a share host, surface 401 as a
     // normal error instead so unshared categories just fail their widget rather
-    // than navigating away. Host detection mirrors $lib/share-host's isShareHost
-    // (inlined — generated code can't import it). Commands/forms already throw
-    // error(401) and never redirected.
+    // than navigating away. Commands/forms already throw error(401) and never
+    // redirected.
     on401: (kind: string) =>
       kind === 'query'
-        ? `const { request, url } = getRequestEvent();\n` +
-          `    const shareHost = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? '';\n` +
-          `    if (/^[^.]+\\.share\\./i.test(shareHost)) throw error(401, 'Unauthorized');\n` +
+        ? `const { locals, url } = getRequestEvent();\n` +
+          `    if (locals.isShareHost) throw error(401, 'Unauthorized');\n` +
           '    throw redirect(302, `/auth/login?returnUrl=${encodeURIComponent(url.pathname + url.search)}`)'
         : `throw error(401, 'Unauthorized')`,
 

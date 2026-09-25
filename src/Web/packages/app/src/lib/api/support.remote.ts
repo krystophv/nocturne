@@ -1,9 +1,11 @@
 import { getRequestEvent, form } from "$app/server";
 import { error, redirect } from "@sveltejs/kit";
+import { errorStatus } from "$lib/forms/submit-error";
 
 export {
   getFallbackUrl,
   getSupportConfig,
+  getSupportDiagnostics,
 } from "$api/generated/supports.generated.remote";
 
 /**
@@ -102,7 +104,7 @@ export const submitIssue = form("unchecked", async (data: IssueFormInput) => {
       images.map((file) => ({ data: file, fileName: file.name }))
     );
   } catch (err) {
-    const status = (err as { status?: number })?.status;
+    const status = errorStatus(err);
     if (status === 401) {
       const { url } = getRequestEvent();
       throw redirect(

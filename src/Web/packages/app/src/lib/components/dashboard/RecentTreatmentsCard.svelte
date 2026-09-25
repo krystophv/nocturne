@@ -9,6 +9,7 @@
   } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { time } from "$lib/utils/formatting";
+  import { entryDetails, entryLabel } from "$lib/utils/entry-summary";
   import { getRealtimeStore } from "$lib/stores/realtime-store.svelte";
   import { EntryEditDialog } from "$lib/components/entries";
 
@@ -22,7 +23,7 @@
   let {
     entries,
     maxEntries = 5,
-    title = "Recent Entries",
+    title = "Recent treatments",
     subtitle = "Last 24 hours",
   }: ComponentProps = $props();
 
@@ -42,39 +43,6 @@
     isDialogOpen = true;
   }
 
-  function getEntryLabel(entry: EntryRecord): string {
-    switch (entry.kind) {
-      case "bolus":
-        return entry.data.insulin ? `${entry.data.insulin}u insulin` : "Bolus";
-      case "carbs":
-        return entry.data.carbs ? `${entry.data.carbs}g carbs` : "Carbs";
-      case "bgCheck":
-        return entry.data.mgdl ? `${entry.data.mgdl} mg/dL` : "BG Check";
-      case "note":
-        return entry.data.text ?? "Note";
-      case "deviceEvent":
-        return entry.data.eventType ?? "Device Event";
-      case "basalInjection":
-        return entry.data.units ? `${entry.data.units}u basal` : "Long-acting injection";
-    }
-  }
-
-  function getEntryDetails(entry: EntryRecord): string {
-    switch (entry.kind) {
-      case "bolus":
-        return entry.data.bolusType ?? "";
-      case "carbs":
-        return "";
-      case "bgCheck":
-        return entry.data.glucoseType ?? "";
-      case "note":
-        return entry.data.isAnnouncement ? "Announcement" : "";
-      case "deviceEvent":
-        return entry.data.notes ?? "";
-      case "basalInjection":
-        return entry.data.insulinContext?.insulinName ?? "";
-    }
-  }
 </script>
 
 <Card class="@container">
@@ -82,12 +50,12 @@
     {#snippet pending()}
       <div class="flex items-center justify-center h-full">
         <div
-          class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"
+          class="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"
         ></div>
       </div>
     {/snippet}
     {#snippet failed(_error)}
-      <p class="text-red-500 text-center">Error loading recent entries.</p>
+      <p class="text-destructive text-center">Error loading recent entries.</p>
     {/snippet}
     <CardHeader class="px-3 @md:px-6">
       <CardTitle>{title}</CardTitle>
@@ -95,11 +63,12 @@
     </CardHeader>
     <CardContent class="px-3 @md:px-6">
       {#if displayEntries.length > 0}
-        <div class="space-y-2 @md:space-y-3">
+        <ul class="m-0 list-none divide-y divide-border p-0">
           {#each displayEntries as entry, i (entry.data.id ?? `${entry.data.mills}-${i}`)}
             {@const category = ENTRY_CATEGORIES[entry.kind]}
+            <li>
             <div
-              class="flex items-center justify-between p-2 @md:p-3 bg-muted rounded-lg cursor-pointer hover:bg-muted/80 transition-colors"
+              class="-mx-2 flex cursor-pointer items-center justify-between rounded-md px-2 py-2.5 transition-colors hover:bg-accent/50"
               onclick={() => handleEntryClick(entry)}
               role="button"
               tabindex="0"
@@ -111,14 +80,14 @@
               }}
             >
               <div class="flex items-center gap-2 @md:gap-3">
-                <Badge variant="outline" class="text-xs @md:text-sm {category.colorClass}">
+                <Badge variant={category.badge}>
                   {category.name}
                 </Badge>
                 <div>
                   <div class="font-medium">
-                    {getEntryLabel(entry)}
-                    {#if getEntryDetails(entry)}
-                      <span class="text-muted-foreground"> - {getEntryDetails(entry)}</span>
+                    {entryLabel(entry)}
+                    {#if entryDetails(entry)}
+                      <span class="text-muted-foreground"> - {entryDetails(entry)}</span>
                     {/if}
                   </div>
                   <div class="text-sm text-muted-foreground">
@@ -130,8 +99,9 @@
                 {entry.data.dataSource || ""}
               </div>
             </div>
+            </li>
           {/each}
-        </div>
+        </ul>
       {:else}
         <p class="text-muted-foreground text-center py-8">
           No recent entries

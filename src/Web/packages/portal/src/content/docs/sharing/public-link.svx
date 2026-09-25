@@ -10,7 +10,7 @@ title: Public share link
 # Public share link
 
 Public access turns on a single read-only link that **anyone you give it to can
-open — with no login and no invite**. Because there's no sign-in, treat the link
+open, with no login and no invite**. Because there's no sign-in, treat the link
 itself as the key: anyone who has it can see whatever you've chosen to share.
 
 It is **off until you turn it on**, and you turn it on under
@@ -27,17 +27,33 @@ It is **off until you turn it on**, and you turn it on under
 The address pictured belongs to a local test instance; yours will end in your own
 domain, in the shape `https://<random>.share.<your domain>`.
 
-## The link is shown once
+## Seeing the link again
 
-When you first switch public access on, Nocturne creates the link and shows it to
-you **that one time**. Copy it there and then, and keep it somewhere you can get
-back to — a password manager is ideal. If you lose it, you can't ask Nocturne to
-show it again; you **Regenerate** to get a new one, which also stops the old one
-working.
+The link stays hidden behind dots on this page. Use the eye button to show it, or
+**Copy** to put it on your clipboard without showing it at all, which is worth
+doing if anyone can see your screen. Each time you show it, Nocturne records that
+in your audit log.
 
 The address is a long random code on its own web address, along the lines of
 `k7m2p9x4q1.share.example.com`. That random part is the whole of the security:
-there's no list of shares to browse and nothing to guess your way to.
+there's no list of shares to browse and nothing to guess your way to. Because
+anyone holding it gets in, treat it like a password: a password manager is a good
+place to keep it.
+
+**Regenerate** replaces the link with a new one. Reach for it if the current one
+has gone somewhere you did not intend, and bear in mind it stops the old one
+working for everyone you have already sent it to, so they will each need the new
+one.
+
+<Callout type="note">
+
+On some instances Nocturne cannot show you an existing link, and says so on the
+page. That happens if the link was created before this feature existed, if your
+instance has no encryption key set, or if that key has changed since the link was
+made. The link itself keeps working for anyone who has it; only showing it again
+is impossible, so regenerating is the only way to get a copy you can send.
+
+</Callout>
 
 ## Choosing what's visible
 
@@ -64,12 +80,14 @@ turn on and forget about never quietly widens.
 so older data is never exposed.
 
 <Callout type="tip" title="When to use it: a daycare">
+
   The daycare wants to keep your child's current glucose up on a tablet at the
   desk, and staff change shift through the day. Turn on public access, leave it on
   <em>Blood Glucose</em> only, and set the window to <em>Last 24 hours</em>.
   Everyone on shift sees the same screen with no logins to hand around, and they
   never see older history. If a device goes missing or the room changes,
   regenerate the link and the old one stops working.
+
 </Callout>
 
 ## What the visitor sees
@@ -83,23 +101,25 @@ chose:
 
 ## Turning it off or replacing it
 
-There's no expiry — the link works until you turn public access off. Two controls
+There's no expiry: the link works until you turn public access off. Two controls
 end it:
 
 - **Switch public access off.** The link stops working immediately.
 - **Regenerate.** Nocturne issues a brand-new link and the old one stops working
   immediately. Use this when a link has spread further than you meant it to, but
-  you still want the daycare (or whoever) to have one — you just have to hand out
+  you still want the daycare (or whoever) to have one; you just have to hand out
   the new address.
 
 <Callout type="warning" title="Anyone with the link can open it">
+
   There's no sign-in on a public link, and you can't control who it gets forwarded
   to once it's out. Share the minimum categories the situation actually needs,
   keep the 24-hour window on, and regenerate the link if you ever think it has
   spread too far.
+
 </Callout>
 
 If only one person needs a look, and only once, a
-[temporary guest link](/docs/sharing/guest-links) is the safer choice — it expires
+[temporary guest link](/docs/sharing/guest-links) is the safer choice; it expires
 on its own. If they need ongoing access, give them their own
 [member account](/docs/sharing/members).

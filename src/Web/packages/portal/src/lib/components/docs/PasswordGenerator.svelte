@@ -1,6 +1,7 @@
 <script lang="ts">
     import CopyButton from "./CopyButton.svelte";
     import { RefreshCw } from "@lucide/svelte";
+    import { Button } from "@nocturne/ui/ui/button";
 
     interface Props {
         label?: string;
@@ -9,6 +10,11 @@
 
     let { label = "password", length = 32 }: Props = $props();
 
+    // Charset for generation, not user-facing text; if extracted as a
+    // message, a missing catalog entry makes the sampling loop below spin
+    // forever during prerender (ALPHABET.length becomes 0). The directive
+    // comment must be exactly "@wc-ignore" on its own.
+    // @wc-ignore
     const ALPHABET =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#%^&*-_=+";
 
@@ -36,7 +42,7 @@
 
     let refreshKey = $state(0);
     // Derived so password regenerates whenever length or refreshKey changes.
-    // The generatePassword call reads neither reactive state nor props directly —
+    // The generatePassword call reads neither reactive state nor props directly,
     // refreshKey and length are the only tracked dependencies here.
     let password = $derived.by(() => {
         // Track both dependencies explicitly.
@@ -60,20 +66,20 @@
         </code>
 
         <div class="flex items-center gap-1 shrink-0">
-            <button
-                type="button"
+            <Button
+                variant="ghost-muted"
+                size="icon-xs"
                 onclick={refresh}
-                class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
                 aria-label="Generate new {label}"
             >
-                <RefreshCw class="h-4 w-4" />
-            </button>
+                <RefreshCw class="size-4" />
+            </Button>
 
-            <CopyButton text={password} label="Copy {label} to clipboard" />
+            <CopyButton text={password} kind="password" label="Copy {label} to clipboard" />
         </div>
     </div>
 
     <p class="mt-1.5 text-xs text-muted-foreground">
-        Generated locally in your browser — never sent anywhere.
+        Generated locally in your browser and never sent anywhere.
     </p>
 </div>

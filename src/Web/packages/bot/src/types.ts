@@ -1,13 +1,14 @@
 /**
- * Minimal interface matching the NSwag-generated ApiClient shape.
+ * Minimal interface matching the NSwag-generated ApiClient shape, whose date-times
+ * are ISO 8601 strings.
  * Only includes the methods the bot actually uses.
  * The SvelteKit app passes `locals.apiClient` which satisfies this interface.
  */
 export interface BotApiClient {
   sensorGlucose: {
     getAll(
-      from?: Date | null,
-      to?: Date | null,
+      from?: string | null,
+      to?: string | null,
       limit?: number,
       offset?: number,
       sort?: string,
@@ -17,6 +18,8 @@ export interface BotApiClient {
     ): Promise<PaginatedSensorGlucose>;
   };
   alerts: {
+    /** Null when the response body is empty or its status is unmapped. */
+    getActiveAlerts(signal?: AbortSignal): Promise<ActiveExcursion[] | null>;
     /** Acknowledges every active excursion for the tenant. */
     acknowledge(request: AcknowledgeRequest, signal?: AbortSignal): Promise<void>;
     acknowledgeExcursion(
@@ -71,11 +74,18 @@ export interface SensorGlucoseReading {
   trend?: string;
   trendRate?: number;
   mills?: number;
-  timestamp?: Date;
+  timestamp?: string;
 }
 
 export interface AcknowledgeRequest {
   acknowledgedBy?: string;
+}
+
+export interface ActiveExcursion {
+  id?: string;
+  ruleName?: string;
+  startedAt?: string;
+  acknowledgedAt?: string | null;
 }
 
 export interface MarkDeliveredRequest {
@@ -93,7 +103,7 @@ export interface PendingDeliveryResponse {
   channelType?: string;
   destination?: string;
   payload?: string;
-  createdAt?: Date;
+  createdAt?: string;
   retryCount?: number;
 }
 
@@ -116,6 +126,9 @@ export interface HeartbeatRequest {
   service?: string;
 }
 
+/** Wire form of `AlertRuleSeverity` (Core), which serialises as these lowercase names. */
+export type AlertSeverity = "critical" | "warning" | "info";
+
 export interface AlertPayload {
   alertType: string;
   ruleName: string;
@@ -128,6 +141,7 @@ export interface AlertPayload {
   tenantId: string;
   subjectName: string;
   activeExcursionCount: number;
+  severity: AlertSeverity;
 }
 
 export interface AlertDispatchEvent {

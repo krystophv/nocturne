@@ -51,12 +51,14 @@ public enum ConnectorPropertyKey
 
     // Nightscout-specific
     Url,
+    RealtimeUrl,
     ApiSecret,
     MaxCount,
 
     // Glooko-specific
     UseV3Api,
     V3IncludeCgmBackfill,
+    UseSsv2Sync,
 
     // MyLife-specific
     ServiceUrl,

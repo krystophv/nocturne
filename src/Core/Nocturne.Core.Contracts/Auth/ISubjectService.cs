@@ -19,23 +19,6 @@ public interface ISubjectService
     Task<Subject?> GetSubjectByIdAsync(Guid subjectId);
 
     /// <summary>
-    /// Get a subject by its access token hash (for API key auth)
-    /// </summary>
-    /// <param name="accessTokenHash">SHA-256 hash of the access token</param>
-    /// <returns>Subject if found and active, null otherwise</returns>
-    Task<Subject?> GetSubjectByAccessTokenHashAsync(string accessTokenHash);
-
-    /// <summary>
-    /// Finds an active subject by matching a legacy Nightscout access token against the stored
-    /// legacy token digest, reproducing Nightscout's prefix-based matching (the substring after
-    /// the last dash, 16–40 hex chars, matched as a prefix of the 40-char digest). Only subjects
-    /// migrated from a legacy Nightscout instance carry a digest; returns null otherwise.
-    /// </summary>
-    /// <param name="legacyAccessToken">The raw legacy access token as presented by the client.</param>
-    /// <returns>Subject if a migrated digest matches and the subject is active, null otherwise.</returns>
-    Task<Subject?> FindSubjectByLegacyTokenAsync(string legacyAccessToken);
-
-    /// <summary>
     /// Find or create a subject from OIDC claims
     /// </summary>
     /// <param name="oidcSubjectId">OIDC subject identifier (sub claim)</param>
@@ -73,19 +56,22 @@ public interface ISubjectService
 
     /// <summary>
     /// Atomically remove an OIDC identity from a subject, enforcing the primary-factor rule
-    /// (at least one primary factor — passkey or OIDC identity — must remain after removal).
+    /// (at least one factor counted by <see cref="CountPrimaryAuthFactorsAsync"/> must remain).
     /// The check and the delete run inside a serializable transaction to prevent TOCTOU races.
     /// </summary>
     Task<FactorRemovalResult> TryRemoveOidcIdentityAsync(Guid subjectId, Guid identityId);
 
     /// <summary>
     /// Atomically remove a passkey credential from a subject, enforcing the primary-factor rule
-    /// (at least one primary factor — passkey or OIDC identity — must remain after removal).
+    /// (at least one factor counted by <see cref="CountPrimaryAuthFactorsAsync"/> must remain).
     /// The check and the delete run inside a serializable transaction to prevent TOCTOU races.
     /// </summary>
     Task<FactorRemovalResult> TryRemovePasskeyCredentialAsync(Guid subjectId, Guid credentialId);
 
-    /// <summary>Returns the total number of primary authentication factors (passkeys + OIDC identities) for a subject.</summary>
+    /// <summary>
+    /// Returns the total number of primary authentication factors for a subject: passkeys plus
+    /// OIDC identities whose provider is enabled.
+    /// </summary>
     /// <param name="subjectId">Subject identifier.</param>
     Task<int> CountPrimaryAuthFactorsAsync(Guid subjectId);
 
@@ -120,13 +106,6 @@ public interface ISubjectService
     /// <param name="subjectId">Subject identifier</param>
     /// <returns>True if deleted, false if not found</returns>
     Task<bool> DeleteSubjectAsync(Guid subjectId);
-
-    /// <summary>
-    /// Regenerate the access token for a subject
-    /// </summary>
-    /// <param name="subjectId">Subject identifier</param>
-    /// <returns>New access token (only returned once)</returns>
-    Task<string?> RegenerateAccessTokenAsync(Guid subjectId);
 
     /// <summary>
     /// Activate a subject
@@ -231,11 +210,6 @@ public class SubjectCreationResult
     /// Created subject
     /// </summary>
     public required Subject Subject { get; set; }
-
-    /// <summary>
-    /// Plain-text access token (only returned once, for API key subjects)
-    /// </summary>
-    public string? AccessToken { get; set; }
 }
 
 /// <summary>

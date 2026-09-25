@@ -1,24 +1,18 @@
 <script lang="ts">
-    import { Database } from "@lucide/svelte";
     import CodeBlock from "$lib/components/docs/CodeBlock.svelte";
     import SupportNocturne from "$lib/components/docs/SupportNocturne.svelte";
     import bootstrapSql from "$lib/release/bootstrap-roles.sql?raw";
 </script>
 
 <div class="max-w-3xl">
-    <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-            <Database class="w-5 h-5 text-emerald-500" />
-        </div>
-        <h1 class="text-4xl font-bold tracking-tight">Bring Your Own PostgreSQL</h1>
-    </div>
+    <h1 class="text-4xl font-bold tracking-tight mb-4">Bring Your Own PostgreSQL</h1>
 
     <p class="text-lg text-muted-foreground mb-8">
         For deployments that use a managed PostgreSQL service or an existing shared database server
         instead of Nocturne's bundled Postgres container.
     </p>
 
-    <div class="p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm text-foreground mb-8">
+    <div class="p-4 rounded-lg border border-warning/30 bg-warning/5 text-sm text-foreground mb-8">
         <p class="font-medium mb-1">Three non-privileged roles are required</p>
         <p class="text-muted-foreground">
             Nocturne enforces Row Level Security on every medical-data table. RLS is only meaningful
@@ -26,15 +20,15 @@
         </p>
         <ul class="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
             <li>
-                <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_migrator</code> —
+                <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_migrator</code>:
                 owns the schema and runs migrations.
             </li>
             <li>
-                <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_app</code> —
+                <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_app</code>:
                 runtime connection for the .NET API. Cannot bypass RLS and has no DDL privileges.
             </li>
             <li>
-                <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_web</code> —
+                <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_web</code>:
                 used by the SvelteKit web app's bot framework to store chat-platform state. Owns
                 only its own <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">chat_state_*</code>
                 tables (not tenant-scoped, no PHI).
@@ -69,15 +63,15 @@
             <ul class="list-disc pl-5 mt-2 space-y-1">
                 <li>
                     <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded font-mono">ConnectionStrings__nocturne-postgres</code>
-                    — use the <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_app</code> role.
+                    using the <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_app</code> role.
                 </li>
                 <li>
                     <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded font-mono">ConnectionStrings__nocturne-postgres-migrator</code>
-                    — use the <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_migrator</code> role.
+                    using the <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_migrator</code> role.
                 </li>
                 <li>
-                    <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded font-mono">NOCTURNE_POSTGRES_URI</code>
-                    — a <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">postgresql://</code>
+                    <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded font-mono">NOCTURNE_POSTGRES_URI</code>:
+                    a <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">postgresql://</code>
                     URL for the <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">nocturne_web</code>
                     role (consumed by the SvelteKit bot state adapter).
                 </li>

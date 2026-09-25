@@ -100,19 +100,19 @@ class Program
                 secret: true
             ).WithPublishMetadata(
                 "Migrator role password",
-                "Password for nocturne_migrator — owns the schema, runs EF migrations");
+                "Password for nocturne_migrator: owns the schema, runs EF migrations");
             postgresAppPassword = builder.AddParameter(
                 ServiceNames.Parameters.PostgresAppPassword,
                 secret: true
             ).WithPublishMetadata(
                 "App role password",
-                "Password for nocturne_app — runtime role, cannot bypass Row Level Security");
+                "Password for nocturne_app: runtime role, cannot bypass Row Level Security");
             postgresWebPassword = builder.AddParameter(
                 ServiceNames.Parameters.PostgresWebPassword,
                 secret: true
             ).WithPublishMetadata(
                 "Web role password",
-                "Password for nocturne_web — bot-framework state, cannot bypass Row Level Security");
+                "Password for nocturne_web: bot-framework state, cannot bypass Row Level Security");
 
             // Container init lives in docs/postgres/container-init. Only
             // 00-init.sh is mounted into /docker-entrypoint-initdb.d so the
@@ -216,7 +216,7 @@ class Program
         var instanceKey = builder.AddParameter(ServiceNames.Parameters.InstanceKey, secret: true)
             .WithPublishMetadata(
                 "Instance key",
-                "Minimum 12 characters — used for JWT signing and service authentication");
+                "Minimum 12 characters: used for JWT signing and service authentication");
 
         // Discord bot credentials. Optional — only required if Discord bot
         // features are enabled for a deployment. Empty-string defaults let
@@ -270,6 +270,10 @@ class Program
             "",
             secret: false
         );
+        var resendApiKey = builder.AddParameter("resend-api-key", "", secret: true);
+        var resendFromAddress = builder.AddParameter("resend-from-address", "", secret: false);
+        var resendFromName = builder.AddParameter("resend-from-name", "", secret: false);
+        var resendWebhookSecret = builder.AddParameter("resend-webhook-secret", "", secret: true);
 
         // OpenTelemetry export. Optional and off by default: the OTLP exporters
         // (API .NET SDK and web Node SDK) only start when the endpoint is set, so
@@ -426,7 +430,11 @@ class Program
                 .WithEnvironment("WHATSAPP_ACCESS_TOKEN", whatsappAccessToken)
                 .WithEnvironment("WHATSAPP_VERIFY_TOKEN", whatsappVerifyToken)
                 .WithEnvironment("WHATSAPP_APP_SECRET", whatsappAppSecret)
-                .WithEnvironment("WHATSAPP_PHONE_NUMBER_ID", whatsappPhoneNumberId);
+                .WithEnvironment("WHATSAPP_PHONE_NUMBER_ID", whatsappPhoneNumberId)
+                .WithEnvironment("RESEND_API_KEY", resendApiKey)
+                .WithEnvironment("RESEND_FROM_ADDRESS", resendFromAddress)
+                .WithEnvironment("RESEND_FROM_NAME", resendFromName)
+                .WithEnvironment("RESEND_WEBHOOK_SECRET", resendWebhookSecret);
             // PUBLIC_DEFAULT_LANGUAGE comes from the web app's own .env.
             // OTEL_EXPORTER_OTLP_ENDPOINT: in run mode Aspire injects the
             // dashboard endpoint automatically; in publish mode the operator-

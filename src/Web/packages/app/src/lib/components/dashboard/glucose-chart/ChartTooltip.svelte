@@ -2,8 +2,15 @@
   import { Tooltip, getChartContext } from "layerchart";
   import { cn } from "$lib/utils";
   import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
   import { BasalDeliveryOrigin, ChartSpanKind } from "$lib/api";
-  import { bg, bgLabel, time } from "$lib/utils/formatting";
+  import {
+    bg,
+    bgLabel,
+    formatCarbDisplay,
+    formatInsulinDisplay,
+    time,
+  } from "$lib/utils/formatting";
   import { getGlucoseChartContext } from "./chart-context.svelte";
   import { isBasalAdjusted } from "./engine/basal-presentation";
   import type { GlucosePoint } from "./engine/chart-data-engine.svelte";
@@ -96,7 +103,7 @@
       {#if showBolus && nearbyBolus}
         <Tooltip.Item
           label="Bolus"
-          value={`${(nearbyBolus.insulin ?? 0).toFixed(1)}U`}
+          value={`${formatInsulinDisplay(nearbyBolus.insulin ?? 0)}U`}
           color="var(--insulin-bolus)"
           class="font-medium"
         />
@@ -104,7 +111,7 @@
       {#if showCarbs && nearbyCarbs}
         <Tooltip.Item
           label="Carbs"
-          value={`${nearbyCarbs.carbs ?? 0}g`}
+          value={`${formatCarbDisplay(nearbyCarbs.carbs ?? 0)}g`}
           color="var(--carbs)"
           class="font-medium"
         />
@@ -157,7 +164,7 @@
               : "var(--insulin-basal)"}
             class={cn(
               staleBasalData && data.time >= staleBasalData.start
-                ? "text-yellow-500 font-bold"
+                ? "text-warning font-bold"
                 : ""
             )}
           />
@@ -192,7 +199,7 @@
               : "var(--insulin-basal)"}
             class={cn(
               staleBasalData && data.time >= staleBasalData.start
-                ? "text-yellow-500 font-bold"
+                ? "text-warning font-bold"
                 : ""
             )}
           />
@@ -273,7 +280,7 @@
     <Tooltip.Item
       value={data?.time}
       format={(v) => (v instanceof Date ? time(v) : String(v))}
-      onclick={() => goto(`/reports/day-in-review?date=${data?.time}`)}
+      onclick={() => goto(resolve(`/reports/day-in-review?date=${data?.time}`))}
     />
   {/snippet}
 </Tooltip.Root>

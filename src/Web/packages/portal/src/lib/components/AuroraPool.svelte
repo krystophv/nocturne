@@ -1,10 +1,12 @@
 <script lang="ts">
   interface Props {
     textBlock?: HTMLElement | null;
+    flow?: FlowField | null;
   }
-  let { textBlock = null }: Props = $props();
+  let { textBlock = null, flow = null }: Props = $props();
 
-  import { sampleFlow } from "$lib/utils/aurora-noise";
+  import { auroraTime, sampleSurface } from "$lib/utils/aurora-noise";
+  import type { FlowField } from "$lib/utils/aurora-flow";
 
   // ── Chip definitions ──────────────────────────────────────────────────────
   // hPos: left or right as % of container width. Preserved from the original
@@ -78,21 +80,30 @@
   const INIT_ROTS = [-4, 6, -8, 5, -6, 7, -3, 9, -10] as const;
 
   // ── Physics constants ─────────────────────────────────────────────────────
-  const BOB_FREQ_V = 0.7; // rad/s — vertical bob frequency
-  const BOB_AMP_V = 10; // px/s² force amplitude (vertical)
-  const BOB_FREQ_H = 0.45; // rad/s — horizontal drift frequency
-  const BOB_AMP_H = 2; // px/s² force amplitude (horizontal)
+  // The chips float on the aurora the canvas is drawing. Each frame a chip
+  // samples the shader's brightness field at its own position and gets:
+  //   - a current: it is dragged toward the velocity the pattern is visibly
+  //     moving at under it (optical flow), so it rides the crest passing by;
+  //   - a slide: it slips downhill from bright crests into dark troughs;
+  //   - a tilt: it leans with the slope of the surface it is sitting on.
+  const CURRENT_COUPLING = 1.2; // 1/s: how quickly velocity relaxes to the pattern's flow
+  const CURRENT_MAX = 45; // px/s: optical flow spikes where the field is flat, so cap it
+  const SLIDE_GAIN = 7000; // px/s² per (brightness/px) of slope
+  const TILT_GAIN = 6000; // deg per (brightness/px) of x-slope
+  const TILT_MAX = 14; // deg
+  const TILT_K = 6; // 1/s²: spring toward the surface tilt
+  const STIR_PUSH = 1.2; // 1/s: acceleration per px/s of stirred current under the chip
+  const STIR_MAX = 300; // px/s: current beyond this counts no further
   const LINEAR_DAMP = 0.03; // fraction of velocity lost per frame (not per second)
   const ANGULAR_DAMP = 0.07; // same for rotation
   const RESTITUTION = 0.2; // bounciness (0 = dead stop, 1 = perfectly elastic)
   const SPRING_K = 120; // drag spring constant (px/s² per px of offset)
-  const MAX_DT = 0.05; // seconds — cap to prevent tunnelling on hidden tabs
+  const MAX_DT = 0.05; // seconds: cap to prevent tunnelling on hidden tabs
   const ANG_KICK = 2; // deg/s angular impulse added on collision
   const TEXT_PAD = 1; // px padding added around text block collision rect
-  const TIDE_AMP = 250; // px/s² — tidal force amplitude from aurora flow field
-  const TOP_GUARD = 72; // px — keeps chips below the fixed nav header
+  const TOP_GUARD = 72; // px: keeps chips below the fixed nav header
 
-  // ── Physics state (plain JS — NOT $state, no reactivity overhead) ─────────
+  // ── Physics state (plain JS, not $state: no reactivity overhead) ──────────
   interface CS {
     cx: number;
     cy: number; // center position in container-local px
@@ -100,7 +111,6 @@
     vy: number; // velocity px/s
     rot: number;
     rotV: number; // rotation deg, angular velocity deg/s
-    phase: number; // bobbing phase offset (0–2π), unique per chip
     w: number;
     h: number; // measured pixel size (AABB half-extents: w/2, h/2)
     isDragged: boolean;
@@ -109,7 +119,7 @@
   // containerEl is $state so $effect tracks it (triggers after bind:this fires)
   let containerEl: HTMLDivElement | null = $state(null);
 
-  // chipElRefs is plain — populated synchronously by the assignRef action before $effect runs
+  // chipElRefs is plain: populated synchronously by the assignRef action before $effect runs
   const chipElRefs: (HTMLElement | null)[] = Array(CHIP_DEFS.length).fill(null);
 
   const cs: CS[] = CHIP_DEFS.map((_, i) => ({
@@ -119,7 +129,6 @@
     vy: 0,
     rot: INIT_ROTS[i],
     rotV: 0,
-    phase: (i / CHIP_DEFS.length) * Math.PI * 2,
     w: 60,
     h: 30,
     isDragged: false,
@@ -130,6 +139,8 @@
   let pointer = { x: 0, y: 0 };
   let grabOffset = { x: 0, y: 0 }; // pointer-to-center offset at grab time
   let dragIdx = -1;
+  // Last pointer sample while stirring; a stroke's velocity is the difference between two.
+  let paddle: { x: number; y: number; t: number } | null = null;
   let textRects: { x: number; y: number; w: number; h: number }[] = [];
 
   // ── Svelte action: collect chip element refs without triggering reactivity ──
@@ -160,8 +171,8 @@
       cs[i].cy = ch * (def.topPct / 100);
       cs[i].cx =
         "left" in def.hPos
-          ? cw * ((def.hPos as { left: number }).left / 100)
-          : cw * (1 - (def.hPos as { right: number }).right / 100);
+          ? cw * (def.hPos.left / 100)
+          : cw * (1 - def.hPos.right / 100);
     });
     applyTransforms();
   }
@@ -392,9 +403,11 @@
   function tick(now: number) {
     const dt = Math.min((now - lastTime) / 1000, MAX_DT);
     lastTime = now;
-    const t = now / 1000;
+    // Same clock as AuroraCanvas, so the field sampled here is the frame on screen.
+    const t = auroraTime(now);
     const cw = containerEl ? containerEl.offsetWidth : 0;
     const ch = containerEl ? containerEl.offsetHeight : 0;
+    if (flow) flow.advance(t);
 
     // Integrate forces
     for (let i = 0; i < cs.length; i++) {
@@ -404,15 +417,35 @@
         // (grabOffset keeps the chip stationary at pickup, no snap)
         c.vx += (pointer.x - grabOffset.x - c.cx) * SPRING_K * dt;
         c.vy += (pointer.y - grabOffset.y - c.cy) * SPRING_K * dt;
-      } else {
-        // Sine-wave bob forces — unique phase per chip so they desync naturally
-        c.vy += Math.sin(t * BOB_FREQ_V + c.phase) * BOB_AMP_V * dt;
-        c.vx += Math.sin(t * BOB_FREQ_H + c.phase * 1.3) * BOB_AMP_H * dt;
-        // Tidal force — flow vector from the same aurora noise field
-        if (cw > 0 && ch > 0) {
-          const flow = sampleFlow(c.cx, c.cy, cw, ch, t);
-          c.vx += (flow.rx - 0.5) * 2 * TIDE_AMP * dt;
-          c.vy += (flow.ry - 0.5) * 2 * TIDE_AMP * dt;
+      } else if (cw > 0 && ch > 0) {
+        const s = sampleSurface(c.cx, c.cy, cw, ch, t);
+
+        // Current: relax toward the pattern's own velocity under the chip.
+        const mag = Math.hypot(s.flowX, s.flowY);
+        const k = mag > CURRENT_MAX ? CURRENT_MAX / mag : 1;
+        c.vx += (s.flowX * k - c.vx) * CURRENT_COUPLING * dt;
+        c.vy += (s.flowY * k - c.vy) * CURRENT_COUPLING * dt;
+
+        // Slide: downhill, away from the bright crest.
+        c.vx -= s.slopeX * SLIDE_GAIN * dt;
+        c.vy -= s.slopeY * SLIDE_GAIN * dt;
+
+        // Tilt: lean with the surface along the chip's length. A crest to the
+        // right lifts the right end, which is a negative CSS rotation (y is down).
+        const tilt = Math.max(-TILT_MAX, Math.min(TILT_MAX, -s.slopeX * TILT_GAIN));
+        c.rotV += (tilt - c.rot) * TILT_K * dt;
+
+        if (flow) {
+          const cur = flow.velocityAt(c.cx / cw, c.cy / ch);
+          let fx = cur.vx * cw;
+          let fy = cur.vy * ch;
+          const speed = Math.hypot(fx, fy);
+          if (speed > STIR_MAX) {
+            fx *= STIR_MAX / speed;
+            fy *= STIR_MAX / speed;
+          }
+          c.vx += fx * STIR_PUSH * dt;
+          c.vy += fy * STIR_PUSH * dt;
         }
       }
       c.vx *= 1 - LINEAR_DAMP;
@@ -451,10 +484,36 @@
     containerEl?.setPointerCapture(e.pointerId);
   }
 
-  function onPointerMove(e: PointerEvent) {
-    if (dragIdx < 0 || !containerEl) return;
+  // Reached only for the background: chips stop propagation of their own pointerdown.
+  // Touch is excluded here and from stirring in onPointerMove: a scroll flick
+  // through the hero is a pointer stroke too.
+  function onBackgroundPointerDown(e: PointerEvent) {
+    if (!flow || !containerEl || !e.isPrimary || e.button !== 0 || e.pointerType === "touch") return;
     const cr = containerEl.getBoundingClientRect();
-    pointer = { x: e.clientX - cr.left, y: e.clientY - cr.top };
+    flow.poke((e.clientX - cr.left) / cr.width, (e.clientY - cr.top) / cr.height);
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (!containerEl) return;
+    const cr = containerEl.getBoundingClientRect();
+    const x = e.clientX - cr.left;
+    const y = e.clientY - cr.top;
+    if (dragIdx >= 0) pointer = { x, y };
+    if (!flow || !e.isPrimary || e.pointerType === "touch") return;
+    if (paddle) {
+      flow.stir(
+        x / cr.width,
+        y / cr.height,
+        (x - paddle.x) / cr.width,
+        (y - paddle.y) / cr.height,
+        (e.timeStamp - paddle.t) / 1000,
+      );
+    }
+    paddle = { x, y, t: e.timeStamp };
+  }
+
+  function onPointerLeave() {
+    paddle = null;
   }
 
   function onPointerUp(_e: PointerEvent) {
@@ -465,7 +524,7 @@
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
-  // Physics init — runs once when containerEl is set (bind:this fires on mount)
+  // Physics init: runs once when containerEl is set (bind:this fires on mount)
   $effect(() => {
     if (!containerEl) return;
     measureSizes();
@@ -480,7 +539,7 @@
     };
   });
 
-  // Text rect — re-measures whenever the textBlock prop changes
+  // Text rect: re-measures whenever the textBlock prop changes
   // (parent's bind:this fires after its own mount, after this effect)
   $effect(() => {
     measureTextRect();
@@ -491,22 +550,24 @@
   class="absolute inset-0 overflow-hidden"
   aria-hidden="true"
   bind:this={containerEl}
+  onpointerdown={onBackgroundPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
+  onpointerleave={onPointerLeave}
 >
   <!-- Mobile: static chip wrap -->
   <div class="md:hidden absolute top-[72px] left-0 right-0 px-4">
     <div class="flex flex-wrap gap-x-1.5 gap-y-2 justify-center">
-      {#each CHIP_DEFS as def}
+      {#each CHIP_DEFS as def (def.id)}
         <div
-          class="flex items-center gap-1.5 bg-[oklch(0.10_0.028_261/85%)] border border-[oklch(1_0_0/20%)] rounded-full py-0.5 pr-2 pl-0.5 backdrop-blur-sm max-w-full"
+          class="flex items-center gap-1.5 bg-sunken/85 border border-foreground/20 rounded-full py-0.5 pr-2 pl-0.5 backdrop-blur-sm max-w-full"
         >
           <img
             src="/logos/{def.file}"
             alt=""
             class="size-3.5 rounded object-cover shrink-0"
           />
-          <span class="text-[10px] font-semibold text-white whitespace-nowrap"
+          <span class="text-2xs font-semibold text-white whitespace-nowrap"
             >{def.name}</span
           >
         </div>
@@ -521,18 +582,18 @@
         pointer-events-auto + touch-none lets pointer events through despite
         the aria-hidden parent being pointer-events-none in the original.
     -->
-  {#each CHIP_DEFS as def, i}
+  {#each CHIP_DEFS as def, i (def.id)}
     <div
-      class="hidden md:flex absolute top-0 left-0 items-center gap-[7px]
-                   bg-[oklch(0.10_0.028_261/85%)] border border-[oklch(1_0_0/20%)]
-                   rounded-full py-[5px] pr-3 pl-1.5 backdrop-blur-[6px] mix-blend-screen
+      class="hidden md:flex absolute top-0 left-0 items-center gap-1.75
+                   bg-sunken/85 border border-foreground/20
+                   rounded-full py-1.25 pr-3 pl-1.5 backdrop-blur-sm mix-blend-screen
                    pointer-events-auto cursor-grab active:cursor-grabbing select-none touch-none"
       use:assignRef={i}
       onpointerdown={(e) => onPointerDown(e, i)}
       onpointerup={onPointerUp}
     >
       <img src="/logos/{def.file}" alt="" class="size-5 rounded object-cover" />
-      <span class="text-[11px] font-semibold text-white whitespace-nowrap"
+      <span class="text-xs font-semibold text-white whitespace-nowrap"
         >{def.name}</span
       >
     </div>

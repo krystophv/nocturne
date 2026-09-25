@@ -5,18 +5,18 @@ title: Configuration Guide
 <script>
   import Callout from '@nocturne/cms/components/Callout.svelte';
   import CodeBlock from '$lib/components/docs/CodeBlock.svelte';
-  import envExample from '$lib/release/docker-compose/.env.example?raw';
+  import envExample from '$lib/release/docker-compose/default.env.example?raw';
 </script>
 
 # Configuration Guide
 
 Nocturne has two layers of configuration:
 
-- **Environment variables** set the infrastructure — the domain, the database
+- **Environment variables** set the infrastructure: the domain, the database
   connections, secrets, and optional telemetry and chat bots. You set these once,
   before the first start, in your `.env` file (Docker Compose) or the guided form
   (Portainer). This page covers them.
-- **The running app** handles everything per-tenant and per-user — data
+- **The running app** handles everything per-tenant and per-user: data
   connectors, display preferences, sharing, alerts, and sign-in providers. These
   are managed in the Nocturne UI after the instance is up, with no restart. They
   have their own guides, linked under **Beyond environment variables** at the
@@ -35,33 +35,37 @@ so it always matches the current images:
 <CodeBlock code={envExample} maxHeight="440px" />
 
 <Callout type="info" title="This list stays current automatically">
-  The block above is the real <code>.env.example</code> from the release bundle —
+
+  The block above is the real <code>.env.example</code> from the release bundle;
   there is no separate hand-maintained list to drift out of date. A few optional
   integrations (email alerts, extra OpenTelemetry tuning) read additional
   variables that are documented in their own guides rather than shipped in the
   example.
+
 </Callout>
 
 ### Required
 
 These have no default and must be set before the first start:
 
-- **`BASE_DOMAIN`** — the hostname every tenant subdomain hangs off (e.g.
+- **`BASE_DOMAIN`**: the hostname every tenant subdomain hangs off (e.g.
   `example.com`, or `nocturne.example.com` if Nocturne itself lives under a
   subdomain). At least two labels, and not an IP address. Each tenant gets a
   subdomain generated from this.
-- **`INSTANCE_KEY`** — minimum 12 characters. Used for JWT signing and
+- **`INSTANCE_KEY`**: minimum 12 characters. Used for JWT signing and
   service-to-service authentication. Treat it like a password and keep it stable;
   changing it invalidates existing sessions.
-- **The four PostgreSQL passwords** — `POSTGRES_PASSWORD`,
+- **The four PostgreSQL passwords**: `POSTGRES_PASSWORD`,
   `POSTGRES_MIGRATOR_PASSWORD`, `POSTGRES_APP_PASSWORD`, and
   `POSTGRES_WEB_PASSWORD`.
 
 <Callout type="warning" title="Passwords are read only at first start">
+
   The PostgreSQL passwords are used once, when the database volume is first
   created, to provision the runtime roles. Changing them later does **not** re-key
   an existing database. Use a long random value for <code>INSTANCE_KEY</code> and
-  each password — the install pages include a generator.
+  each password; the install pages include a generator.
+
 </Callout>
 
 ### Database roles
@@ -72,15 +76,15 @@ can bypass it, so it uses three non-privileged roles instead of one superuser:
 | Role | Password variable | Purpose |
 |------|-------------------|---------|
 | `nocturne_migrator` | `POSTGRES_MIGRATOR_PASSWORD` | Owns the schema, runs migrations |
-| `nocturne_app` | `POSTGRES_APP_PASSWORD` | Runtime API connection — cannot bypass RLS |
-| `nocturne_web` | `POSTGRES_WEB_PASSWORD` | Bot-framework state — cannot bypass RLS |
+| `nocturne_app` | `POSTGRES_APP_PASSWORD` | Runtime API connection; cannot bypass RLS |
+| `nocturne_web` | `POSTGRES_WEB_PASSWORD` | Bot-framework state; cannot bypass RLS |
 
 `POSTGRES_USERNAME` and `POSTGRES_PASSWORD` are the bootstrap superuser the
 bundled Postgres container uses on first start to create those three roles.
 
 Running against a managed database (RDS, Cloud SQL, Supabase, Neon) or an existing
 server instead of the bundled container? See
-[Bring Your Own PostgreSQL](/docs/installation/byo-postgres) — you create the
+[Bring Your Own PostgreSQL](/docs/installation/byo-postgres); you create the
 roles yourself and point Nocturne at them with connection strings.
 
 ### Optional
@@ -94,7 +98,7 @@ roles yourself and point Nocturne at them with connection strings.
 | **Telegram** | `TELEGRAM_*` | The Telegram bot. See [Telegram](/docs/bots/telegram). |
 | **WhatsApp** | `WHATSAPP_*` | The WhatsApp bot. See [WhatsApp](/docs/bots/whatsapp). |
 
-Leave any bot variables blank or commented out if you don't use that platform —
+Leave any bot variables blank or commented out if you don't use that platform;
 nothing here is required for a working install.
 
 ### Image pinning
@@ -103,18 +107,55 @@ nothing here is required for a working install.
 GHCR. Pin them to a specific version tag to control exactly when your instance
 updates.
 
+### The in-app support form
+
+The **Report a problem** form in Nocturne files your report as a **public**
+issue on GitHub. It works out of the box, with nothing to configure:
+
+- **Default (no GitHub token set):** your instance forwards the report to
+  `nocturne.run`, which files it on
+  [github.com/nightscout/nocturne](https://github.com/nightscout/nocturne).
+  Screenshots are limited to 4 images, 5 MB each and 10 MB in total. If the
+  report cannot be sent, the form offers a pre-filled GitHub link instead, and
+  you can paste your screenshots there yourself.
+- **Your own repository:** to file reports somewhere else, add these to the
+  `nocturne-api` service's environment. A GitHub token (a "personal access
+  token", or PAT) is a password for the GitHub API: keep it out of anything you
+  share.
+
+| Variable | What it does |
+|----------|--------------|
+| `GitHub__IssuesPat` | A token that can create issues, and write contents if screenshots are uploaded. Setting it stops the forwarding to `nocturne.run`. |
+| `GitHub__Owner`, `GitHub__Repo` | The repository reports go to. Both default to `nightscout` / `nocturne`, so set them whenever you set the token. |
+| `GitHub__AssetsBranch` | The branch screenshots are committed to (default `support-assets`). It must already exist. Set it empty to skip screenshot uploads. |
+
+Everything you leave switched on under **Diagnostic Info** in the form is
+published with the report, so check the preview before you send it.
+
+<Callout type="info" title="Accepting forwarded reports and contributions">
+
+  <code>GitHub__AcceptRelayedIssues=true</code> lets other instances forward
+  support reports to yours, and <code>GitHub__AcceptRelayedContributions=true</code>
+  does the same for translation and content contributions. Each one opens an
+  endpoint that anyone can reach anonymously, and it files work on your token
+  (<code>GitHub__IssuesPat</code> and <code>GitHub__ContributionsPat</code>
+  respectively). Leave both off unless you run a relay on purpose, as
+  <code>nocturne.run</code> does.
+
+</Callout>
+
 ## Beyond environment variables
 
 The rest of Nocturne's configuration lives in the running app, not the
 environment, and can change at any time without a restart:
 
-- **Data connectors** — Dexcom, LibreLinkUp, Glooko, Nightscout, and others are
+- **Data connectors**: Dexcom, LibreLinkUp, Glooko, Nightscout, and others are
   added and authenticated in the Nocturne UI, per tenant, after deployment. No
   Compose changes required.
-- **Display units (mg/dL or mmol/L) and time format** — per-user preferences in
+- **Display units (mg/dL or mmol/L) and time format**: per-user preferences in
   account settings, not server-wide variables.
-- **Sharing and public links** — see [Sharing your data](/docs/sharing).
-- **Email alerts (Resend)** — configured from the admin UI, or optionally via
+- **Sharing and public links**: see [Sharing your data](/docs/sharing).
+- **Email alerts (Resend)**: configured from the admin UI, or optionally via
   environment variables. See [Email Alerts](/docs/alerts/email).
-- **Sign-in providers** — passkeys are always on; Google, GitHub, and generic
+- **Sign-in providers**: passkeys are always on; Google, GitHub, and generic
   OIDC are enabled per instance. See [Authentication](/docs/authentication).

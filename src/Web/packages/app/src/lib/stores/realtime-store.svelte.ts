@@ -1,5 +1,9 @@
 // Real-time data store using Svelte 5 Runes and WebSocket integration
 import { WebSocketClient } from "$lib/websocket/websocket-client.svelte";
+import { entryIdentity, unseenEntries } from "./entry-identity";
+import { markedRead } from "./notification-read";
+import { untilNow } from "$lib/utils/now";
+import { toDate } from "$lib/utils/formatting";
 import type {
   Entry,
   WebSocketConfig,
@@ -28,15 +32,9 @@ import type {
  * Nightscout v1/v2 device status shape received via WebSocket and legacy API.
  * The generated client no longer exports this type; define it locally.
  */
-export interface DeviceStatus {
+export interface DeviceStatus extends PillsDeviceStatus {
   _id?: string;
-  mills?: number;
-  device?: string;
-  loop?: Record<string, any>;
-  openaps?: Record<string, any>;
-  pump?: Record<string, any>;
-  uploader?: Record<string, any>;
-  [key: string]: any;
+  uploader?: Record<string, unknown>;
 }
 import { NotificationUrgency } from "$lib/api";
 import {
@@ -47,7 +45,14 @@ import { toast } from "svelte-sonner";
 import * as alarmState from "$lib/stores/alarm-state.svelte";
 import { getContext, setContext } from "svelte";
 import { getApiClient } from "$lib/api/client";
-import { processPillsData, type ProcessedPillsData } from "$api/pills-processor";
+import {
+  processPillsData,
+  type DeviceStatus as PillsDeviceStatus,
+  type ProcessedPillsData,
+} from "$api/pills-processor";
+import { isEntryDocument } from "$lib/websocket/payloads";
+import { isRecord } from "$lib/utils/type-guards";
+import { toIsoString } from "$lib/utils/api-date";
 
 /**
  * Normalize a V4 SensorGlucose DTO (REST shape: `id` + `mgdl`, no `_id`/`sgv`) into the Entry
@@ -56,13 +61,17 @@ import { processPillsData, type ProcessedPillsData } from "$api/pills-processor"
  * dedupe on `_id`.
  */
 export function sensorGlucoseToEntry(sg: SensorGlucose): Entry {
+  // `trend` is dropped: SensorGlucose names it (GlucoseTrend) where Entry holds
+  // the legacy numeric code, and nothing reads it off a store entry.
+  const { createdAt, trend: _trend, ...rest } = sg;
   return {
-    ...sg,
+    ...rest,
+    createdAt: toIsoString(createdAt) ?? undefined,
     _id: sg.id,
     type: "sgv",
     sgv: sg.mgdl,
     data_source: sg.dataSource,
-  } as unknown as Entry;
+  };
 }
 
 const REALTIME_STORE_KEY = Symbol("realtime-store");
@@ -73,6 +82,17 @@ let singletonStore: RealtimeStore | null = null;
 export class RealtimeStore {
   private websocketClient!: WebSocketClient;
   private _initStarted = false;
+
+  /**
+   * Storage creates can arrive as hundreds of individual Socket.IO messages
+   * during connector catch-up. Applying each one immediately replaces and
+   * sorts the full entries array, which also recomputes every chart derived
+   * from it. Buffer a short burst and commit it as one reactive update.
+   */
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- batch buffer; the flush commits it to $state as one update
+  private pendingEntryCreates = new Map<string, Entry>();
+  private entryCreateFlushTimeout: ReturnType<typeof setTimeout> | null = null;
+  private static readonly ENTRY_CREATE_BATCH_MS = 100;
 
   /** Loading state - false until initial data is loaded */
   isReady = $state(false);
@@ -143,7 +163,7 @@ export class RealtimeStore {
 
   /** Connection state (with safe initialization) */
   connectionStatus = $derived(
-    this.websocketClient?.connectionStatus || "disconnected"
+    this.websocketClient?.connectionStatus || "idle"
   );
   isConnected = $derived(this.websocketClient?.isConnected || false);
   connectionError = $derived(this.websocketClient?.lastError || null);
@@ -245,7 +265,7 @@ export class RealtimeStore {
         // Compute age dynamically from startedAt and current time
         // This ensures notifications update in real-time as time passes
         const age = instance.startedAt
-          ? (this.now - new Date(instance.startedAt).getTime()) / (1000 * 60 * 60)
+          ? (this.now - (toDate(instance.startedAt)?.getTime() ?? this.now)) / (1000 * 60 * 60)
           : instance.ageHours ?? 0;
 
         if (!age || age <= 0) return null;
@@ -336,8 +356,7 @@ export class RealtimeStore {
     try {
       // Fetch historical data using the properly configured API client
       const apiClient = getApiClient();
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const now = new Date();
+      const { from: oneDayAgo, to: now } = untilNow(Date.now() - 24 * 60 * 60 * 1000);
       const [
         historicalEntries,
         deviceStatusData,
@@ -353,8 +372,8 @@ export class RealtimeStore {
         historicalApsSnapshots,
         currentTherapyState,
       ] = await Promise.all([
-        apiClient.sensorGlucose.getAll(undefined, undefined, 1000).then((r) => (r.data ?? []).map(sensorGlucoseToEntry)).catch(() => [] as Entry[]),
-        Promise.resolve([] as DeviceStatus[]),
+        apiClient.sensorGlucose.getAll(undefined, undefined, 1000).then((r) => (r.data ?? []).map(sensorGlucoseToEntry)).catch((): Entry[] => []),
+        Promise.resolve<DeviceStatus[]>([]),
         apiClient.profile.getProfileSummary().catch(() => null),
         apiClient.trackers.getDefinitions().catch(() => []),
         apiClient.trackers.getActiveInstances().catch(() => []),
@@ -569,18 +588,7 @@ export class RealtimeStore {
     this.updateLastDataReceived();
 
     if (colName === "entries" && this.isEntry(doc)) {
-      // Check for duplicates
-      const exists = this.entries.some(
-        (entry) =>
-          entry._id === doc._id ||
-          (entry.mills === doc.mills && entry.sgv === doc.sgv)
-      );
-
-      if (!exists) {
-        this.entries = [doc, ...this.entries]
-          .sort((a, b) => (b.mills || 0) - (a.mills || 0))
-          .slice(0, 1000);
-      }
+      this.queueEntryCreate(doc);
     } else if (colName === "devicestatus" && this.isDeviceStatus(doc)) {
       const exists = this.deviceStatuses.some(
         (ds) => ds._id === doc._id
@@ -593,6 +601,36 @@ export class RealtimeStore {
       }
 
       this.scheduleDecompositionRefresh();
+    }
+  }
+
+  private queueEntryCreate(entry: Entry): void {
+    // A later event with the same identity wins. This also makes an update that
+    // arrives before the batch flush replace the pending create cleanly.
+    this.pendingEntryCreates.set(entryIdentity(entry), entry);
+    if (this.entryCreateFlushTimeout !== null) {
+      clearTimeout(this.entryCreateFlushTimeout);
+    }
+
+    this.entryCreateFlushTimeout = setTimeout(
+      () => this.flushPendingEntryCreates(),
+      RealtimeStore.ENTRY_CREATE_BATCH_MS,
+    );
+  }
+
+  private flushPendingEntryCreates(): void {
+    this.entryCreateFlushTimeout = null;
+    if (this.pendingEntryCreates.size === 0) return;
+
+    const pending = [...this.pendingEntryCreates.values()];
+    this.pendingEntryCreates.clear();
+
+    const additions = unseenEntries(this.entries, pending);
+
+    if (additions.length > 0) {
+      this.entries = [...additions.reverse(), ...this.entries]
+        .sort((a, b) => (b.mills || 0) - (a.mills || 0))
+        .slice(0, 1000);
     }
   }
 
@@ -619,7 +657,8 @@ export class RealtimeStore {
   private handleDelete(event: StorageEvent): void {
     const { colName, doc } = event;
 
-    if (colName === "entries") {
+    if (colName === "entries" && isEntryDocument(doc)) {
+      this.pendingEntryCreates.delete(entryIdentity(doc));
       this.entries = this.entries.filter((entry) => entry._id !== doc._id);
     }
   }
@@ -674,19 +713,10 @@ export class RealtimeStore {
         }
         break;
 
-      case "update":
       case "ack": {
-        // Update existing instance
-        const updateIndex = this.trackerInstances.findIndex((i) => i.id === instance.id);
-        if (updateIndex !== -1) {
-          this.trackerInstances = [
-            ...this.trackerInstances.slice(0, updateIndex),
-            {
-              ...this.trackerInstances[updateIndex],
-              ageHours: instance.ageHours,
-            },
-            ...this.trackerInstances.slice(updateIndex + 1),
-          ];
+        const index = this.trackerInstances.findIndex((i) => i.id === instance.id);
+        if (index !== -1) {
+          this.trackerInstances = this.trackerInstances.with(index, instance);
         }
         break;
       }
@@ -706,18 +736,12 @@ export class RealtimeStore {
    *  update instantly; the server's notificationUpdated broadcast reconciles other
    *  clients (and this one). */
   markAllNotificationsRead(): void {
-    const readAt = new Date();
-    this.inAppNotifications = this.inAppNotifications.map((n) =>
-      n.readAt ? n : { ...n, readAt }
-    );
+    this.inAppNotifications = markedRead(this.inAppNotifications);
   }
 
   /** Optimistically mark a single notification read by id. */
   markNotificationRead(id: string): void {
-    const readAt = new Date();
-    this.inAppNotifications = this.inAppNotifications.map((n) =>
-      n.id === id && !n.readAt ? { ...n, readAt } : n
-    );
+    this.inAppNotifications = markedRead(this.inAppNotifications, (n) => n.id === id);
   }
 
   /** Handle new in-app notification from SignalR */
@@ -750,18 +774,18 @@ export class RealtimeStore {
   }
 
   /* Type guards for runtime type checking */
-  private isEntry(obj: any): obj is Entry {
+  private isEntry(obj: unknown): obj is Entry {
     return (
-      obj &&
-      typeof obj === "object" &&
+      isEntryDocument(obj) &&
       ("sgv" in obj || "mgdl" in obj || "mmol" in obj)
     );
   }
 
-  private isDeviceStatus(obj: any): obj is DeviceStatus {
+  /** The nested loop/openaps/pump shapes are the Nightscout uploader contract
+   *  and are taken on trust; the pills processor reads them null-safely. */
+  private isDeviceStatus(obj: unknown): obj is DeviceStatus {
     return (
-      obj &&
-      typeof obj === "object" &&
+      isRecord(obj) &&
       ("device" in obj || "loop" in obj || "openaps" in obj || "pump" in obj)
     );
   }
@@ -899,6 +923,12 @@ export class RealtimeStore {
     }
     this.websocketClient.destroy();
 
+    if (this.entryCreateFlushTimeout !== null) {
+      clearTimeout(this.entryCreateFlushTimeout);
+      this.entryCreateFlushTimeout = null;
+    }
+    this.pendingEntryCreates.clear();
+
     // Clear the module-level singleton so the next createRealtimeStore() builds
     // a fresh store rather than resurrecting this torn-down instance with stale
     // realtime state (e.g. when re-entering the authenticated layout).
@@ -959,8 +989,8 @@ export class RealtimeStore {
   private async refreshLatestApsSnapshot(): Promise<void> {
     try {
       const apiClient = getApiClient();
-      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-      const result = await apiClient.apsSnapshot.getAll(fiveMinAgo, new Date(), 5);
+      const { from, to } = untilNow(Date.now() - 5 * 60 * 1000);
+      const result = await apiClient.apsSnapshot.getAll(from, to, 5);
       const snapshots = result.data ?? [];
       if (snapshots.length === 0) return;
       const added = snapshots.filter(
@@ -998,9 +1028,10 @@ export class RealtimeStore {
 
     this.isSyncing = true;
     const backfillFrom = this.lastDataReceived;
+    const { from: backfillFromDate, to: nowDate } = untilNow(backfillFrom);
 
     console.log(
-      `[RealtimeStore] Backfilling data from ${new Date(backfillFrom).toISOString()} ` +
+      `[RealtimeStore] Backfilling data from ${backfillFromDate} ` +
       `(${Math.round(timeSinceLastData / 60000)} minutes ago)`
     );
 
@@ -1008,12 +1039,10 @@ export class RealtimeStore {
       const apiClient = getApiClient();
 
       // Fetch all data types since last received using existing API methods
-      const backfillFromDate = new Date(backfillFrom);
-      const nowDate = new Date();
       const reservoirRefresh = this.refreshCurrentReservoir();
       const [entries, deviceStatuses, boluses, carbIntakes, bgChecks, notes, devEvents, newApsSnapshots] = await Promise.all([
-        apiClient.sensorGlucose.getAll(backfillFromDate, nowDate, 1000).then((r) => (r.data ?? []).map(sensorGlucoseToEntry)).catch(() => [] as Entry[]),
-        Promise.resolve([] as DeviceStatus[]),
+        apiClient.sensorGlucose.getAll(backfillFromDate, nowDate, 1000).then((r) => (r.data ?? []).map(sensorGlucoseToEntry)).catch((): Entry[] => []),
+        Promise.resolve<DeviceStatus[]>([]),
         apiClient.bolus.getAll(backfillFromDate, nowDate, 500).then((r) => r.data ?? []).catch(() => []),
         apiClient.nutrition.getCarbIntakes(backfillFromDate, nowDate, 500).then((r) => r.data ?? []).catch(() => []),
         apiClient.bGCheck.getAll(backfillFromDate, nowDate, 500).then((r) => r.data ?? []).catch(() => []),

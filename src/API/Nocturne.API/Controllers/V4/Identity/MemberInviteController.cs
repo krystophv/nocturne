@@ -11,6 +11,7 @@ using Nocturne.Core.Models.Authorization;
 using Nocturne.API.Services.Auth;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Entities;
+using Nocturne.Infrastructure.Data.Extensions;
 
 namespace Nocturne.API.Controllers.V4.Identity;
 
@@ -94,7 +95,7 @@ public class MemberInviteController : ControllerBase
                 request.ExpiresInDays,
                 request.MaxUses,
                 limitTo24Hours,
-                $"{Request.Scheme}://{Request.Host}");
+                $"{Request.PublicScheme()}://{Request.Host}");
 
             return StatusCode(StatusCodes.Status201Created, result);
         }
@@ -308,6 +309,9 @@ public class MemberInviteController : ControllerBase
         if (IsCallersOwnMembership(member))
             return Problem(detail: SelfEditDetail, statusCode: 400);
 
+        if (DeviceHolderDetail(member) is { } deviceHolder)
+            return Problem(detail: deviceHolder, statusCode: 400);
+
         if (request.RoleIds.Count == 0 && (member.DirectPermissions == null || member.DirectPermissions.Count == 0))
         {
             const string reason = "Cannot remove all roles when member has no direct permissions";
@@ -331,7 +335,6 @@ public class MemberInviteController : ControllerBase
                 Id = Guid.CreateVersion7(),
                 TenantMemberId = member.Id,
                 TenantRoleId = roleId,
-                SysCreatedAt = now,
             });
         }
 
@@ -374,6 +377,9 @@ public class MemberInviteController : ControllerBase
 
         if (IsCallersOwnMembership(member))
             return Problem(detail: SelfEditDetail, statusCode: 400);
+
+        if (DeviceHolderDetail(member) is { } deviceHolder)
+            return Problem(detail: deviceHolder, statusCode: 400);
 
         if ((request.DirectPermissions == null || request.DirectPermissions.Count == 0) && member.MemberRoles.Count == 0)
         {
@@ -471,6 +477,9 @@ public class MemberInviteController : ControllerBase
         if (IsCallersOwnMembership(member))
             return Problem(detail: SelfEditDetail, statusCode: 400);
 
+        if (DeviceHolderDetail(member) is { } deviceHolder)
+            return Problem(detail: deviceHolder, statusCode: 400);
+
         member.LimitTo24Hours = request.LimitTo24Hours;
         member.SysUpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
@@ -510,6 +519,20 @@ public class MemberInviteController : ControllerBase
         validation.ErrorCode == RoleGrantValidation.ForeignRole
             ? Problem(detail: validation.ErrorDescription, statusCode: 400)
             : Problem(detail: validation.ErrorDescription, statusCode: 403);
+
+    /// <summary>
+    /// Why <paramref name="member"/> may not be edited here, or null when it may be.
+    /// </summary>
+    /// <remarks>
+    /// The device holder carries every API token on the tenant, and
+    /// <c>MemberScopeMiddleware</c> intersects each token's scopes with this one membership. Editing
+    /// it caps or clamps every uploader on the site at once, from a screen that shows one row and
+    /// says nothing about the blast radius. Tokens are bounded individually, on the grant.
+    /// </remarks>
+    private static string? DeviceHolderDetail(TenantMemberEntity member) =>
+        member.Subject is { IsSystemSubject: true, Name: DeviceSubjectFilter.DeviceSubjectName }
+            ? "This member holds the site's API tokens. Change what a token can do on the token itself."
+            : null;
 }
 
 public class CreateMemberInviteRequest

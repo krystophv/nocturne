@@ -3,11 +3,11 @@
   import { Badge } from "$lib/components/ui/badge";
   import * as Card from "$lib/components/ui/card";
   import { Trash2, Link, Loader2, Check } from "lucide-svelte";
-  import { formatDate } from "$lib/utils/formatting";
-  import type { TenantRoleDto } from "$lib/api/generated/nocturne-api-client";
+  import { formatMediumDateTime } from "$lib/utils/formatting";
+  import type { MemberInviteInfo, TenantRoleDto } from "$lib/api/generated/nocturne-api-client";
 
   interface Props {
-    invites: any[]; // invite objects with id, label, roleIds, expiresAt, maxUses, useCount, limitTo24Hours, usedBy
+    invites: MemberInviteInfo[];
     roles: TenantRoleDto[];
     onRevoke: (inviteId: string) => void;
     isRevoking: boolean;
@@ -40,15 +40,15 @@
               {invite.label ?? "Invite Link"}
             </p>
             {#if invite.roleIds?.length}
-              {#each invite.roleIds as roleId}
-                <Badge variant="secondary" class="text-xs">
+              {#each invite.roleIds as roleId, i (i)}
+                <Badge variant="secondary">
                   {getRoleName(roleId)}
                 </Badge>
               {/each}
             {/if}
           </div>
           <p class="text-xs text-muted-foreground">
-            Expires {formatDate(invite.expiresAt)}
+            Expires {formatMediumDateTime(invite.expiresAt)}
             {#if invite.maxUses}
               &middot; {invite.useCount}/{invite.maxUses} uses
             {:else}
@@ -66,12 +66,12 @@
               >
                 Used by
               </p>
-              {#each invite.usedBy as usage}
+              {#each invite.usedBy as usage, i (i)}
                 <p class="text-xs text-foreground">
                   <Check class="inline h-3 w-3 mr-1 text-primary" />
                   {usage.name ?? "Unknown"}
                   <span class="text-muted-foreground ml-1">
-                    on {formatDate(usage.joinedAt)}
+                    on {formatMediumDateTime(usage.joinedAt)}
                   </span>
                 </p>
               {/each}
@@ -80,10 +80,10 @@
         </div>
         <Button
           type="button"
-          variant="ghost"
+          variant="ghost-destructive"
           size="sm"
-          class="text-destructive hover:text-destructive shrink-0"
-          disabled={isRevoking && invite.id}
+          class="shrink-0"
+          disabled={isRevoking && !!invite.id}
           onclick={() => onRevoke(invite.id!)}
         >
           {#if isRevoking && invite.id}

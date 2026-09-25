@@ -1,4 +1,5 @@
 using Nocturne.API.Services.Audit;
+using Nocturne.Connectors.Core.Models;
 using Nocturne.Core.Contracts.Audit;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Contracts.V4.Repositories;
@@ -13,20 +14,35 @@ namespace Nocturne.API.Services.ConnectorPublishing;
 internal abstract class ConnectorPublisherBase
 {
     private readonly IAuditContext _auditContext;
+    private readonly PublishSkipTally _skips;
 
-    protected ConnectorPublisherBase(IAuditContext auditContext, ILogger logger)
+    protected ConnectorPublisherBase(IAuditContext auditContext, PublishSkipTally skips, ILogger logger)
     {
         _auditContext = auditContext ?? throw new ArgumentNullException(nameof(auditContext));
+        _skips = skips ?? throw new ArgumentNullException(nameof(skips));
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     protected ILogger Logger { get; }
 
     /// <summary>
+    /// System attribution for a write this base does not itself perform — an upsert loop rather
+    /// than a bulk create. Same scope <see cref="PublishAsync"/> writes under, so a connector write
+    /// is never attributed to whichever user's request happened to trigger the sync.
+    /// </summary>
+    protected IDisposable PushSystemAudit() => SystemAuditScope.Push(_auditContext);
+
+    /// <summary>
+    /// Records what a write this base does not itself perform left out because the user had deleted
+    /// it, as <see cref="PublishAsync"/> does for its own.
+    /// </summary>
+    protected void RecordSkippedDeleted(int count) => _skips.AddSkippedDeleted(count);
+
+    /// <summary>
     /// <paramref name="beforeWrite"/> runs inside the system audit scope: a preparation step that
     /// writes (an auto-created insulin, a reconcile of the source's window) is attributed to the sync,
     /// and a user-attributed delete would permanently block re-import. <paramref name="afterWrite"/>
-    /// runs after a successful write, outside the scope.
+    /// runs after a successful write, outside the scope, over the same materialised list.
     /// </summary>
     protected async Task<bool> PublishAsync<TRecord>(
         IEnumerable<TRecord> records,
@@ -35,7 +51,7 @@ internal abstract class ConnectorPublisherBase
         WriteOrigin origin,
         CancellationToken ct,
         Func<List<TRecord>, Task>? beforeWrite = null,
-        Func<Task>? afterWrite = null)
+        Func<List<TRecord>, Task>? afterWrite = null)
     {
         var recordType = typeof(TRecord).Name;
         try
@@ -48,11 +64,12 @@ internal abstract class ConnectorPublisherBase
                 if (beforeWrite is not null)
                     await beforeWrite(recordList);
 
-                await repository.BulkCreateAsync(recordList, origin, ct);
+                var written = await repository.BulkCreateAsync(recordList, origin, ct);
+                _skips.AddSkippedDeleted(written.SkippedDeleted);
             }
 
             if (afterWrite is not null)
-                await afterWrite();
+                await afterWrite(recordList);
 
             Logger.LogDebug(
                 "Published {Count} {RecordType} records for {Source}", recordList.Count, recordType, source);

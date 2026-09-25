@@ -8,6 +8,10 @@ on:
       - 'src/Web/packages/ui/**'
       - 'src/Web/packages/cms/**'
       - 'src/Web/packages/screenshots/**'
+      # The portal bundles the app's appearance store and OAuth scope constants.
+      - 'src/Web/packages/app/src/lib/stores/**'
+      - 'src/Web/packages/app/src/lib/constants/**'
+      - 'src/Web/packages/app/src/lib/components/dashboard/top-widget-ids.ts'
       - 'src/Web/pnpm-lock.yaml'
       - '.github/workflows/portal-pages.yml'
   workflow_dispatch:
@@ -75,7 +79,16 @@ jobs:
           VITE_DEMO_ENABLED: 'true'
           VITE_DEMO_WEB_URL: 'https://demo.nocturne.run'
           VITE_SCALAR_API_URL: 'https://nocturne.run'
+          # Unset in a fork or a self-hosted build, which then ships no tracker at all.
+          # The site of this name has to exist in Plausible first; CE cannot create it.
+          VITE_PLAUSIBLE_DOMAIN: ${{ vars.PLAUSIBLE_PORTAL_DOMAIN }}
         run: pnpm run build
+
+      # A build whose translations compile empty still succeeds and prerenders
+      # blank pages, so this guard fails the deploy before upload.
+      - name: Check built pages have copy
+        working-directory: src/Web/packages/portal
+        run: pnpm run check:build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

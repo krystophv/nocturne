@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import * as Card from "$lib/components/ui/card";
   import * as Dialog from "$lib/components/ui/dialog";
@@ -17,15 +16,16 @@
     AlertTriangle,
     Loader2,
   } from "lucide-svelte";
-  import { formatDate } from "$lib/utils/formatting";
+  import { formatMediumDateTime } from "$lib/utils/formatting";
   import {
     list as listGrants,
     create as createGrant,
     revoke as revokeGrant,
   } from "$lib/api/generated/directGrants.generated.remote";
   import { describeSubmitError } from "$lib/forms/submit-error";
+  import { remoteErrorMessage } from "$lib/api/remote-error";
   import type { DirectGrantDto } from "$api";
-  import { copyToClipboard } from "$lib/utils";
+  import { createCopyFeedback } from "$lib/hooks/copy-feedback.svelte";
 
   // ============================================================================
   // Props
@@ -34,7 +34,7 @@
   let {
     createOpen = $bindable(false),
     prefillLabel = "",
-    prefillScopes = [] as string[],
+    prefillScopes = [],
     onCreateClose,
   }: {
     createOpen?: boolean;
@@ -47,10 +47,23 @@
   // State
   // ============================================================================
 
-  let grants = $state<DirectGrantDto[]>([]);
-  let isLoading = $state(true);
-  let errorMessage = $state<string | null>(null);
+  // Built here, in the component's own tracking context, so its client-side
+  // registration lasts as long as the component and the commands' declared
+  // invalidation has an instance to apply to. A proxy built inside an event
+  // handler cannot be awaited at all.
+  const grantsQuery = listGrants();
+
+  const grants = $derived<DirectGrantDto[]>(grantsQuery.current ?? []);
+  const isLoading = $derived(!grantsQuery.ready && grantsQuery.error === undefined);
+  const loadError = $derived(
+    grantsQuery.error === undefined
+      ? null
+      : remoteErrorMessage(grantsQuery.error, "Failed to load API tokens.")
+  );
+
+  let mutationError = $state<string | null>(null);
   let successMessage = $state<string | null>(null);
+  const errorMessage = $derived(mutationError ?? loadError);
 
   // Create token flow
   let showCreateDialog = $state(false);
@@ -58,7 +71,7 @@
   let newTokenScopes = $state<string[]>([]);
   let isCreating = $state(false);
   let createdToken = $state<string | null>(null);
-  let copiedToken = $state(false);
+  const copy = createCopyFeedback();
 
   // Revoke flow
   let isRevoking = $state<string | null>(null);
@@ -71,27 +84,9 @@
       newTokenLabel = prefillLabel;
       newTokenScopes = [...prefillScopes];
       createdToken = null;
-      copiedToken = false;
       showCreateDialog = true;
       createOpen = false;
     }
-  });
-
-  // ============================================================================
-  // Data fetching
-  // ============================================================================
-
-  async function loadGrants() {
-    try {
-      grants = await listGrants();
-    } catch (err) {
-      errorMessage = "Failed to load API tokens.";
-    }
-  }
-
-  onMount(async () => {
-    await loadGrants();
-    isLoading = false;
   });
 
   // ============================================================================
@@ -102,13 +97,12 @@
     newTokenLabel = "";
     newTokenScopes = [];
     createdToken = null;
-    copiedToken = false;
     showCreateDialog = true;
   }
 
   async function handleCreateToken() {
     isCreating = true;
-    errorMessage = null;
+    mutationError = null;
 
     try {
       const data = await createGrant({
@@ -116,9 +110,9 @@
         scopes: newTokenScopes,
       });
       createdToken = data.token ?? null;
-      await loadGrants();
+      await grantsQuery.refresh();
     } catch (err) {
-      errorMessage = describeSubmitError(err, "Failed to create token.");
+      mutationError = describeSubmitError(err, "Failed to create token.");
       closeCreateDialog();
     } finally {
       isCreating = false;
@@ -127,12 +121,7 @@
 
   async function copyToken() {
     if (createdToken) {
-      if (!(await copyToClipboard(createdToken))) {
-        errorMessage = "Couldn't copy the token to the clipboard. Copy it manually instead.";
-        return;
-      }
-      copiedToken = true;
-      setTimeout(() => (copiedToken = false), 2000);
+      await copy.copy(createdToken);
     }
   }
 
@@ -142,7 +131,6 @@
   function closeCreateDialog() {
     showCreateDialog = false;
     createdToken = null;
-    copiedToken = false;
     newTokenLabel = "";
     newTokenScopes = [];
     onCreateClose?.();
@@ -160,16 +148,16 @@
   async function handleRevokeGrant() {
     if (!revokeTarget) return;
     isRevoking = revokeTarget.id ?? null;
-    errorMessage = null;
+    mutationError = null;
     showRevokeDialog = false;
 
     try {
       await revokeGrant(revokeTarget.id!);
-      await loadGrants();
+      await grantsQuery.refresh();
       successMessage = "API token revoked.";
       clearMessages();
     } catch (err) {
-      errorMessage = "Failed to revoke token.";
+      mutationError = describeSubmitError(err, "Failed to revoke token.");
     } finally {
       isRevoking = null;
       revokeTarget = null;
@@ -179,7 +167,7 @@
   function clearMessages() {
     setTimeout(() => {
       successMessage = null;
-      errorMessage = null;
+      mutationError = null;
     }, 3000);
   }
 </script>
@@ -195,12 +183,12 @@
 
 {#if successMessage}
   <div
-    class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-900/20"
+    class="flex items-start gap-3 rounded-md border border-success/30 bg-success/10 p-3"
   >
     <Check
-      class="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400"
+      class="mt-0.5 h-4 w-4 shrink-0 text-success"
     />
-    <p class="text-sm text-green-800 dark:text-green-200">
+    <p class="text-sm text-success">
       {successMessage}
     </p>
   </div>
@@ -235,7 +223,12 @@
       </div>
     </Card.Header>
     <Card.Content class="space-y-3">
-      {#if grants.length === 0}
+      {#if loadError}
+        <p class="text-sm text-muted-foreground">
+          Your tokens couldn't be loaded, so this list may be incomplete.
+          Refresh the page to try again.
+        </p>
+      {:else if grants.length === 0}
         <div
           class="flex flex-col items-center justify-center py-8 text-center"
         >
@@ -257,14 +250,14 @@
                 <div class="flex items-center gap-2">
                   <p class="text-sm font-medium">{grant.label}</p>
                   {#if grant.isLegacy}
-                    <Badge variant="outline" class="text-xs border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                    <Badge variant="warning">
                       Legacy — rotate to per-device key
                     </Badge>
                   {/if}
                 </div>
                 <div class="flex flex-wrap gap-1.5">
-                  {#each grant.scopes as scope}
-                    <Badge variant="outline" class="text-xs font-mono">
+                  {#each grant.scopes as scope, i (i)}
+                    <Badge variant="outline" class="font-mono">
                       {scope}
                     </Badge>
                   {/each}
@@ -272,9 +265,9 @@
               </div>
               <Button
                 type="button"
-                variant="ghost"
+                variant="ghost-destructive"
                 size="sm"
-                class="text-destructive hover:text-destructive shrink-0"
+                class="shrink-0"
                 disabled={isRevoking === grant.id}
                 onclick={() => confirmRevokeGrant(grant)}
               >
@@ -291,12 +284,12 @@
             >
               <span class="flex items-center gap-1">
                 <Clock class="h-3 w-3" />
-                Created {formatDate(grant.createdAt)}
+                Created {formatMediumDateTime(grant.createdAt)}
               </span>
               {#if grant.lastUsedAt}
                 <span class="flex items-center gap-1">
                   <Clock class="h-3 w-3" />
-                  Last used {formatDate(grant.lastUsedAt)}
+                  Last used {formatMediumDateTime(grant.lastUsedAt)}
                 </span>
               {/if}
             </div>
@@ -323,12 +316,12 @@
       </Dialog.Header>
       <div class="space-y-4 py-4">
         <div
-          class="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-900/20"
+          class="flex items-start gap-3 rounded-md border border-warning/30 bg-warning/10 p-3"
         >
           <AlertTriangle
-            class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+            class="mt-0.5 h-4 w-4 shrink-0 text-warning"
           />
-          <p class="text-sm text-amber-800 dark:text-amber-200">
+          <p class="text-sm text-warning">
             This token will only be shown once. Copy it now.
           </p>
         </div>
@@ -337,11 +330,11 @@
             type="text"
             value={createdToken}
             readonly
-            class="font-mono text-sm"
+            class="font-mono"
           />
           <Button variant="outline" size="icon" onclick={copyToken}>
-            {#if copiedToken}
-              <Check class="h-4 w-4 text-green-600" />
+            {#if copy.isCopied()}
+              <Check class="h-4 w-4 text-success" />
             {:else}
               <Copy class="h-4 w-4" />
             {/if}

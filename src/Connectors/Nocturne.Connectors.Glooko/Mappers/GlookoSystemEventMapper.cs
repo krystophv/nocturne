@@ -33,7 +33,16 @@ public class GlookoSystemEventMapper
             foreach (var alarm in series.PumpAlarm)
             {
                 var timestamp = _timeMapper.GetCorrectedGlookoTime(alarm.X);
-                var eventType = DetermineAlarmEventType(alarm.AlarmType, alarm.Data?.AlarmCode);
+
+                // Glooko populates the graph point's `name` (e.g. "Occlusion", "Low Battery") and
+                // `alarmSeverity`; the older `alarmType`/`data.alarmCode`/`label` fields are absent on
+                // this payload, so reading only those produced an Info "Unknown alarm" for every alarm
+                // and lost occlusion/battery hazards entirely. Prefer the real fields, keep the legacy
+                // ones as fallbacks, and fall back to the keyword heuristic only when severity is absent.
+                var name = alarm.Name ?? alarm.Label ?? alarm.AlarmType;
+                var eventType = !string.IsNullOrWhiteSpace(alarm.AlarmSeverity)
+                    ? MapAlarmSeverity(alarm.AlarmSeverity)
+                    : DetermineAlarmEventType(alarm.Name ?? alarm.AlarmType, alarm.Data?.AlarmCode);
 
                 events.Add(
                     new SystemEvent
@@ -41,17 +50,17 @@ public class GlookoSystemEventMapper
                         OriginalId = $"glooko_alarm_{alarm.X}",
                         EventType = eventType,
                         Category = SystemEventCategory.Pump,
-                        Code = alarm.Data?.AlarmCode ?? alarm.AlarmType,
+                        Code = name ?? alarm.Data?.AlarmCode,
                         Description =
-                            alarm.Data?.AlarmDescription
-                            ?? alarm.Label
-                            ?? alarm.AlarmType
+                            name
+                            ?? alarm.Data?.AlarmDescription
                             ?? "Unknown alarm",
                         Mills = new DateTimeOffset(timestamp).ToUnixTimeMilliseconds(),
                         Source = _connectorSource,
                         Metadata = new Dictionary<string, object>
                         {
-                            { "alarmType", alarm.AlarmType ?? "unknown" },
+                            { "severity", alarm.AlarmSeverity ?? "unknown" },
+                            { "alarmType", alarm.AlarmType ?? "" },
                             { "label", alarm.Label ?? "" }
                         }
                     }
@@ -66,6 +75,68 @@ public class GlookoSystemEventMapper
 
         return events;
     }
+
+    /// <summary>
+    /// Maps the SSV2 <c>pumps/alarms</c> feed to <see cref="SystemEvent"/>s — the SSV2 counterpart to the
+    /// v3 graph's <c>pumpAlarm</c> series. Severity comes straight from the record's <c>alarm_severity</c>
+    /// (rather than the v3 path's keyword heuristic); the alarm code is its <c>value</c>. Keyed on the
+    /// stable Glooko guid (raw-timestamp fallback) and skips soft-deleted records.
+    /// </summary>
+    public List<SystemEvent> TransformSsv2AlarmsToSystemEvents(IEnumerable<GlookoSsv2Alarm>? alarms)
+    {
+        var events = new List<SystemEvent>();
+        if (alarms == null) return events;
+
+        foreach (var alarm in alarms)
+        {
+            try
+            {
+                if (alarm.SoftDeleted || string.IsNullOrWhiteSpace(alarm.PumpTimestamp)) continue;
+
+                var raw = _timeMapper.GetRawGlookoDate(alarm.PumpTimestamp, null);
+                var timestamp = _timeMapper.GetCorrectedGlookoTime(raw);
+                var code = alarm.Value ?? alarm.AlarmType;
+
+                var key = !string.IsNullOrEmpty(alarm.Guid)
+                    ? $"glooko_ssv2_alarm_{alarm.Guid}"
+                    : $"glooko_ssv2_alarm_raw_{alarm.PumpTimestamp}_{code}";
+
+                events.Add(new SystemEvent
+                {
+                    OriginalId = key,
+                    EventType = MapAlarmSeverity(alarm.AlarmSeverity),
+                    Category = SystemEventCategory.Pump,
+                    Code = code,
+                    Description = code ?? "Unknown alarm",
+                    Mills = new DateTimeOffset(timestamp).ToUnixTimeMilliseconds(),
+                    Source = _connectorSource,
+                    Metadata = new Dictionary<string, object>
+                    {
+                        { "severity", alarm.AlarmSeverity ?? "unknown" },
+                        { "alarmType", alarm.AlarmType ?? "" }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[{ConnectorSource}] Error mapping SSV2 alarm", _connectorSource);
+            }
+        }
+
+        _logger.LogInformation(
+            "[{ConnectorSource}] Transformed {Count} system events from SSV2 alarms", _connectorSource, events.Count);
+
+        return events;
+    }
+
+    private static SystemEventType MapAlarmSeverity(string? severity) =>
+        (severity ?? string.Empty).ToLowerInvariant() switch
+        {
+            "hazard" => SystemEventType.Hazard,
+            "warning" => SystemEventType.Warning,
+            "info" or "information" or "informational" => SystemEventType.Info,
+            _ => SystemEventType.Alarm
+        };
 
     private static SystemEventType DetermineAlarmEventType(string? alarmType, string? alarmCode)
     {

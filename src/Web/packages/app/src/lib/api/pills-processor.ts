@@ -33,22 +33,22 @@ export interface DeviceStatus {
 	loop?: {
 		timestamp?: string;
 		name?: string;
-		iob?: { iob?: number; timestamp?: string };
-		cob?: { cob?: number; timestamp?: string };
-		enacted?: any;
+		iob?: { iob?: number | null; timestamp?: string };
+		cob?: { cob?: number | null; timestamp?: string };
+		enacted?: LoopEnactedData;
 		predicted?: { values?: number[] };
 	};
 	openaps?: {
 		timestamp?: string;
-		iob?: any;
-		suggested?: any;
-		enacted?: any;
+		iob?: OpenApsIobEntry | OpenApsIobEntry[];
+		suggested?: OpenApsSuggestedEnacted;
+		enacted?: OpenApsSuggestedEnacted;
 	};
 	pump?: {
-		iob?: number | { iob?: number; bolusiob?: number };
-		bolusiob?: number;
+		iob?: number | null | { iob?: number | null; bolusiob?: number | null };
+		bolusiob?: number | null;
 	};
-	connect?: any;
+	connect?: unknown;
 }
 
 
@@ -61,20 +61,20 @@ export { DEFAULT_PILLS_CONFIG } from '$lib/types/status-pills';
  */
 interface OpenApsSuggestedEnacted {
 	timestamp?: string;
-	rate?: number;
-	duration?: number;
+	rate?: number | null;
+	duration?: number | null;
 	reason?: string;
-	COB?: number;
-	eventualBG?: number;
+	COB?: number | null;
+	eventualBG?: number | null;
 	received?: boolean;
 }
 
 interface OpenApsIobEntry {
 	timestamp?: string;
 	time?: string;
-	iob?: number;
-	basaliob?: number;
-	activity?: number;
+	iob?: number | null;
+	basaliob?: number | null;
+	activity?: number | null;
 }
 
 /**
@@ -83,22 +83,37 @@ interface OpenApsIobEntry {
  */
 interface LoopEnactedData {
 	timestamp?: string;
-	rate?: number;
-	duration?: number;
-	bolusVolume?: number;
+	rate?: number | null;
+	duration?: number | null;
+	bolusVolume?: number | null;
 	reason?: string;
 	failureReason?: string;
 }
 
 /**
+ * A device-status number, or `undefined` when absent.
+ *
+ * Device statuses are uploaded JSON that these interfaces only assert a shape
+ * over, and an uploader writes an explicit `null` for a field it has no value
+ * for. Declaring such a field `number | undefined` does not make it one, so
+ * every lift out of a device status goes through here — a `null` that reaches
+ * pill data survives the `!= null` guards downstream as far as `.toFixed`.
+ */
+function statusNumber(value: number | null | undefined): number | undefined {
+	return value ?? undefined;
+}
+
+/**
  * Helper to safely access OpenAPS IOB data which can be an array or single object
  */
-function getOpenApsIob(iob: unknown): OpenApsIobEntry | null {
+function getOpenApsIob(
+	iob: OpenApsIobEntry | OpenApsIobEntry[] | undefined
+): OpenApsIobEntry | null {
 	if (!iob) return null;
 	if (Array.isArray(iob)) {
-		return iob[0] as OpenApsIobEntry;
+		return iob[0] ?? null;
 	}
-	return iob as OpenApsIobEntry;
+	return iob;
 }
 
 /**
@@ -393,8 +408,8 @@ export function processIOB(
 						: status.mills ?? now;
 				iobFromDevice = {
 					iob: iobData.iob,
-					basalIob: iobData.basaliob,
-					activity: iobData.activity,
+					basalIob: statusNumber(iobData.basaliob),
+					activity: statusNumber(iobData.activity),
 					source: 'OpenAPS',
 					device: status.device,
 					display: `${iobData.iob.toFixed(2)}U`,
@@ -497,8 +512,8 @@ export function processCOB(
 		// Check OpenAPS COB (from suggested or enacted)
 		const openaps = status.openaps;
 		if (openaps) {
-			const suggested = openaps.suggested as OpenApsSuggestedEnacted | undefined;
-			const enacted = openaps.enacted as OpenApsSuggestedEnacted | undefined;
+			const suggested = openaps.suggested;
+			const enacted = openaps.enacted;
 
 			let lastCOB: number | null = null;
 			let lastMoment: number | null = null;
@@ -693,7 +708,7 @@ export function processSAGE(
 	}
 
 	// Format display
-	let display = '';
+	let display: string;
 	if (ageHours >= 24) {
 		display = `${ageDays}d${remainingHours}h`;
 	} else {
@@ -806,13 +821,13 @@ export function processBasal(
 
 	let totalBasal = scheduledBasal; // Start with scheduled, override if temp basal active
 	let isTempBasal = false;
-	let isComboActive = false;
+	const isComboActive = false;
 	let tempBasalInfo: BasalPillData['tempBasal'] | undefined;
 
 	// Check for temp basal from various sources
 	if (openaps?.enacted) {
-		const enacted = openaps.enacted as OpenApsSuggestedEnacted;
-		if (enacted.rate !== undefined && enacted.duration !== undefined) {
+		const enacted = openaps.enacted;
+		if (enacted.rate != null && enacted.duration != null) {
 			// Check if the temp basal is still active
 			const enactedTimestamp = enacted.timestamp ? new Date(enacted.timestamp).getTime() : now;
 			const elapsedMinutes = (now - enactedTimestamp) / 60000;
@@ -832,8 +847,8 @@ export function processBasal(
 	}
 
 	if (loopData?.enacted) {
-		const enacted = loopData.enacted as LoopEnactedData;
-		if (enacted.rate !== undefined && enacted.duration !== undefined) {
+		const enacted = loopData.enacted;
+		if (enacted.rate != null && enacted.duration != null) {
 			// Check if temp basal is still active
 			const enactedTimestamp = enacted.timestamp ? new Date(enacted.timestamp).getTime() : now;
 			const elapsedMinutes = (now - enactedTimestamp) / 60000;
@@ -906,7 +921,7 @@ export function processLoop(
 	const loopData = latestStatus.loop;
 	const openapsData = latestStatus.openaps;
 
-	let result: LoopPillData = {
+	const result: LoopPillData = {
 		status: 'warning',
 		symbol: '⚠',
 		display: '---',
@@ -924,28 +939,28 @@ export function processLoop(
 		// Get predicted values - extract eventual BG
 		const predictedValues = loopData.predicted?.values;
 		if (predictedValues && predictedValues.length > 0) {
-			result.eventualBG = predictedValues[predictedValues.length - 1];
+			result.eventualBG = statusNumber(predictedValues[predictedValues.length - 1]);
 		}
 
 		// Get COB/IOB from loop
 		if (loopData.cob) {
-			result.cob = loopData.cob.cob;
+			result.cob = statusNumber(loopData.cob.cob);
 		}
 		if (loopData.iob) {
-			result.iob = loopData.iob.iob;
+			result.iob = statusNumber(loopData.iob.iob);
 		}
 
 		// Get enacted/recommended
 		if (loopData.enacted) {
-			const enacted = loopData.enacted as LoopEnactedData;
+			const enacted = loopData.enacted;
 			const enactedTime = enacted.timestamp ? new Date(enacted.timestamp).getTime() : loopTimestamp;
 
 			result.lastEnacted = {
 				time: enactedTime,
 				type: enacted.bolusVolume ? 'bolus' : enacted.rate === 0 ? 'cancel' : 'temp_basal',
-				rate: enacted.rate,
-				duration: enacted.duration,
-				bolusVolume: enacted.bolusVolume,
+				rate: statusNumber(enacted.rate),
+				duration: statusNumber(enacted.duration),
+				bolusVolume: statusNumber(enacted.bolusVolume),
 				reason: enacted.reason
 			};
 
@@ -975,12 +990,12 @@ export function processLoop(
 			result.loopName = result.loopName ?? 'OpenAPS';
 
 			// Get IOB/COB
-			if (suggested.COB !== undefined) {
+			if (suggested.COB != null) {
 				result.cob = suggested.COB;
 			}
 
 			// Get eventual BG
-			if (suggested.eventualBG !== undefined) {
+			if (suggested.eventualBG != null) {
 				result.eventualBG = suggested.eventualBG;
 			}
 		}
@@ -991,8 +1006,8 @@ export function processLoop(
 			result.lastEnacted = {
 				time: enactedTime,
 				type: enacted.rate === 0 ? 'cancel' : 'temp_basal',
-				rate: enacted.rate,
-				duration: enacted.duration,
+				rate: statusNumber(enacted.rate),
+				duration: statusNumber(enacted.duration),
 				reason: enacted.reason
 			};
 
@@ -1007,7 +1022,7 @@ export function processLoop(
 		const iobData = openapsData.iob;
 		if (iobData) {
 			const iob = Array.isArray(iobData) ? iobData[0] : iobData;
-			if (iob?.iob !== undefined) {
+			if (iob?.iob != null) {
 				result.iob = iob.iob;
 			}
 		}

@@ -1,19 +1,21 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nocturne.API.Services.Audit;
 using Nocturne.API.Services.BackgroundServices;
+using Nocturne.API.Tests.TestDoubles;
 using Nocturne.Connectors.Core.Extensions;
 using Nocturne.Connectors.Core.Interfaces;
 using Nocturne.Connectors.Core.Models;
+using Nocturne.Connectors.Core.Services;
 using Nocturne.Core.Contracts.Audit;
 using Nocturne.Core.Contracts.Connectors;
 using Nocturne.Core.Contracts.Multitenancy;
 using Nocturne.Infrastructure.Data;
+using Nocturne.Tests.Shared.Infrastructure;
 using Nocturne.Tests.Shared.Mocks;
 using Xunit;
 
@@ -41,6 +43,7 @@ public class ConnectorBackgroundServiceTests
         private readonly Action<IServiceProvider>? _onSyncScope;
         private readonly Action? _onSyncCompleted;
         private readonly TimeSpan? _perTenantTimeout;
+        private readonly TimeSpan? _unconfiguredRecheck;
         private readonly int _hangFirstNCalls;
         private int _callCount;
 
@@ -52,8 +55,12 @@ public class ConnectorBackgroundServiceTests
             Action<IServiceProvider>? onSyncScope = null,
             TimeSpan? perTenantTimeout = null,
             int hangFirstNCalls = 0,
-            Action? onSyncCompleted = null)
-            : base(serviceProvider, logger)
+            Action? onSyncCompleted = null,
+            ConnectorSyncBudget? budget = null,
+            ConnectorPollerNudge? nudge = null,
+            TimeSpan? unconfiguredRecheck = null,
+            ConnectorSyncMetrics? metrics = null)
+            : base(serviceProvider, budget ?? new ConnectorSyncBudget(), serviceProvider.GetRequiredService<ActiveTenantSnapshot>(), logger, nudge, metrics)
         {
             _syncResult = syncResult;
             _onSync = onSync;
@@ -61,9 +68,12 @@ public class ConnectorBackgroundServiceTests
             _perTenantTimeout = perTenantTimeout;
             _hangFirstNCalls = hangFirstNCalls;
             _onSyncCompleted = onSyncCompleted;
+            _unconfiguredRecheck = unconfiguredRecheck;
         }
 
         protected override TimeSpan PerTenantSyncTimeout => _perTenantTimeout ?? base.PerTenantSyncTimeout;
+
+        protected override TimeSpan UnconfiguredRecheckInterval => _unconfiguredRecheck ?? base.UnconfiguredRecheckInterval;
 
         /// <summary>Number of times PerformSyncAsync has been entered (across all tenants).</summary>
         public int CallCount => _callCount;
@@ -82,6 +92,7 @@ public class ConnectorBackgroundServiceTests
             if (n <= _hangFirstNCalls)
                 await Task.Delay(Timeout.Infinite, cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             _onSyncCompleted?.Invoke();
             return _syncResult;
         }
@@ -103,109 +114,21 @@ public class ConnectorBackgroundServiceTests
         public new void RequestImmediateSync(Guid tenantId) => base.RequestImmediateSync(tenantId);
     }
 
-    /// <summary>
-    /// Sets up an in-memory SQLite NocturneDbContext with one active tenant.
-    /// </summary>
-    private static (IDisposable cleanup, string connectionString) CreateSqliteDb()
-    {
-        var (cleanup, connectionString, _) = CreateSqliteDbWithTenantId();
-        return (cleanup, connectionString);
-    }
-
-    /// <summary>
-    /// Sets up an in-memory SQLite NocturneDbContext with one active tenant,
-    /// returning the tenant ID for tests that need to target a specific tenant.
-    /// </summary>
-    private static (IDisposable cleanup, string connectionString, Guid tenantId) CreateSqliteDbWithTenantId()
-    {
-        // Use a temp file so factory-created contexts can share the same data
-        var dbPath = Path.Combine(Path.GetTempPath(), $"ConnectorBgTest_{Guid.NewGuid():N}.db");
-        var connectionString = $"Data Source={dbPath}";
-        var cleanup = new TempFileCleanup(dbPath);
-
-        var options = new DbContextOptionsBuilder<NocturneDbContext>()
-            .UseSqlite(connectionString)
-            .Options;
-
-        using var context = new NocturneDbContext(options);
-        // Create just the Tenants table -- we only need that for the background service query
-        context.Database.ExecuteSqlRaw(@"
-            CREATE TABLE tenants (
-                Id TEXT PRIMARY KEY,
-                slug TEXT NOT NULL,
-                display_name TEXT NOT NULL,
-                is_active INTEGER NOT NULL DEFAULT 1,
-                last_reading_at TEXT,
-                allow_access_requests INTEGER NOT NULL DEFAULT 1,
-                onboarding_completed_at TEXT,
-                sys_created_at TEXT NOT NULL,
-                sys_updated_at TEXT NOT NULL
-            )");
-
-        var tenantId = Guid.NewGuid();
-        context.Database.ExecuteSqlRaw(
-            "INSERT INTO tenants (Id, slug, display_name, is_active, allow_access_requests, sys_created_at, sys_updated_at) VALUES ({0}, {1}, {2}, 1, 1, {3}, {4})",
-            tenantId.ToString(), "test-tenant", "Test Tenant",
-            DateTime.UtcNow.ToString("O"), DateTime.UtcNow.ToString("O"));
-
-        return (cleanup, connectionString, tenantId);
-    }
-
-    /// <summary>
-    /// Sets up an in-memory SQLite NocturneDbContext with two active tenants.
-    /// </summary>
-    private static (IDisposable cleanup, string connectionString) CreateSqliteDbWithTwoTenants()
-    {
-        var dbPath = Path.Combine(Path.GetTempPath(), $"ConnectorBgTest_{Guid.NewGuid():N}.db");
-        var connectionString = $"Data Source={dbPath}";
-        var cleanup = new TempFileCleanup(dbPath);
-
-        var options = new DbContextOptionsBuilder<NocturneDbContext>()
-            .UseSqlite(connectionString)
-            .Options;
-
-        using var context = new NocturneDbContext(options);
-        context.Database.ExecuteSqlRaw(@"
-            CREATE TABLE tenants (
-                Id TEXT PRIMARY KEY,
-                slug TEXT NOT NULL,
-                display_name TEXT NOT NULL,
-                is_active INTEGER NOT NULL DEFAULT 1,
-                last_reading_at TEXT,
-                allow_access_requests INTEGER NOT NULL DEFAULT 1,
-                onboarding_completed_at TEXT,
-                sys_created_at TEXT NOT NULL,
-                sys_updated_at TEXT NOT NULL
-            )");
-
-        foreach (var slug in new[] { "tenant-a", "tenant-b" })
-        {
-            context.Database.ExecuteSqlRaw(
-                "INSERT INTO tenants (Id, slug, display_name, is_active, allow_access_requests, sys_created_at, sys_updated_at) VALUES ({0}, {1}, {2}, 1, 1, {3}, {4})",
-                Guid.NewGuid().ToString(), slug, slug,
-                DateTime.UtcNow.ToString("O"), DateTime.UtcNow.ToString("O"));
-        }
-
-        return (cleanup, connectionString);
-    }
-
     private static IServiceProvider BuildServiceProvider(
-        string connectionString,
+        SqliteTestDatabase db,
         Mock<IConnectorConfigurationService> configServiceMock,
-        TestConnectorConfig config)
+        TestConnectorConfig config,
+        Action? onConfigLoad = null,
+        IConnectorTokenCache? tokenCache = null)
     {
         var services = new ServiceCollection();
 
-        // Register IDbContextFactory<NocturneDbContext> and scoped NocturneDbContext,
-        // both backed by the shared in-memory SQLite database.
-        services.AddSingleton<IDbContextFactory<NocturneDbContext>>(
-            new SqliteDbContextFactory(connectionString));
+        // Registered unconditionally, as production does: a harness that leaves it out would let
+        // every test that does not pass one run down a path production never takes.
+        services.AddSingleton(tokenCache ?? new ConnectorTokenCache());
 
-        services.AddScoped(sp =>
-        {
-            var factory = sp.GetRequiredService<IDbContextFactory<NocturneDbContext>>();
-            return factory.CreateDbContext();
-        });
+        db.AddToServices(services);
+        services.AddActiveTenantSnapshot();
 
         // Register scoped services
         services.AddScoped<ITenantAccessor>(_ =>
@@ -223,7 +146,7 @@ public class ConnectorBackgroundServiceTests
 
         // Register config loader that returns the test config
         services.AddScoped<IConnectorConfigurationLoader<TestConnectorConfig>>(
-            _ => new TestConfigLoader(config));
+            _ => new TestConfigLoader(config, onConfigLoad));
 
         return services.BuildServiceProvider();
     }
@@ -232,8 +155,7 @@ public class ConnectorBackgroundServiceTests
     public async Task FailedSync_WithErrors_PropagatesErrorMessagesToHealthState()
     {
         // Arrange
-        var (cleanup, connStr) = CreateSqliteDb();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var errorMessages = new List<string> { "Connection refused", "Timeout after 30s" };
         var syncResult = new SyncResult
@@ -276,7 +198,7 @@ public class ConnectorBackgroundServiceTests
             SyncIntervalMinutes = 5
         };
 
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -309,8 +231,7 @@ public class ConnectorBackgroundServiceTests
     [Fact]
     public async Task FailedSync_WithRepeatedErrors_JoinsEachDistinctMessageOnceCaseSensitively()
     {
-        var (cleanup, connStr) = CreateSqliteDb();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var syncResult = new SyncResult
         {
@@ -325,7 +246,7 @@ public class ConnectorBackgroundServiceTests
 
         var configServiceMock = BuildEnabledConfigMock();
         var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 };
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -351,8 +272,7 @@ public class ConnectorBackgroundServiceTests
     public async Task FailedSync_WithNoErrors_FallsBackToMessage()
     {
         // Arrange
-        var (cleanup, connStr) = CreateSqliteDb();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var syncResult = new SyncResult
         {
@@ -393,7 +313,7 @@ public class ConnectorBackgroundServiceTests
             SyncIntervalMinutes = 5
         };
 
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -421,8 +341,7 @@ public class ConnectorBackgroundServiceTests
     public async Task FailedSync_WithNoErrorsAndNoMessage_FallsBackToDefault()
     {
         // Arrange
-        var (cleanup, connStr) = CreateSqliteDb();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var syncResult = new SyncResult
         {
@@ -463,7 +382,7 @@ public class ConnectorBackgroundServiceTests
             SyncIntervalMinutes = 5
         };
 
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -491,8 +410,7 @@ public class ConnectorBackgroundServiceTests
     public async Task SuccessfulSync_ClearsErrorMessage()
     {
         // Arrange
-        var (cleanup, connStr) = CreateSqliteDb();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var syncResult = new SyncResult
         {
@@ -532,7 +450,7 @@ public class ConnectorBackgroundServiceTests
             SyncIntervalMinutes = 5
         };
 
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -556,6 +474,218 @@ public class ConnectorBackgroundServiceTests
             "Expected error message to be cleared on successful sync");
     }
 
+    /// <summary>
+    /// A sync must leave one duration with the outcome and one slot-wait measurement, tagged with the
+    /// connector and never the tenant.
+    /// </summary>
+    [Fact]
+    public async Task SuccessfulSync_RecordsDurationAndSlotWait()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+
+        using var factory = new TestMeterFactory();
+        using var listener = new ConnectorMetricListener(factory);
+        var budget = new ConnectorSyncBudget();
+        var metrics = new ConnectorSyncMetrics(factory, budget);
+
+        var configServiceMock = BuildEnabledConfigMock();
+        var serviceProvider = BuildServiceProvider(
+            db, configServiceMock, new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true, Message = "OK" },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            budget: budget,
+            metrics: metrics);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        listener.SlotWaits.Should().ContainSingle("a sync takes exactly one slot");
+        listener.SlotWaits[0].Connector.Should().Be("TestConnector");
+
+        listener.Durations.Should().ContainSingle("a sync is measured exactly once");
+        listener.Durations[0].Connector.Should().Be("TestConnector");
+        listener.Durations[0].Outcome.Should().Be("success");
+    }
+
+    [Fact]
+    public async Task FailedSync_RecordsFailureOutcome()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+
+        using var factory = new TestMeterFactory();
+        using var listener = new ConnectorMetricListener(factory);
+        var budget = new ConnectorSyncBudget();
+        var metrics = new ConnectorSyncMetrics(factory, budget);
+
+        var configServiceMock = BuildEnabledConfigMock();
+        var serviceProvider = BuildServiceProvider(
+            db, configServiceMock, new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = false, Errors = ["upstream refused"] },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            budget: budget,
+            metrics: metrics);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        listener.Durations.Should().ContainSingle();
+        listener.Durations[0].Outcome.Should().Be("failure");
+    }
+
+    /// <summary>
+    ///     A connector that could not sign in has no token, so it fetches nothing and reports a run
+    ///     that found no data — indistinguishable from a healthy source with nothing new. What the
+    ///     token provider recorded about the sign-in is what has to override that.
+    /// </summary>
+    [Fact]
+    public async Task FailedSignIn_MarksTheConnectorUnhealthy_EvenWhenTheRunReportedSuccess()
+    {
+        var tenantId = Guid.NewGuid();
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(tenantId, "test-tenant");
+
+        const string refusal = "TestConnector did not accept this sign-in.";
+        var tokenCache = new ConnectorTokenCache();
+        tokenCache.SetSignInFailure("TestConnector", tenantId, refusal);
+
+        var configServiceMock = HealthRecordingConfigService();
+        var serviceProvider = BuildServiceProvider(
+            db,
+            configServiceMock,
+            new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 },
+            tokenCache: tokenCache);
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true, Message = "OK" },
+            NullLogger<TestConnectorBackgroundService>.Instance);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        configServiceMock.Verify(
+            x => x.UpdateHealthStateAsync(
+                "TestConnector",
+                It.IsAny<DateTime?>(),
+                It.IsAny<DateTime?>(),
+                refusal,
+                It.IsAny<DateTime?>(),
+                false,
+                It.IsAny<CancellationToken>()),
+            Times.Once,
+            "a run that never signed in is not a healthy sync");
+    }
+
+    /// <summary>
+    ///     A transient failure records nothing, so a run that carried on regardless stays healthy.
+    /// </summary>
+    [Fact]
+    public async Task NoSignInFailure_LeavesASuccessfulRunHealthy()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+
+        var configServiceMock = HealthRecordingConfigService();
+        var serviceProvider = BuildServiceProvider(
+            db,
+            configServiceMock,
+            new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 },
+            tokenCache: new ConnectorTokenCache());
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true, Message = "OK" },
+            NullLogger<TestConnectorBackgroundService>.Instance);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        configServiceMock.Verify(
+            x => x.UpdateHealthStateAsync(
+                "TestConnector",
+                It.IsAny<DateTime?>(),
+                It.IsAny<DateTime?>(),
+                string.Empty,
+                It.IsAny<DateTime?>(),
+                true,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    ///     One tenant's failed sign-in says nothing about another's, and the two share both the cache
+    ///     and the connector name that keys it.
+    /// </summary>
+    [Fact]
+    public async Task FailedSignIn_ForOneTenant_LeavesTheOtherTenantHealthy()
+    {
+        Guid[] tenantIds = [Guid.NewGuid(), Guid.NewGuid()];
+        using var db = TestDbContextFactory.CreateSqlite()
+            .SeedTenant(tenantIds[0], "tenant-a")
+            .SeedTenant(tenantIds[1], "tenant-b");
+
+        const string failure = "Could not sign in to TestConnector.";
+        var tokenCache = new ConnectorTokenCache();
+        tokenCache.SetSignInFailure("TestConnector", tenantIds[0], failure);
+
+        var configServiceMock = HealthRecordingConfigService();
+        var serviceProvider = BuildServiceProvider(
+            db,
+            configServiceMock,
+            new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 },
+            tokenCache: tokenCache);
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true, Message = "OK" },
+            NullLogger<TestConnectorBackgroundService>.Instance);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        configServiceMock.Verify(
+            x => x.UpdateHealthStateAsync(
+                "TestConnector", It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                failure, It.IsAny<DateTime?>(), false, It.IsAny<CancellationToken>()),
+            Times.Once,
+            "the tenant whose sign-in failed");
+
+        configServiceMock.Verify(
+            x => x.UpdateHealthStateAsync(
+                "TestConnector", It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                string.Empty, It.IsAny<DateTime?>(), true, It.IsAny<CancellationToken>()),
+            Times.Once,
+            "the other tenant, whose sign-in was never in question");
+    }
+
+    /// <summary>Answers the reads the sync path makes and accepts every health write.</summary>
+    private static Mock<IConnectorConfigurationService> HealthRecordingConfigService()
+    {
+        var mock = new Mock<IConnectorConfigurationService>();
+
+        mock.Setup(x => x.GetConfigurationAsync("TestConnector", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ConnectorConfigurationResponse
+            {
+                ConnectorName = "TestConnector",
+                IsActive = true,
+                Configuration = JsonDocument.Parse("{\"enabled\": true, \"syncIntervalMinutes\": 5}")
+            });
+
+        mock.Setup(x => x.GetSecretsAsync("TestConnector", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, string>());
+
+        mock.Setup(x => x.UpdateHealthStateAsync(
+                It.IsAny<string>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<string?>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<bool?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        return mock;
+    }
+
     [Fact]
     public async Task SyncForTenant_PinsScopedDbContextToSyncedTenant_ForRlsIsolation()
     {
@@ -565,8 +695,8 @@ public class ConnectorBackgroundServiceTests
         // TenantConnectionInterceptor applies a stale/empty RLS tenant, tenant-scoped reads
         // (connector config + secrets) silently return nothing, and every connector authenticates
         // with empty credentials. Before the fix the scoped context stayed at Guid.Empty here.
-        var (cleanup, connStr, tenantId) = CreateSqliteDbWithTenantId();
-        using var _ = cleanup;
+        var tenantId = Guid.NewGuid();
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(tenantId, "test-tenant");
 
         var syncResult = new SyncResult { Success = true, Message = "OK" };
 
@@ -590,7 +720,7 @@ public class ConnectorBackgroundServiceTests
             .Returns(Task.CompletedTask);
 
         var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 };
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         Guid? capturedTenantId = null;
         var sut = new TestConnectorBackgroundService(
@@ -616,8 +746,7 @@ public class ConnectorBackgroundServiceTests
         // a blank user context (IsSystem = false), so every connector upsert was audited with
         // null attribution — ~1.5M rows/day in production — instead of being skipped as a
         // system mutation.
-        var (cleanup, connStr) = CreateSqliteDb();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var syncResult = new SyncResult { Success = true, Message = "OK" };
 
@@ -641,7 +770,7 @@ public class ConnectorBackgroundServiceTests
             .Returns(Task.CompletedTask);
 
         var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 };
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         bool? capturedIsSystem = null;
         string? capturedEndpoint = null;
@@ -668,12 +797,13 @@ public class ConnectorBackgroundServiceTests
     {
         // Tenants must sync independently: a tenant whose sync hangs (e.g. an auth-retry storm against
         // bad credentials) must not delay or block any other tenant of the connector.
-        var (cleanup, connStr) = CreateSqliteDbWithTwoTenants();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite()
+            .SeedTenant(Guid.NewGuid(), "tenant-a")
+            .SeedTenant(Guid.NewGuid(), "tenant-b");
 
         var configServiceMock = BuildEnabledConfigMock();
         var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 };
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var secondTenantDone = new TaskCompletionSource();
         using var cts = new CancellationTokenSource();
@@ -702,16 +832,174 @@ public class ConnectorBackgroundServiceTests
         }
     }
 
+    /// <summary>
+    /// The budget is process-wide: a tenant sync in one poller holds a slot that a tenant sync in
+    /// another poller has to wait for. Per-poller caps alone let the total climb with the connector
+    /// count, which is what exhausted Postgres connections in production. The slot gates the tenant's
+    /// DI scope and config load, not just the sync proper — the config load is the connection the
+    /// unconfigured majority of tenants open.
+    /// </summary>
+    [Fact]
+    public async Task SyncAllTenants_SharesTheBudgetAcrossPollers_ASecondPollerWaitsForASlot()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+
+        var configServiceMock = BuildEnabledConfigMock();
+        var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 };
+
+        var budget = new ConnectorSyncBudget(slots: 1);
+        using var firstCts = new CancellationTokenSource();
+
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = new TestConnectorBackgroundService(
+            BuildServiceProvider(db, configServiceMock, config),
+            new SyncResult { Success = true },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            onSync: () => firstStarted.TrySetResult(),
+            perTenantTimeout: TimeSpan.FromSeconds(30),
+            hangFirstNCalls: 1,
+            budget: budget);
+
+        var secondConfigLoads = 0;
+        var secondDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TestConnectorBackgroundService(
+            BuildServiceProvider(db, configServiceMock, config,
+                onConfigLoad: () => Interlocked.Increment(ref secondConfigLoads)),
+            new SyncResult { Success = true },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            onSyncCompleted: () => secondDone.TrySetResult(),
+            budget: budget);
+
+        var firstRun = first.ExecuteOnceAsync(firstCts.Token);
+        try
+        {
+            (await Task.WhenAny(firstStarted.Task, Task.Delay(TimeSpan.FromSeconds(5))))
+                .Should().Be(firstStarted.Task, "the first poller must take the only slot");
+
+            var secondRun = second.ExecuteOnceAsync(CancellationToken.None);
+
+            (await Task.WhenAny(secondDone.Task, Task.Delay(TimeSpan.FromMilliseconds(500))))
+                .Should().NotBe(secondDone.Task,
+                    "the second poller's tenant must wait while the first poller holds the slot");
+            secondConfigLoads.Should().Be(0, "the slot must be held before the tenant's scope loads config");
+            budget.InFlight.Should().Be(1);
+
+            firstCts.Cancel();
+
+            (await Task.WhenAny(secondDone.Task, Task.Delay(TimeSpan.FromSeconds(5))))
+                .Should().Be(secondDone.Task, "the slot the first poller released must go to the second");
+            await secondRun;
+            secondConfigLoads.Should().Be(1);
+        }
+        finally
+        {
+            firstCts.Cancel();
+            try { await firstRun; } catch (OperationCanceledException) { }
+        }
+
+        budget.InFlight.Should().Be(0, "every lease must be returned once the syncs are over");
+    }
+
+    /// <summary>
+    /// Queueing for a slot is not the tenant's time: its <c>PerTenantSyncTimeout</c> starts once the
+    /// slot is held, so a tenant that waited longer than the timeout still gets its full sync.
+    /// </summary>
+    [Fact]
+    public async Task SyncAllTenants_StartsThePerTenantTimeout_OnlyOnceASlotIsHeld()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+
+        var configServiceMock = BuildEnabledConfigMock();
+        var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 };
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
+
+        var budget = new ConnectorSyncBudget(slots: 1);
+        using var firstCts = new CancellationTokenSource();
+
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            onSync: () => firstStarted.TrySetResult(),
+            perTenantTimeout: TimeSpan.FromSeconds(30),
+            hangFirstNCalls: 1,
+            budget: budget);
+
+        var secondDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            onSyncCompleted: () => secondDone.TrySetResult(),
+            perTenantTimeout: TimeSpan.FromMilliseconds(200),
+            budget: budget);
+
+        var firstRun = first.ExecuteOnceAsync(firstCts.Token);
+        try
+        {
+            (await Task.WhenAny(firstStarted.Task, Task.Delay(TimeSpan.FromSeconds(5))))
+                .Should().Be(firstStarted.Task, "the first poller must take the only slot");
+
+            var secondRun = second.ExecuteOnceAsync(CancellationToken.None);
+
+            // Hold the slot for well over the second poller's timeout before releasing it.
+            await Task.Delay(TimeSpan.FromMilliseconds(800));
+            firstCts.Cancel();
+
+            (await Task.WhenAny(secondDone.Task, Task.Delay(TimeSpan.FromSeconds(5))))
+                .Should().Be(secondDone.Task,
+                    "a tenant that queued longer than its timeout must still run once it holds a slot");
+            await secondRun;
+        }
+        finally
+        {
+            firstCts.Cancel();
+            try { await firstRun; } catch (OperationCanceledException) { }
+        }
+    }
+
+    /// <summary>
+    /// A poller's first tick waits its phase offset on top of <c>StartupDelay</c>, so pollers that
+    /// start together do not tick together. <see cref="ExecuteAsync_RunsListenerSupervisionFromThePollLoop"/>
+    /// is the control: the first poller on a budget has no offset and ticks at once.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_WaitsThePollersStaggerOffsetBeforeItsFirstTick()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+
+        var serviceProvider = BuildServiceProvider(
+            db,
+            BuildEnabledConfigMock(),
+            new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
+
+        var budget = new ConnectorSyncBudget(pollerCount: 2);
+        budget.NextStartupOffset(TimeSpan.FromHours(1));
+
+        var sut = new PollLoopWiringService(serviceProvider, budget, pollInterval: TimeSpan.FromHours(1));
+        await sut.StartAsync(CancellationToken.None);
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(300));
+
+            sut.Events.Should().BeEmpty("the second of two pollers waits half the poll interval before its first tick");
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
+
     [Fact]
     public async Task SyncForTenant_IsCancelled_WhenItExceedsPerTenantTimeout()
     {
         // A stuck tenant must be cancelled at PerTenantSyncTimeout so it cannot hold a slot forever.
-        var (cleanup, connStr, _) = CreateSqliteDbWithTenantId();
-        using var _c = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var configServiceMock = BuildEnabledConfigMock();
         var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 };
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -726,6 +1014,29 @@ public class ConnectorBackgroundServiceTests
         winner.Should().Be(run,
             "a tenant exceeding PerTenantSyncTimeout must be cancelled so the cycle completes");
         await run;
+    }
+
+    [Fact]
+    public async Task SyncForTenant_WhenASyncThrowsACancellationNobodyAskedFor_LogsItAsAnErrorNotATimeout()
+    {
+        // A cancellation of neither the poller's token nor the timeout's is not the per-tenant
+        // timeout, so it must fall through to the generic handler rather than be reported as one.
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+
+        var serviceProvider = BuildServiceProvider(
+            db, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
+
+        var logger = new MessageRecordingLogger();
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider,
+            new SyncResult { Success = true },
+            logger,
+            onSync: () => throw new OperationCanceledException());
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        logger.Messages.Should().NotContain(m => m.Contains("exceeded"));
+        logger.Messages.Should().Contain(m => m.Contains("Error syncing"));
     }
 
     /// <summary>Config-service mock that reports the test connector as configured and enabled.</summary>
@@ -753,8 +1064,8 @@ public class ConnectorBackgroundServiceTests
     public async Task RequestImmediateSync_CausesNextPollToSyncImmediately()
     {
         // Arrange
-        var (cleanup, connStr, tenantId) = CreateSqliteDbWithTenantId();
-        using var _ = cleanup;
+        var tenantId = Guid.NewGuid();
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(tenantId, "test-tenant");
 
         var syncCount = 0;
         var syncResult = new SyncResult { Success = true, Message = "OK" };
@@ -779,7 +1090,7 @@ public class ConnectorBackgroundServiceTests
             .Returns(Task.CompletedTask);
 
         var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 60 };
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -805,8 +1116,8 @@ public class ConnectorBackgroundServiceTests
     public async Task RequestImmediateSync_DebouncesPreviouslyNudgedTenant()
     {
         // Arrange
-        var (cleanup, connStr, tenantId) = CreateSqliteDbWithTenantId();
-        using var _ = cleanup;
+        var tenantId = Guid.NewGuid();
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(tenantId, "test-tenant");
 
         var syncCount = 0;
         var syncResult = new SyncResult { Success = true, Message = "OK" };
@@ -831,7 +1142,7 @@ public class ConnectorBackgroundServiceTests
             .Returns(Task.CompletedTask);
 
         var config = new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 60 };
-        var serviceProvider = BuildServiceProvider(connStr, configServiceMock, config);
+        var serviceProvider = BuildServiceProvider(db, configServiceMock, config);
 
         var sut = new TestConnectorBackgroundService(
             serviceProvider,
@@ -854,6 +1165,106 @@ public class ConnectorBackgroundServiceTests
         // Sync count should remain at 2 because the nudge was debounced
         // and the 60-minute interval hasn't elapsed
         Assert.Equal(2, syncCount);
+    }
+
+    /// <summary>
+    /// Almost every tenant has no configuration for almost every connector. A tenant found
+    /// unconfigured is left alone until <see cref="ConnectorBackgroundService{TConfig}.UnconfiguredRecheckInterval"/>
+    /// rather than having its absent row read on every tick.
+    /// </summary>
+    [Fact]
+    public async Task SyncAllTenants_ForAnUnconfiguredTenant_ReadsConfigOnceUntilTheRecheckInterval()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var configLoads = 0;
+        var serviceProvider = BuildServiceProvider(
+            db, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = false },
+            onConfigLoad: () => Interlocked.Increment(ref configLoads));
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider, new SyncResult { Success = true }, NullLogger<TestConnectorBackgroundService>.Instance,
+            unconfiguredRecheck: TimeSpan.FromHours(1));
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        configLoads.Should().Be(1, "an unconfigured tenant is not asked again inside the recheck interval");
+        sut.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SyncAllTenants_ForAnUnconfiguredTenant_ReadsConfigAgainOnceTheRecheckIntervalHasPassed()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var configLoads = 0;
+        var serviceProvider = BuildServiceProvider(
+            db, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = false },
+            onConfigLoad: () => Interlocked.Increment(ref configLoads));
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider, new SyncResult { Success = true }, NullLogger<TestConnectorBackgroundService>.Instance,
+            unconfiguredRecheck: TimeSpan.Zero);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        configLoads.Should().Be(2);
+    }
+
+    /// <summary>
+    /// A configured tenant inside its interval is skipped until the interval has elapsed; the tick
+    /// does not read its configuration to learn it is not due.
+    /// </summary>
+    [Fact]
+    public async Task SyncAllTenants_ForAConfiguredTenantInsideItsInterval_DoesNotReadConfig()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var configLoads = 0;
+        var serviceProvider = BuildServiceProvider(
+            db, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 60 },
+            onConfigLoad: () => Interlocked.Increment(ref configLoads));
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider, new SyncResult { Success = true }, NullLogger<TestConnectorBackgroundService>.Instance);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        sut.CallCount.Should().Be(1);
+        configLoads.Should().Be(1, "the interval is known from the first read; the next reads wait for it to elapse");
+    }
+
+    /// <summary>
+    /// The schedule must never hide a configuration the tenant just saved: the configuration
+    /// service's cache-invalidation hook reaches the poller through <see cref="ConnectorPollerNudge"/>
+    /// and clears the tenant's next-check, so the next tick reads and syncs.
+    /// </summary>
+    [Fact]
+    public async Task SyncAllTenants_AfterAConfigurationWriteNudge_ReadsTheUnconfiguredTenantAgain()
+    {
+        var tenantId = Guid.NewGuid();
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(tenantId, "test-tenant");
+        var configLoads = 0;
+        var serviceProvider = BuildServiceProvider(
+            db, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = false },
+            onConfigLoad: () => Interlocked.Increment(ref configLoads));
+        var nudge = new ConnectorPollerNudge();
+
+        var sut = new TestConnectorBackgroundService(
+            serviceProvider, new SyncResult { Success = true }, NullLogger<TestConnectorBackgroundService>.Instance,
+            nudge: nudge, unconfiguredRecheck: TimeSpan.FromHours(1));
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        configLoads.Should().Be(1);
+
+        // The configuration service names the connector as its row does, lower-case.
+        nudge.Invalidate("testconnector", tenantId);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        configLoads.Should().Be(2, "a configuration write must be seen on the next tick, not after the recheck interval");
     }
 
     /// <summary>
@@ -946,11 +1357,10 @@ public class ConnectorBackgroundServiceTests
     [Fact]
     public async Task ExecuteAsync_RunsListenerSupervisionFromThePollLoop()
     {
-        var (cleanup, connStr) = CreateSqliteDb();
-        using var _ = cleanup;
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
 
         var serviceProvider = BuildServiceProvider(
-            connStr,
+            db,
             BuildEnabledConfigMock(),
             new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 });
 
@@ -975,8 +1385,11 @@ public class ConnectorBackgroundServiceTests
     /// Runs the real ExecuteAsync poll loop with test-fast intervals, recording listener-startup
     /// passes and sync cycles in order.
     /// </summary>
-    private sealed class PollLoopWiringService(IServiceProvider serviceProvider)
-        : ConnectorBackgroundService<TestConnectorConfig>(serviceProvider, NullLogger.Instance)
+    private sealed class PollLoopWiringService(
+        IServiceProvider serviceProvider,
+        ConnectorSyncBudget? budget = null,
+        TimeSpan? pollInterval = null)
+        : ConnectorBackgroundService<TestConnectorConfig>(serviceProvider, budget ?? new ConnectorSyncBudget(), serviceProvider.GetRequiredService<ActiveTenantSnapshot>(), NullLogger.Instance)
     {
         private readonly TaskCompletionSource _secondSupervisionPass =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -989,7 +1402,7 @@ public class ConnectorBackgroundServiceTests
 
         protected override TimeSpan StartupDelay => TimeSpan.Zero;
 
-        protected override TimeSpan PollInterval => TimeSpan.FromMilliseconds(20);
+        protected override TimeSpan PollInterval => pollInterval ?? TimeSpan.FromMilliseconds(20);
 
         protected override TimeSpan RealtimeSupervisionInterval => TimeSpan.Zero;
 
@@ -1032,7 +1445,11 @@ public class ConnectorBackgroundServiceTests
     /// Exposes the base class's real-time supervision hooks and counts listener-startup passes.
     /// </summary>
     private sealed class SupervisedListenerService(ILogger logger, TimeSpan supervisionInterval)
-        : ConnectorBackgroundService<TestConnectorConfig>(new ServiceCollection().BuildServiceProvider(), logger)
+        : ConnectorBackgroundService<TestConnectorConfig>(
+            new ServiceCollection().BuildServiceProvider(),
+            new ConnectorSyncBudget(),
+            ActiveTenantSnapshotTestDoubles.Unread(),
+            logger)
     {
         private int _startCount;
 
@@ -1100,36 +1517,13 @@ public class ConnectorBackgroundServiceTests
     /// <summary>
     /// Concrete config loader that returns a preconfigured TestConnectorConfig.
     /// </summary>
-    private sealed class TestConfigLoader(TestConnectorConfig config) : IConnectorConfigurationLoader<TestConnectorConfig>
+    private sealed class TestConfigLoader(TestConnectorConfig config, Action? onLoad = null)
+        : IConnectorConfigurationLoader<TestConnectorConfig>
     {
         public Task<TestConnectorConfig> LoadForTenantAsync(CancellationToken ct)
-            => Task.FromResult(config);
-    }
-
-    /// <summary>
-    /// Simple IDbContextFactory that creates NocturneDbContext instances
-    /// against a SQLite database file.
-    /// </summary>
-    private sealed class SqliteDbContextFactory(string connectionString) : IDbContextFactory<NocturneDbContext>
-    {
-        public NocturneDbContext CreateDbContext()
         {
-            var options = new DbContextOptionsBuilder<NocturneDbContext>()
-                .UseSqlite(connectionString)
-                .Options;
-            return new NocturneDbContext(options);
+            onLoad?.Invoke();
+            return Task.FromResult(config);
         }
     }
-
-    /// <summary>
-    /// Deletes a temporary SQLite database file on dispose.
-    /// </summary>
-    private sealed class TempFileCleanup(string path) : IDisposable
-    {
-        public void Dispose()
-        {
-            try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-        }
-    }
-
 }

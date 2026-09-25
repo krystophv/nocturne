@@ -1,10 +1,16 @@
 import type {
+  ChartBasalPoint,
   SeriesFinders,
   GlucosePoint,
   SeriesPoint,
 } from "./chart-data-engine.svelte";
-import { type BasalPoint, BasalDeliveryOrigin } from "$lib/api";
-import { bg, bgLabel } from "$lib/utils/formatting";
+import { BasalDeliveryOrigin } from "$lib/api";
+import {
+  bg,
+  bgLabel,
+  formatCarbDisplay,
+  formatInsulinDisplay,
+} from "$lib/utils/formatting";
 
 // ===== Types =====
 
@@ -69,7 +75,7 @@ export interface PointInspection {
 export interface InspectionSeriesData {
   iobData: () => SeriesPoint[];
   cobData: () => SeriesPoint[];
-  basalData: () => BasalPoint[];
+  basalData: () => ChartBasalPoint[];
 }
 
 // ===== Factory =====
@@ -108,10 +114,10 @@ export function createPointInspection(
     if (context.nearbyBolus || context.nearbyCarbs) {
       const parts: string[] = [];
       if (context.nearbyBolus?.insulin) {
-        parts.push(`${context.nearbyBolus.insulin.toFixed(1)}U`);
+        parts.push(`${formatInsulinDisplay(context.nearbyBolus.insulin)}U`);
       }
       if (context.nearbyCarbs?.carbs) {
-        parts.push(`${context.nearbyCarbs.carbs}g`);
+        parts.push(`${formatCarbDisplay(context.nearbyCarbs.carbs)}g`);
       }
       opts.push({
         type: "treatment",
@@ -131,10 +137,7 @@ export function createPointInspection(
     timestamp = time;
     glucosePoint = point;
 
-    const basal = finders.findBasalValue(
-      seriesData.basalData(),
-      time,
-    ) as BasalPoint | undefined;
+    const basal = finders.findBasalValue(seriesData.basalData(), time);
     const iobVal = finders.findSeriesValue(seriesData.iobData(), time);
     const cobVal = finders.findSeriesValue(seriesData.cobData(), time);
     const pumpMode = finders.findActivePumpMode(time);

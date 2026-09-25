@@ -30,8 +30,6 @@ public class GlookoAuthTokenProvider(
     private readonly IRetryDelayStrategy _retryDelayStrategy =
         retryDelayStrategy ?? throw new ArgumentNullException(nameof(retryDelayStrategy));
 
-    protected override string ConnectorName => "Glooko";
-
     protected override async Task<(string? Token, DateTime ExpiresAt, IReadOnlyDictionary<string, string>? Metadata)> AcquireTokenAsync(
         GlookoConnectorConfiguration config, CancellationToken cancellationToken)
     {
@@ -41,9 +39,11 @@ public class GlookoAuthTokenProvider(
         var sessionCookie = await ExecuteWithRetryAsync<string>(
             async attempt =>
             {
+                // Log the resolved URL, not config.Server: the raw value is caller-supplied and
+                // unclamped.
                 _logger.LogInformation(
-                    "Authenticating with Glooko server: {Server} (v3={UseV3}, attempt {Attempt}/{MaxRetries})",
-                    config.Server, config.UseV3Api, attempt + 1, maxRetries);
+                    "Authenticating with Glooko server: {BaseUrl} (v3={UseV3}, attempt {Attempt}/{MaxRetries})",
+                    GlookoConstants.ResolveBaseUrl(config.Server), config.UseV3Api, attempt + 1, maxRetries);
 
                 var (cookie, sessionMetadata, shouldRetry) = await SignInAsync(config, cancellationToken);
                 if (cookie == null)
@@ -116,16 +116,15 @@ public class GlookoAuthTokenProvider(
 
         if (!response.IsSuccessStatusCode)
         {
-            // Read through the Glooko helper rather than the base class's reader: Glooko returns
-            // gzip bodies the HTTP layer has not decompressed, so the raw bytes are unreadable.
-            var errorContent = await GlookoHttpHelper.ReadResponseAsync(response, cancellationToken);
+            // Status code only, no body: a Glooko sign-in failure echoes the submitted email back,
+            // and a rejection is an expected outcome on the credential-verification path.
             var shouldRetry = response.IsRetryableError();
             if (shouldRetry)
-                _logger.LogWarning("Glooko authentication failed with retryable error: {StatusCode} - {Error}",
-                    response.StatusCode, errorContent);
+                _logger.LogWarning("Glooko authentication failed with retryable error: {StatusCode}",
+                    response.StatusCode);
             else
-                _logger.LogError("Glooko authentication failed with non-retryable error: {StatusCode} - {Error}",
-                    response.StatusCode, errorContent);
+                _logger.LogError("Glooko authentication failed with non-retryable error: {StatusCode}",
+                    response.StatusCode);
 
             return (null, null, shouldRetry);
         }
@@ -169,13 +168,13 @@ public class GlookoAuthTokenProvider(
             return (null, null, false);
         }
 
-        // V3 sign-in doesn't return user data — fetch it from /api/v3/session/users
+        // V3 sign-in doesn't return user data — fetch it from /api/v3/session/users.
         if (config.UseV3Api)
         {
             try
             {
                 var v3User = await FetchV3UserDataAsync(baseUrl, webOrigin, sessionCookie, cancellationToken);
-                if (v3User != null)
+                if (v3User != null && !string.IsNullOrEmpty(v3User.GlookoCode))
                 {
                     userData = new GlookoUserData { User = new GlookoUserLogin { GlookoCode = v3User.GlookoCode } };
                     _logger.LogInformation(
@@ -184,13 +183,21 @@ public class GlookoAuthTokenProvider(
                 }
                 else
                 {
-                    _logger.LogWarning("V3 sign-in succeeded but failed to fetch user profile");
+                    _logger.LogWarning("V3 sign-in succeeded but the user profile carried no Glooko code");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to fetch V3 user profile after sign-in");
             }
+
+            // The Glooko code is what every patient-scoped data URL is built from, so a session
+            // without it is unusable. Caching it as a success silently poisons the token cache: the
+            // cookie stays "valid" for its whole lifetime, so the sync never re-authenticates and
+            // logs "Missing Glooko user code" every cycle instead. Fail the sign-in as retryable so a
+            // transient profile-fetch hiccup is retried and never cached without the code.
+            if (string.IsNullOrEmpty(userData?.GlookoCode))
+                return (null, null, true);
         }
 
         var metadata = new Dictionary<string, string> { ["SessionCookie"] = sessionCookie };

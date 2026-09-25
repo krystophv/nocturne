@@ -1,40 +1,29 @@
 import { createHmac } from 'node:crypto';
 import type { Page } from '@playwright/test';
+import { stringField } from './json.js';
 import type { ArrangeContext, ScreenshotDefinition } from './types.js';
 
 /** Rich enough that the public view is worth a screenshot; still short of everything on offer. */
 const SHARED_CATEGORIES = ['glucose.read', 'treatments.read', 'devices.read'];
 
-/**
- * Turns the tenant's public link on, widens what it shows, and hands back the link itself — the one
- * moment the URL is knowable, since the server keeps only its digest.
- */
+/** Turns the tenant's public link on, widens what it shows, and hands back the link to navigate to. */
 async function openPublicShare({ fetch }: ArrangeContext): Promise<Record<string, string>> {
-	const rotated = await fetch<{ url: string | null }>('/api/v4/share/rotate', { method: 'POST' });
+	const rotated = await fetch('/api/v4/share/rotate', { method: 'POST' });
 	await fetch('/api/v4/share/scopes', { method: 'PUT', body: { scopes: SHARED_CATEGORIES } });
 	await fetch('/api/v4/share/full-history', { method: 'PUT', body: { fullHistory: true } });
 
-	if (!rotated.url) throw new Error('rotating the share link returned no URL');
-	return { shareUrl: rotated.url };
+	const shareUrl = stringField(rotated, 'url');
+	if (!shareUrl) throw new Error('rotating the share link returned no URL');
+	return { shareUrl };
 }
 
 /**
- * The card can show the link's address exactly once — at the moment the link is minted, since the
- * server keeps only its digest — so a share arranged through the API alone is photographed with an
- * empty link field. Regenerate mints one from the browser and is the card's own answer to "I no
- * longer have the address", which makes it the one control that reaches this state whether or not
- * public access was already on: the enable switch would only do it on a share that is currently
- * off, and both themes photograph the same tenant.
+ * The redacted address is what the card rests on, so a share arranged through the API is already in
+ * the state worth photographing, and the image no longer changes every capture the way a minted
+ * address did.
  */
-async function revealThePublicLink(page: Page): Promise<void> {
-	const regenerate = page.getByRole('button', { name: 'Regenerate' });
-	await regenerate.click();
-	await page.getByText('Regenerating invalidates the current link immediately.').waitFor();
-	// Confirming adds a second Regenerate after the first in the document.
-	await regenerate.last().click();
-	// Copy is offered only while the card is holding an address it can copy, so it is the receipt
-	// for a link that is actually in the frame.
-	await page.getByRole('button', { name: 'Copy', exact: true }).waitFor();
+async function settledPublicLink(page: Page): Promise<void> {
+	await page.getByTestId('public-access-url-redacted').waitFor();
 }
 
 async function inviteAGuest({ fetch }: ArrangeContext): Promise<Record<string, string>> {
@@ -43,9 +32,10 @@ async function inviteAGuest({ fetch }: ArrangeContext): Promise<Record<string, s
 }
 
 async function seededClockFace({ fetch }: ArrangeContext): Promise<Record<string, string>> {
-	const [face] = await fetch<{ id: string }[]>('/api/v4/clockfaces');
-	if (!face) throw new Error('the seeded tenant has no clock face');
-	return { clockId: face.id };
+	const faces = await fetch('/api/v4/clockfaces');
+	const clockId = stringField(Array.isArray(faces) ? faces[0] : undefined, 'id');
+	if (!clockId) throw new Error('the seeded tenant has no clock face');
+	return { clockId };
 }
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -85,15 +75,15 @@ function authenticatorCode(base32Secret: string): string {
 }
 
 async function enrolAuthenticator({ fetch }: ArrangeContext): Promise<Record<string, string>> {
-	const setup = await fetch<{ base32Secret: string; challengeToken: string }>(
-		'/api/auth/totp/setup',
-		{ method: 'POST' },
-	);
+	const setup = await fetch('/api/auth/totp/setup', { method: 'POST' });
+	const secret = stringField(setup, 'base32Secret');
+	const challengeToken = stringField(setup, 'challengeToken');
+	if (!secret || !challengeToken) throw new Error('TOTP setup returned no secret or challenge token');
 	await fetch('/api/auth/totp/verify-setup', {
 		method: 'POST',
 		body: {
-			challengeToken: setup.challengeToken,
-			code: authenticatorCode(setup.base32Secret),
+			challengeToken,
+			code: authenticatorCode(secret),
 			label: 'Authenticator app',
 		},
 	});
@@ -199,9 +189,62 @@ export const definitions: ScreenshotDefinition[] = [
 		alt: 'The Enable Connector card of the Dexcom connection page, with a switch that turns collection on or off.',
 	},
 	{
+		id: 'carb-entry-edit',
+		route: '/reports/treatments',
+		scenario: 'patient',
+		// The Carbs tab first, so the row opened is a carb entry rather than whatever the seeded
+		// data happens to have logged most recently.
+		prepare: async (page) => {
+			await page.getByRole('tab', { name: /Carbs/ }).click();
+			await page.getByTestId('treatment-row').first().click();
+			await page.getByLabel('Absorption Time (min)').waitFor();
+		},
+		clip: '[data-testid="treatment-edit-dialog"]',
+		// The amount and the time come from the seeded data, so this one image differs every capture.
+		alt: 'The Edit Record box for a carb entry. A line across the top gives when it was recorded and which app and device sent it; under that are the date and time, the grams of carbohydrate, and boxes for absorption time and carb time, both left empty by a source that reported neither. A Linked Records list at the bottom shows the other records written as part of the same event.',
+	},
+	{
+		id: 'food-catalog',
+		route: '/food',
+		scenario: 'patient',
+		// The list loads itself after hydration rather than through the route, and a settled empty
+		// card looks exactly like a settled full one to the runner. A row is the proof the page is
+		// finished, and without it a capture can come back reading "Loading food database".
+		prepare: async (page) => {
+			await page.getByTestId('food-row').first().waitFor();
+		},
+		alt: 'The Food Editor page, listing the foods saved on this instance. A search box, a Favorites filter and a sort control sit across the top, with chips underneath for filtering by category and by glycaemic index, and then one row per food showing its name, its carbs and the portion those carbs are for.',
+		anchors: {
+			search: '[data-testid="food-search"]',
+			favorites: '[data-testid="food-favorites-filter"]',
+			sort: '[data-testid="food-sort"]',
+		},
+	},
+	{
+		id: 'food-composer',
+		route: '/food',
+		scenario: 'patient',
+		// Opened with its extra fields showing, because the collapsed form is four boxes and the
+		// docs page it sits under is a table of every field a food holds.
+		prepare: async (page) => {
+			await page.getByRole('button', { name: 'Add food' }).click();
+			await page.getByTestId('food-composer-details').click();
+			await page.getByLabel('Energy').waitFor();
+		},
+		clip: '[data-testid="food-composer"]',
+		alt: 'The Add food form, expanded. The top row takes the name, the carbs, the portion those carbs are for, the unit that portion is measured in, and whether the food is low, medium or high GI. Underneath it, a second row adds fat, protein, energy in kilocalories, and a category and subcategory to group the food under.',
+	},
+	{
+		id: 'deduplication-card',
+		route: '/settings/data-quality',
+		scenario: 'patient',
+		clip: '[data-testid="deduplicate-records"]',
+		alt: 'The Deduplicate Records tool, under Data Maintenance on the Data Quality settings page. It explains that it links records from different data sources that describe the same event, and offers a Run Deduplication button.',
+	},
+	{
 		id: 'alerts-configuration',
 		route: '/alerts',
-		alt: 'The Alerts page. Three tiles across the top count how many rules are switched on, how many alerts are sounding right now, and how many fired this week. Below them sits the list of rules — an urgent low, a low, a high, and one for the sensor going quiet — each showing the reading it watches for, a switch to turn it off, and a button to send a test alert. A New rule button sits in the top corner.',
+		alt: 'The Alerts page. Three tiles across the top count how many rules are switched on, how many alerts are sounding right now, and how many fired this week. Below them sits the list of rules: an urgent low, a low, a high, and one for the sensor going quiet, each showing the reading it watches for, a switch to turn it off, and a button to send a test alert. A New rule button sits in the top corner.',
 	},
 	{
 		id: 'report-agp',
@@ -226,10 +269,9 @@ export const definitions: ScreenshotDefinition[] = [
 		route: '/settings/members',
 		scenario: 'patient',
 		arrange: openPublicShare,
-		prepare: revealThePublicLink,
+		prepare: settledPublicLink,
 		clip: '[data-testid="public-access-card"]',
-		// The address is minted per run, so this one image differs every capture.
-		alt: 'The Public access card, switched on and holding a freshly minted link. The address is spelled out in full — the one time Nocturne shows it — with Copy and Regenerate beside it, then a tile for each kind of data you can share or keep back, a choice between all history and the last 24 hours, and a sentence spelling out what a viewer would see.',
+		alt: 'The Public access card, switched on. The address is hidden behind dots, with buttons to show it, copy it, and regenerate it beside them, then a tile for each kind of data you can share or keep back, a choice between all history and the last 24 hours, and a sentence spelling out what a viewer would see.',
 		anchors: {
 			enable: '[data-testid="public-access-toggle"]',
 			'time-window': '[data-testid="public-access-window"]',

@@ -8,7 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using OpenApi.Remote.Attributes;
 using Nocturne.API.Extensions;
+using Nocturne.Connectors.CareLink.Configurations;
 using Nocturne.Connectors.CareLink.Services;
+using Nocturne.Connectors.Core.Extensions;
 using Nocturne.Core.Contracts.Auth;
 using Nocturne.Core.Contracts.Connectors;
 using Nocturne.Core.Contracts.Multitenancy;
@@ -40,7 +42,9 @@ namespace Nocturne.API.Controllers.V4.Connectors;
 [DenyDemoSubject]
 public partial class CareLinkConnectController : ControllerBase
 {
-    private const string ConnectorName = "CareLink";
+    private static readonly string ConnectorName =
+        ConnectorRegistrationAttribute.DeclaredOn(typeof(CareLinkConnectorConfiguration)).ConnectorId;
+
     private static readonly TimeSpan FlowTtl = TimeSpan.FromMinutes(10);
 
     /// <summary>
@@ -222,10 +226,7 @@ public partial class CareLinkConnectController : ControllerBase
             tenantId: tenantId,
             lifetime: DesktopTokenLifetime);
 
-        var host = Request.Headers["X-Forwarded-Host"].FirstOrDefault() ?? Request.Host.Value;
-        var forwardedProto = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
-        var scheme = forwardedProto is "http" or "https" ? forwardedProto : Request.Scheme;
-        var serverUrl = $"{scheme}://{host}";
+        var serverUrl = $"{Request.PublicScheme()}://{Request.Host.Value}";
 
         _logger.LogInformation(
             "CareLink desktop link code minted for tenant {Tenant} by subject {Subject}",

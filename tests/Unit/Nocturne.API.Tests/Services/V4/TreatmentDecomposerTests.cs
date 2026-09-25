@@ -11,7 +11,9 @@ using Nocturne.Core.Contracts.Glucose;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models;
+using Microsoft.EntityFrameworkCore;
 using Nocturne.Infrastructure.Data;
+using Nocturne.Infrastructure.Data.Entities.V4;
 using Nocturne.Infrastructure.Data.Repositories.V4;
 using Nocturne.Tests.Shared.Infrastructure;
 using Xunit;
@@ -216,6 +218,53 @@ public class TreatmentDecomposerTests : IDisposable
         bolus.Automatic.Should().BeTrue();
         bolus.BolusType.Should().Be(V4Models.BolusType.Normal);
         bolus.LegacyId.Should().Be("correction-1");
+    }
+
+    /// <remarks>
+    /// The record the user deleted holds its legacy id, so the repository refuses the re-create. The
+    /// decomposer must reach the same outcome the batch path reaches by dropping the record from its
+    /// insert set: the upload succeeds carrying nothing for it.
+    /// </remarks>
+    [Fact]
+    public async Task DecomposeAsync_WhenAUserDeletedRecordHoldsTheLegacyId_ReportsNothingAndSucceeds()
+    {
+        const string legacyId = "correction-blocked-1";
+        var tombstoneId = SeedUserDeletedBolus(legacyId, insulin: 8.0);
+
+        var result = await _decomposer.DecomposeAsync(new Treatment
+        {
+            Id = legacyId,
+            EventType = "Correction Bolus",
+            Mills = 1700000000000,
+            Insulin = 3.0,
+            BolusType = "normal",
+        }, WriteOrigin.Live);
+
+        result.CreatedRecords.Should().BeEmpty("the refused record is not reported as created");
+        result.UpdatedRecords.Should().BeEmpty("nothing was updated either");
+
+        var rows = await _context.Boluses.IgnoreQueryFilters().AsNoTracking().ToListAsync();
+        rows.Should().ContainSingle("the decomposition must not have inserted past the tombstone")
+            .Which.Id.Should().Be(tombstoneId);
+        rows[0].Insulin.Should().Be(8.0, "the tombstone row is left untouched");
+    }
+
+    private Guid SeedUserDeletedBolus(string legacyId, double insulin)
+    {
+        var entity = new BolusEntity
+        {
+            Id = Guid.CreateVersion7(),
+            TenantId = _context.TenantId,
+            Timestamp = new DateTime(2023, 11, 14, 22, 13, 20, DateTimeKind.Utc),
+            LegacyId = legacyId,
+            Insulin = insulin,
+            DeletedAt = new DateTime(2023, 11, 15, 0, 0, 0, DateTimeKind.Utc),
+        };
+        var entry = _context.Boluses.Add(entity);
+        entry.Property("DeletedByUser").CurrentValue = true;
+        _context.SaveChanges();
+        _context.ChangeTracker.Clear();
+        return entity.Id;
     }
 
     #endregion
@@ -789,6 +838,42 @@ public class TreatmentDecomposerTests : IDisposable
         result.CreatedRecords.Should().BeEmpty();
         result.UpdatedRecords.Should().BeEmpty();
         result.CorrelationId.Should().NotBeNull("a correlation ID is always generated");
+        result.SkippedUnsupported.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task DecomposeBatchAsync_CountsATreatmentOfAnUnsupportedTypeAsSkipped()
+    {
+        var result = await _decomposer.DecomposeBatchAsync(
+            [
+                new Treatment { Id = "batch-unknown", EventType = "Unknown Event", Mills = 1700000000000 },
+                new Treatment { Id = "batch-bolus", EventType = "Correction Bolus", Mills = 1700000060000, Insulin = 1.5 },
+            ],
+            WriteOrigin.Backfill);
+
+        result.SkippedUnsupported.Should().Be(1);
+        result.CreatedRecords.OfType<V4Models.Bolus>().Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// A single-treatment write reaches the repository one record at a time; a record the user
+    /// deleted is refused there and has to be counted, not dropped quietly.
+    /// </summary>
+    [Fact]
+    public async Task DecomposeAsync_CountsARecordTheUserDeletedAsSkipped()
+    {
+        var treatment = new Treatment { Id = "deleted-bolus", EventType = "Correction Bolus", Mills = 1700000000000, Insulin = 2.0 };
+        await _decomposer.DecomposeAsync(treatment, WriteOrigin.Live);
+        var stored = _context.Boluses.Single(e => e.LegacyId == "deleted-bolus");
+        stored.DeletedAt = DateTime.UtcNow;
+        _context.Entry(stored).Property("DeletedByUser").CurrentValue = true;
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        var result = await _decomposer.DecomposeAsync(treatment, WriteOrigin.Live);
+
+        result.CreatedRecords.Should().BeEmpty();
+        result.SkippedDeleted.Should().Be(1);
     }
 
     [Fact]
@@ -3072,7 +3157,7 @@ public class TreatmentDecomposerTests : IDisposable
 
         _tempBasalRepoMock
             .Setup(r => r.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.TempBasal>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<V4Models.TempBasal> list, WriteOrigin origin, CancellationToken _) => list.ToList());
+            .ReturnsAsync((IEnumerable<V4Models.TempBasal> list, WriteOrigin origin, CancellationToken _) => [.. list]);
 
         // Act
         var result = await _decomposer.DecomposeBatchAsync(

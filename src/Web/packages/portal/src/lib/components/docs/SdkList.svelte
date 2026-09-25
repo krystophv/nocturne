@@ -1,6 +1,6 @@
 <script lang="ts">
     // Renders the supported-SDK table. The rows come from SDKS, which is derived
-    // from sdk/<lang>/config.yaml at build time — adding or removing an SDK there
+    // from sdk/<lang>/config.yaml at build time; adding or removing an SDK there
     // updates this table with no edit here.
     import { SDKS } from "$lib/sdk/sdks";
 </script>
@@ -18,7 +18,7 @@
             <tr>
                 <td>{sdk.name}</td>
                 <td>
-                    <a href={sdk.registryUrl} target="_blank" rel="noreferrer">
+                    <a href={sdk.registryUrl} target="_blank" rel="external noreferrer">
                         <code>{sdk.package}</code>
                     </a>
                     <br />

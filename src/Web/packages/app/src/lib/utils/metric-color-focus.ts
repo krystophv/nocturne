@@ -1,0 +1,223 @@
+import {
+  GLUCOSE_HEATMAP_LEGEND_STOPS,
+  getGlucoseHeatmapFill,
+} from "./chart-colors";
+
+export type ColorFocusRange = readonly [number, number];
+export type GlucoseColorThresholds = readonly [number, number, number, number];
+export const DEFAULT_GLUCOSE_COLOR_THRESHOLDS: GlucoseColorThresholds = [
+  54, 72, 180, 250,
+];
+export const GLUCOSE_COLOR_MIN = GLUCOSE_HEATMAP_LEGEND_STOPS[0].mgdl;
+export const GLUCOSE_COLOR_MAX = GLUCOSE_HEATMAP_LEGEND_STOPS.at(-1)!.mgdl;
+export const DEFAULT_GLUCOSE_FOCUS_BAND: ColorFocusRange = [
+  GLUCOSE_COLOR_MIN,
+  GLUCOSE_COLOR_MAX,
+];
+
+export function resolveGlucoseFocusBand(
+  candidate: unknown
+): ColorFocusRange | null {
+  if (!Array.isArray(candidate) || candidate.length !== 2) return null;
+  const [min, max] = candidate;
+  return typeof min === "number" &&
+    typeof max === "number" &&
+    Number.isFinite(min) &&
+    Number.isFinite(max) &&
+    min >= GLUCOSE_COLOR_MIN &&
+    max > min &&
+    max <= GLUCOSE_COLOR_MAX
+    ? [min, max]
+    : null;
+}
+
+export function resolveGlucoseColorThresholds(
+  candidate: unknown
+): GlucoseColorThresholds | null {
+  if (!Array.isArray(candidate) || candidate.length !== 4) return null;
+  if (
+    !candidate.every(
+      (value) => typeof value === "number" && Number.isFinite(value)
+    )
+  )
+    return null;
+  const [a, b, c, d] = candidate;
+  return a > GLUCOSE_COLOR_MIN &&
+    a < b &&
+    b < c &&
+    c < d &&
+    d < GLUCOSE_COLOR_MAX
+    ? [a, b, c, d]
+    : null;
+}
+
+// Keep the theme's continuous heatmap palette while moving its four color boundaries.
+export function glucoseColorFocusStops(candidate: GlucoseColorThresholds) {
+  const thresholds =
+    resolveGlucoseColorThresholds(candidate) ??
+    DEFAULT_GLUCOSE_COLOR_THRESHOLDS;
+  if (
+    thresholds.every(
+      (value, index) => value === DEFAULT_GLUCOSE_COLOR_THRESHOLDS[index]
+    )
+  )
+    return GLUCOSE_HEATMAP_LEGEND_STOPS;
+  const source = [
+    GLUCOSE_COLOR_MIN,
+    ...DEFAULT_GLUCOSE_COLOR_THRESHOLDS,
+    GLUCOSE_COLOR_MAX,
+  ];
+  const target = [GLUCOSE_COLOR_MIN, ...thresholds, GLUCOSE_COLOR_MAX];
+  // A boundary inside an existing color segment must split that segment in the legend too.
+  const anchors = [
+    ...new Set([
+      ...GLUCOSE_HEATMAP_LEGEND_STOPS.map((stop) => stop.mgdl),
+      ...source,
+    ]),
+  ].sort((a, b) => a - b);
+  return anchors.map((anchor) => {
+    const upper = Math.max(
+      1,
+      source.findIndex((value) => anchor <= value)
+    );
+    const fraction =
+      (anchor - source[upper - 1]) / (source[upper] - source[upper - 1]);
+    return {
+      mgdl: target[upper - 1] + fraction * (target[upper] - target[upper - 1]),
+      color:
+        GLUCOSE_HEATMAP_LEGEND_STOPS.find((stop) => stop.mgdl === anchor)
+          ?.color ?? getGlucoseHeatmapFill(anchor),
+    };
+  });
+}
+
+export function resolveColorFocusRange(
+  candidate: unknown
+): ColorFocusRange | null {
+  if (!Array.isArray(candidate) || candidate.length !== 2) return null;
+  const [min, max] = candidate;
+  return typeof min === "number" &&
+    typeof max === "number" &&
+    Number.isFinite(min) &&
+    Number.isFinite(max) &&
+    min >= 0 &&
+    max > min
+    ? [min, max]
+    : null;
+}
+
+export function getFocusedIntensityFill(
+  value: number,
+  range: ColorFocusRange,
+  cssVar: string,
+  lowColor?: string,
+  highColor?: string,
+  invert = false,
+  colors?: readonly string[]
+): string {
+  const [min, max] = resolveColorFocusRange(range) ?? [0, 1];
+  let intensity = Number.isFinite(value)
+    ? Math.max(0, Math.min((value - min) / (max - min), 1))
+    : 0;
+  if (invert) intensity = 1 - intensity;
+  if (colors && colors.length >= 2) {
+    const last = colors.length - 1;
+    const scaled = intensity * last;
+    const index = Math.min(last - 1, Math.floor(scaled));
+    const share = Math.round((scaled - index) * 100);
+    return `color-mix(in srgb, ${colors[index + 1]} ${share}%, ${colors[index]})`;
+  }
+  if (lowColor && highColor) {
+    return `color-mix(in srgb, ${highColor} ${Math.round(intensity * 100)}%, ${lowColor})`;
+  }
+  return `color-mix(in srgb, var(${cssVar}) ${Math.round(15 + intensity * 85)}%, transparent)`;
+}
+
+export function colorFocusGradient(
+  range: ColorFocusRange,
+  domainMax: number,
+  cssVar: string,
+  lowColor?: string,
+  highColor?: string,
+  invert = false,
+  colors?: readonly string[]
+): string {
+  const validRange = resolveColorFocusRange(range) ?? [0, 1];
+  const domain = Math.max(
+    Number.isFinite(domainMax) ? domainMax : 1,
+    validRange[1]
+  );
+  if (colors && colors.length >= 2) {
+    const [min, max] = validRange;
+    const span = Math.max(max - min, 1);
+    const ordered = invert ? [...colors].reverse() : colors;
+    const stops = ordered.map((color, index) => {
+      const position = min + (index / (ordered.length - 1)) * span;
+      return `${color} ${(position / domain) * 100}%`;
+    });
+    const first = ordered[0];
+    const last = ordered[ordered.length - 1];
+    return `linear-gradient(to right, ${first} 0%, ${stops.join(", ")}, ${last} 100%)`;
+  }
+  const low = getFocusedIntensityFill(validRange[0], validRange, cssVar, lowColor, highColor, invert);
+  const high = getFocusedIntensityFill(validRange[1], validRange, cssVar, lowColor, highColor, invert);
+  return `linear-gradient(to right, ${low} 0%, ${low} ${(validRange[0] / domain) * 100}%, ${high} ${(validRange[1] / domain) * 100}%, ${high} 100%)`;
+}
+
+/** Recolors the glucose ramp between a custom low/high pair, clamped outside [low, high] and optionally
+ *  reversed. A multi-stop palette (`colors`) blends through every stop instead of just the two ends. The
+ *  built-in Theme ramp (no custom colors) keeps its fixed red-to-white/black order; invert only makes
+ *  sense for a custom palette. */
+export function applyGlucosePalette(
+  stops: ReadonlyArray<{ mgdl: number; color: string }>,
+  low: number,
+  high: number,
+  lowColor?: string,
+  highColor?: string,
+  invert = false,
+  colors?: readonly string[]
+): ReadonlyArray<{ mgdl: number; color: string }> {
+  const domain = Math.max(high - low, 1);
+  if (colors && colors.length >= 2) {
+    const ordered = invert ? [...colors].reverse() : colors;
+    const last = ordered.length - 1;
+    return stops.map((stop) => {
+      const fraction = Math.max(0, Math.min(1, (stop.mgdl - low) / domain));
+      const scaled = fraction * last;
+      const index = Math.min(last - 1, Math.floor(scaled));
+      const share = Math.round((scaled - index) * 100);
+      return {
+        mgdl: stop.mgdl,
+        color: `color-mix(in srgb, ${ordered[index + 1]} ${share}%, ${ordered[index]})`,
+      };
+    });
+  }
+  if (!lowColor || !highColor) return stops;
+  return stops.map((stop) => {
+    const fraction = Math.max(0, Math.min(1, (stop.mgdl - low) / domain));
+    const t = invert ? 1 - fraction : fraction;
+    return {
+      mgdl: stop.mgdl,
+      color: `color-mix(in srgb, ${highColor} ${Math.round(t * 100)}%, ${lowColor})`,
+    };
+  });
+}
+
+/** A diagonal preview swatch spanning every stop of a palette, for picker buttons. */
+export function paletteSwatchGradient(colors: readonly string[]): string {
+  return `linear-gradient(135deg, ${colors.join(", ")})`;
+}
+
+export function insertSliderSteps(base: readonly number[], extra: readonly number[]): number[] {
+  const result = [...base];
+  for (const value of extra) {
+    let low = 0, high = result.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (result[middle] < value) low = middle + 1;
+      else high = middle;
+    }
+    if (result[low] !== value) result.splice(low, 0, value);
+  }
+  return result;
+}

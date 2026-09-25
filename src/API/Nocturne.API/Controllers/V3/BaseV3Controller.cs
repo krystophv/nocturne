@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Nocturne.API.Attributes;
+using Nocturne.API.Extensions;
 using Nocturne.Core.Contracts.Legacy;
 using Nocturne.Core.Models;
 
@@ -281,7 +282,7 @@ public abstract class BaseV3Controller<T> : ControllerBase
         Response.Headers["X-Offset"] = parameters.Offset.ToString();
 
         // Set Link header for pagination
-        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.Path}";
+        var baseUrl = $"{Request.PublicScheme()}://{Request.Host}{Request.Path}";
         var links = new List<string>();
 
         if (parameters.Offset > 0)
@@ -301,8 +302,9 @@ public abstract class BaseV3Controller<T> : ControllerBase
             Response.Headers["Link"] = string.Join(", ", links);
         }
 
-        // Set cache control headers
-        Response.Headers["Cache-Control"] = "public, max-age=60";
+        // Tenant reads must not be shared-cacheable: UseResponseCaching answers before
+        // authentication runs, so a stored entry would outlive the credential check.
+        Response.Headers["Cache-Control"] = "private, max-age=60";
         Response.Headers["Last-Modified"] = effectiveLastModified.UtcDateTime.ToString("R");
         Response.Headers["Vary"] = "Accept, If-Modified-Since, If-None-Match";
     }

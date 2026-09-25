@@ -1,13 +1,17 @@
 <script lang="ts">
     import { Copy, Check, X } from "@lucide/svelte";
+    import { Button } from "@nocturne/ui/ui/button";
     import { copyToClipboard } from "@nocturne/ui/utils";
+    import { track } from "$lib/analytics";
 
     interface Props {
         text: string;
         label?: string;
+        /** What was copied. Only the kind is reported, never the text itself. */
+        kind?: "code" | "password";
     }
 
-    let { text, label = "Copy to clipboard" }: Props = $props();
+    let { text, label = "Copy to clipboard", kind = "code" }: Props = $props();
 
     let copied = $state(false);
     let failed = $state(false);
@@ -20,6 +24,7 @@
         }
         failed = false;
         copied = true;
+        track("Docs Copy", { kind });
         if (timer !== undefined) clearTimeout(timer);
         timer = setTimeout(() => {
             copied = false;
@@ -28,17 +33,17 @@
     }
 </script>
 
-<button
-    type="button"
+<Button
+    variant="ghost-muted"
+    size="icon-xs"
     onclick={copy}
-    class="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-    aria-label={copied ? "Copied" : failed ? "Copy failed — select the text and copy it manually" : label}
+    aria-label={copied ? "Copied" : failed ? "Copy failed. Select the text and copy it manually" : label}
 >
     {#if copied}
-        <Check class="h-4 w-4 text-green-500" />
+        <Check class="size-4 text-success" />
     {:else if failed}
-        <X class="h-4 w-4 text-destructive" />
+        <X class="size-4 text-destructive" />
     {:else}
-        <Copy class="h-4 w-4" />
+        <Copy class="size-4" />
     {/if}
-</button>
+</Button>

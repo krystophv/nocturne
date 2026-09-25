@@ -1,170 +1,252 @@
 <script lang="ts">
   import * as Select from "$lib/components/ui/select";
-  import { formatGlucoseValue } from "$lib/utils/formatting";
-  import type { GlucoseUnits } from "$lib/utils/formatting";
+  import { Button } from "$lib/components/ui/button";
+  import { Checkbox } from "$lib/components/ui/checkbox";
+  import { SlidersHorizontal } from "lucide-svelte";
+  import { formatGlucoseValue, getUnitLabel, type GlucoseUnits } from "$lib/utils/formatting";
+  import ColorFocusRange from "./ColorFocusRange.svelte";
+  import ChartKey from "$lib/components/charts/print/ChartKey.svelte";
+  import {
+    GLUCOSE_COLOR_MIN,
+    GLUCOSE_COLOR_MAX,
+    type GlucoseColorThresholds as GlucoseThresholds,
+  } from "$lib/utils/metric-color-focus";
 
-  type HeatmapMetric = "avgGlucose" | "tir" | "bolus" | "basal" | "tdd" | "carbs";
+  type HeatmapMetric =
+    | "avgGlucose"
+    | "tir"
+    | "bolus"
+    | "basal"
+    | "tdd"
+    | "carbs";
+
+  // Approximate stops for each colormap (https://sjmgarnier.github.io/viridis/articles/intro-to-viridis.html),
+  // sampled at 0/25/50/75/100% so the picker previews and the actual scale both show the full spectrum.
+  const COLOR_PALETTES = [
+    { label: "Theme", colors: undefined },
+    { label: "Viridis", colors: ["#440154", "#3b528b", "#21908d", "#5dc963", "#fde725"] },
+    { label: "Plasma", colors: ["#0d0887", "#7e03a8", "#cc4778", "#f89441", "#f0f921"] },
+    { label: "Inferno", colors: ["#000004", "#57106e", "#bc3754", "#f98c0a", "#fcffa4"] },
+    { label: "Magma", colors: ["#000004", "#51127c", "#b73779", "#fc8961", "#fcfdbf"] },
+    { label: "Cividis", colors: ["#00204d", "#414d6b", "#7c7b78", "#b6a069", "#ffe945"] },
+    { label: "Turbo", colors: ["#30123b", "#4675ed", "#1ae4b6", "#a4fc3c", "#fb8022", "#7a0403"] },
+    { label: "Mako", colors: ["#0b0405", "#35264c", "#2f6b8e", "#52c2ac", "#dbf6d7"] },
+    { label: "Rocket", colors: ["#03051a", "#521635", "#a52c60", "#f2703a", "#fbeae3"] },
+  ];
 
   let {
     selectedMetric = $bindable("avgGlucose"),
     units,
     METRIC_OPTIONS,
     HEATMAP_STOPS,
-    LEGEND_W,
-    LEGEND_THRESHOLDS,
-    legendX,
     METRIC_CSS_VARS,
     getMetricMax,
-  } = $props<{
+    focusRange = null,
+    onFocusRangeChange = () => {},
+    glucoseThresholds,
+    onGlucoseThresholdsChange = () => {},
+    focusBand = null,
+    onFocusBandChange = () => {},
+    lowColor = undefined,
+    highColor = undefined,
+    metricColors = undefined,
+    advancedMode = false,
+    onAdvancedModeChange = () => {},
+    transparencyPercent = 90,
+    onTransparencyChange = () => {},
+    onCustomColorsChange = () => {},
+    invert = false,
+    onInvertChange = () => {},
+    themeStops = undefined,
+    glucoseBands,
+  }: {
     selectedMetric: HeatmapMetric;
     units: GlucoseUnits;
     METRIC_OPTIONS: { value: HeatmapMetric; label: string }[];
     HEATMAP_STOPS: ReadonlyArray<{ mgdl: number; color: string }>;
-    LEGEND_W: number;
-    LEGEND_THRESHOLDS: number[];
-    legendX: (mgdl: number) => number;
     METRIC_CSS_VARS: Record<Exclude<HeatmapMetric, "avgGlucose">, string>;
     getMetricMax: (metric: HeatmapMetric) => number;
-  }>();
+    focusRange?: readonly [number, number] | null;
+    onFocusRangeChange?: (range: [number, number] | null) => void;
+    glucoseThresholds: GlucoseThresholds;
+    onGlucoseThresholdsChange?: (value: GlucoseThresholds | null) => void;
+    focusBand?: readonly [number, number] | null;
+    onFocusBandChange?: (value: [number, number] | null) => void;
+    lowColor?: string;
+    highColor?: string;
+    metricColors?: readonly string[];
+    advancedMode?: boolean;
+    onAdvancedModeChange?: (val: boolean) => void;
+    transparencyPercent?: number;
+    onTransparencyChange?: (val: number | undefined) => void;
+    onCustomColorsChange?: (colors: string[] | undefined) => void;
+    invert?: boolean;
+    onInvertChange?: (value: boolean) => void;
+    themeStops?: ReadonlyArray<{ mgdl: number; color: string }>;
+    /** Very-low, low, high and very-high boundaries in mg/dL, as the cells are hatched. */
+    glucoseBands: readonly number[];
+  } = $props();
 
+  const bandKey = $derived.by(() => {
+    const [veryLow, low, high, veryHigh] = glucoseBands.map((mgdl) => formatGlucoseValue(mgdl, units));
+    const unit = getUnitLabel(units);
+    return [
+      { texture: "very-low-hatch" as const, label: `Very low < ${veryLow} ${unit}` },
+      { texture: "low-hatch" as const, label: `Low < ${low}` },
+      { texture: "high-hatch" as const, label: `High ≥ ${high}` },
+      { texture: "very-high-hatch" as const, label: `Very high ≥ ${veryHigh}` },
+    ];
+  });
+
+  let isPoppedOut = $state(false);
+
+  const currentMetricOption = $derived(
+    METRIC_OPTIONS.find((o) => o.value === selectedMetric)
+  );
+  const currentMetricLabel = $derived(currentMetricOption?.label ?? "Scale");
 </script>
 
-<div class="mb-6 rounded-lg border border-border bg-card p-3">
-  {#if selectedMetric === "avgGlucose"}
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <Select.Root
-        type="single"
-        value={selectedMetric}
-        onValueChange={(v) => {
-          if (v) selectedMetric = v as HeatmapMetric;
-        }}
-      >
-        <Select.Trigger class="w-[150px] h-8 text-xs print:hidden">
-          <span class="truncate">
-            {METRIC_OPTIONS.find((o: { value: HeatmapMetric; label: string }) => o.value === selectedMetric)?.label ?? "Avg Glucose"}
-          </span>
-        </Select.Trigger>
-        <Select.Content>
-          {#each METRIC_OPTIONS as option}
-            <Select.Item value={option.value}>
-              {option.label}
-            </Select.Item>
-          {/each}
-        </Select.Content>
-      </Select.Root>
-      <svg
-        viewBox="0 0 {LEGEND_W} 48"
-        class="h-12 w-full max-w-[420px] text-muted-foreground"
-        overflow="visible"
-        role="img"
-        aria-label="Glucose color scale legend"
-      >
-        <defs>
-          <linearGradient id="heatmap-grad">
-            {#each HEATMAP_STOPS as heatmapStop}
-              <stop
-                offset="{(legendX(heatmapStop.mgdl) / LEGEND_W) * 100}%"
-                stop-color={heatmapStop.color}
-              />
+<!-- Scale panel: inline by default, optional floating top-right mode. -->
+<div class="{isPoppedOut ? 'fixed top-20 right-6 z-40 shadow-2xl max-h-[calc(100vh-6rem)] overflow-y-auto' : 'relative mb-6'} print:static print:max-w-none print:shadow-none rounded-xl border border-border/80 bg-card/95 backdrop-blur-md p-3.5 space-y-3 w-[460px] max-w-[calc(100vw-2.5rem)] transition-all">
+    <!-- Top bar: Metric Selector, Advanced Checkbox & Minimize Button -->
+    <div class="flex items-center justify-between gap-2 border-b border-border/40 pb-2.5">
+      <div class="flex items-center gap-2 min-w-0">
+        <Select.Root
+          type="single"
+          value={selectedMetric}
+          onValueChange={(v) => {
+            const option = METRIC_OPTIONS.find((o) => o.value === v);
+            if (option) selectedMetric = option.value;
+          }}
+        >
+          <span class="hidden text-sm font-medium print:inline">{currentMetricLabel}</span>
+          <Select.Trigger size="sm" class="w-[145px] print:hidden">
+            <span class="truncate">
+              {currentMetricLabel}
+            </span>
+          </Select.Trigger>
+          <Select.Content>
+            {#each METRIC_OPTIONS as option (option.value)}
+              <Select.Item value={option.value}>
+                {option.label}
+              </Select.Item>
             {/each}
-          </linearGradient>
-        </defs>
+          </Select.Content>
+        </Select.Root>
 
-        <!-- Zone labels -->
-        <text x={legendX(55)} y="10" text-anchor="middle" font-size="10" fill="currentColor">Low</text>
-        <text x={legendX(125)} y="10" text-anchor="middle" font-size="10" fill="currentColor">In Range</text>
-        <text x={legendX(215)} y="10" text-anchor="middle" font-size="10" fill="currentColor">High</text>
-        <text x={legendX(300)} y="10" text-anchor="middle" font-size="10" fill="currentColor">Very High</text>
-
-        <!-- Gradient bar -->
-        <rect x="0" y="14" width={LEGEND_W} height="14" rx="2" fill="url(#heatmap-grad)" />
-
-        <!-- Threshold markers -->
-        {#each LEGEND_THRESHOLDS as threshold}
-          {@const x = legendX(threshold)}
-          <line
-            x1={x}
-            y1={14}
-            x2={x}
-            y2={32}
-            stroke="currentColor"
-            stroke-opacity="0.3"
+        <!-- Advanced Settings Checkbox -->
+        <label class="flex items-center gap-1.5 font-medium cursor-pointer text-foreground/90 text-xs shrink-0 select-none print:hidden">
+          <Checkbox
+            checked={advancedMode}
+            onCheckedChange={(checked: boolean) => onAdvancedModeChange(checked)}
           />
-          <text
-            {x}
-            y={44}
-            text-anchor="middle"
-            font-size="10"
-            fill="currentColor"
-          >
-            {formatGlucoseValue(threshold, units)}
-          </text>
-        {/each}
-      </svg>
-      <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span
-          class="inline-block h-3 w-3 rounded-sm"
-          style="background: var(--muted)"
-        ></span>
-        Other Data (no glucose)
+          Advanced
+        </label>
       </div>
+
+      <!-- Dock / undock Button -->
+      <Button
+        variant="ghost-muted"
+        size="xs"
+        class="shrink-0 print:hidden"
+        title={isPoppedOut ? "Return panel to the page" : "Float panel in the top-right corner"}
+        onclick={() => isPoppedOut = !isPoppedOut}
+      >
+        <SlidersHorizontal class="h-3.5 w-3.5" />
+        {isPoppedOut ? "Dock" : "Float"}
+      </Button>
     </div>
-  {:else}
-    <!-- Single-hue legend for other metrics -->
-    {@const metricLabel = METRIC_OPTIONS.find((o: { value: HeatmapMetric; label: string }) => o.value === selectedMetric)?.label ?? ""}
-    {@const metricUnit = selectedMetric === "tir" ? "%" : selectedMetric === "carbs" ? "g" : "U"}
-    {@const metricMax = selectedMetric === "tir" ? 100 : getMetricMax(selectedMetric)}
-    {@const cssVar = METRIC_CSS_VARS[selectedMetric as Exclude<HeatmapMetric, "avgGlucose">]}
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <Select.Root
-        type="single"
-        value={selectedMetric}
-        onValueChange={(v) => {
-          if (v) selectedMetric = v as HeatmapMetric;
-        }}
-      >
-        <Select.Trigger class="w-[150px] h-8 text-xs print:hidden">
-          <span class="truncate">
-            {METRIC_OPTIONS.find((o: { value: HeatmapMetric; label: string }) => o.value === selectedMetric)?.label ?? "Avg Glucose"}
-          </span>
-        </Select.Trigger>
-        <Select.Content>
-          {#each METRIC_OPTIONS as option}
-            <Select.Item value={option.value}>
-              {option.label}
-            </Select.Item>
-          {/each}
-        </Select.Content>
-      </Select.Root>
-      <svg
-        viewBox="0 0 {LEGEND_W} 36"
-        class="h-9 w-full max-w-[420px] text-muted-foreground"
-        overflow="visible"
-        role="img"
-        aria-label="{metricLabel} color scale legend"
-      >
-        <defs>
-          <linearGradient id="metric-grad">
-            <stop offset="0%" stop-color="var({cssVar})" stop-opacity="0.15" />
-            <stop offset="100%" stop-color="var({cssVar})" stop-opacity="1" />
-          </linearGradient>
-        </defs>
-        <rect x="0" y="4" width={LEGEND_W} height="14" rx="2" fill="url(#metric-grad)" />
-        <text x="0" y="32" font-size="10" fill="currentColor">0</text>
-        <text x={LEGEND_W} y="32" text-anchor="end" font-size="10" fill="currentColor">
-          {selectedMetric === "tir" ? "100%" : `${Math.round(metricMax)} ${metricUnit}`}
-        </text>
-        {#if selectedMetric === "tir"}
-          <!-- 70% TIR target marker -->
-          {@const targetX = (70 / 100) * LEGEND_W}
-          <line x1={targetX} y1={4} x2={targetX} y2={18} stroke="currentColor" stroke-opacity="0.3" />
-          <text x={targetX} y="32" text-anchor="middle" font-size="10" fill="currentColor">70%</text>
+
+    <!-- Sliders & Ranges (Always fixed compact width) -->
+    {#if selectedMetric === "avgGlucose"}
+      <div class="w-full">
+        {#if advancedMode}
+          <div class="print:hidden">
+            {#key `avgGlucose-${lowColor}-${highColor}-${invert}`}
+              <ColorFocusRange
+                metricKey="avgGlucose"
+                glucose
+                {units}
+                thresholds={glucoseThresholds}
+                stops={HEATMAP_STOPS}
+                {themeStops}
+                onThresholdsChange={onGlucoseThresholdsChange}
+                {focusBand}
+                onFocusBandChange={onFocusBandChange}
+                {lowColor}
+                {highColor}
+                colors={metricColors}
+                {COLOR_PALETTES}
+                {onCustomColorsChange}
+                {invert}
+                {onInvertChange}
+                {transparencyPercent}
+                {onTransparencyChange}
+              />
+            {/key}
+          </div>
         {/if}
-      </svg>
-      <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span class="inline-block h-3 w-3 rounded-sm" style="background: var(--muted)"></span>
-        No {metricLabel.toLowerCase()} data
+        <!-- The advanced editor is all controls, so paper gets this preview of the scale it set. -->
+        <div class={["w-full space-y-1.5 text-xs text-muted-foreground", advancedMode && "hidden print:block"]}>
+          <span
+            class="block h-3.5 w-full rounded-sm bg-(image:--heatmap-gradient)"
+            style:--heatmap-gradient="linear-gradient(to right in srgb, {HEATMAP_STOPS.map((s) => `${s.color} ${((s.mgdl - GLUCOSE_COLOR_MIN) / (GLUCOSE_COLOR_MAX - GLUCOSE_COLOR_MIN)) * 100}%`).join(', ')})"
+          ></span>
+          <div class="flex justify-between text-xs tabular-nums">
+            <span>{formatGlucoseValue(GLUCOSE_COLOR_MIN, units)} {getUnitLabel(units)}</span>
+            <span class="text-muted-foreground">{advancedMode ? "Custom scale" : "Default scale"}</span>
+            <span>{formatGlucoseValue(GLUCOSE_COLOR_MAX, units)} {getUnitLabel(units)}</span>
+          </div>
+          <ChartKey items={bandKey} class="hidden justify-start [.chart-patterns-on_&]:flex" />
+        </div>
       </div>
-    </div>
-  {/if}
-</div>
+    {:else}
+      {@const metricLabel = currentMetricLabel}
+      {@const metricUnit =
+        selectedMetric === "tir" ? "%" : selectedMetric === "carbs" ? "g" : "U"}
+      {@const metricMax =
+        selectedMetric === "tir" ? 100 : getMetricMax(selectedMetric)}
+      {@const cssVar =
+        Object.entries(METRIC_CSS_VARS).find(([metric]) => metric === selectedMetric)?.[1]}
+      <div class="w-full">
+        {#if advancedMode}
+          <div class="print:hidden">
+            {#key `${selectedMetric}-${lowColor}-${highColor}-${invert}`}
+              <ColorFocusRange
+                metricKey={selectedMetric}
+                {metricLabel}
+                unit={metricUnit}
+                observedMax={metricMax}
+                {cssVar}
+                fixedMax={selectedMetric === "tir" ? 100 : undefined}
+                {focusRange}
+                {onFocusRangeChange}
+                {focusBand}
+                {onFocusBandChange}
+                {lowColor}
+                {highColor}
+                colors={metricColors}
+                {COLOR_PALETTES}
+                {onCustomColorsChange}
+                {invert}
+                {onInvertChange}
+                {transparencyPercent}
+                {onTransparencyChange}
+              />
+            {/key}
+          </div>
+        {/if}
+        <div class={["w-full space-y-1.5 text-xs text-muted-foreground", advancedMode && "hidden print:block"]}>
+          <span
+            class="block h-3.5 w-full rounded-sm bg-linear-to-r from-(--metric-color)/15 to-(--metric-color)"
+            style:--metric-color="var({cssVar})"
+          ></span>
+          <div class="flex justify-between text-xs tabular-nums">
+            <span>0 {metricUnit}</span>
+            <span class="text-muted-foreground">{metricLabel} {advancedMode ? "custom scale" : "default scale"}</span>
+            <span>{metricMax} {metricUnit}</span>
+          </div>
+        </div>
+      </div>
+    {/if}
+  </div>

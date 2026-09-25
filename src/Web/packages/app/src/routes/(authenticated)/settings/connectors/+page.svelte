@@ -33,10 +33,6 @@
     Database,
     Copy,
     Check,
-    Link2,
-    Wrench,
-    ChevronRight,
-    Loader2,
     KeyRound,
   } from "lucide-svelte";
   import SettingsPageSkeleton from "$lib/components/settings/SettingsPageSkeleton.svelte";
@@ -45,27 +41,20 @@
   import ConnectedApps from "$lib/components/settings/ConnectedApps.svelte";
   import ClientDevices from "$lib/components/settings/ClientDevices.svelte";
   import ApiTokens from "$lib/components/settings/ApiTokens.svelte";
-  import DeduplicationDialog from "$lib/components/connectors/DeduplicationDialog.svelte";
-  import AppLogo from "$lib/components/ui/AppLogo.svelte";
   import UploaderSetupDialog from "$lib/components/connectors/UploaderSetupDialog.svelte";
   import { createUploaderTokenHandoff } from "./uploader-token-handoff";
   import ConnectorDetailsDialog from "$lib/components/connectors/ConnectorDetailsDialog.svelte";
   import ManualSyncDialog, { type BatchSyncResult } from "$lib/components/connectors/ManualSyncDialog.svelte";
-  import DemoDataSection from "$lib/components/connectors/DemoDataSection.svelte";
   import UploaderAppsCard from "$lib/components/connectors/UploaderAppsCard.svelte";
   import ServerConnectorsCard, { type ConnectorStatusWithDescription } from "$lib/components/connectors/ServerConnectorsCard.svelte";
   import DataSourceManageDialog from "$lib/components/connectors/DataSourceManageDialog.svelte";
   import { describeSubmitError } from "$lib/forms/submit-error";
-  import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import { toast } from "svelte-sonner";
   import { getUploaderName } from "$lib/utils/uploader-labels";
   import { coachmark } from "@nocturne/coach";
   import { getRealtimeStore } from "$lib/stores/realtime-store.svelte";
-  import { copyToClipboard } from "$lib/utils";
+  import { createCopyFeedback } from "$lib/hooks/copy-feedback.svelte";
   import { createTerminalRunTracker } from "./terminal-run-tracker";
-
-  const isPlatformAdmin = $derived((page.data as { isPlatformAdmin?: boolean }).isPlatformAdmin ?? false);
 
   // Queries — fire on the server during SSR; results land in cache for hydration.
   const servicesOverviewQuery = getServicesOverview();
@@ -89,10 +78,7 @@
   );
   let selectedUploader = $state<UploaderApp | null>(null);
   let showSetupDialog = $state(false);
-  let copiedField = $state<string | null>(null);
-
-  // Demo data dialog state
-  let showDemoDataDialog = $state(false);
+  const copy = createCopyFeedback();
 
   // Data source management dialog state
   let selectedDataSource = $state<DataSourceInfo | null>(null);
@@ -142,10 +128,6 @@
   let apiTokenPrefillLabel = $state("");
   let apiTokenPrefillScopes = $state<string[]>([]);
   const uploaderHandoff = createUploaderTokenHandoff();
-
-  // Deduplication state
-  let showDeduplicationDialog = $state(false);
-  let isDeduplicating = $state(false);
 
   // Whether the user has already been told these lists are stale. The effect
   // below refreshes once per finished run, so a batch of them and the refresh
@@ -380,16 +362,6 @@
     }
   }
 
-  async function copyField(text: string, field: string) {
-    if (!(await copyToClipboard(text))) {
-      toast.error("Couldn't copy to the clipboard. Copy it manually instead.");
-      return;
-    }
-    copiedField = field;
-    setTimeout(() => {
-      copiedField = null;
-    }, 2000);
-  }
 </script>
 
 <svelte:head>
@@ -404,13 +376,13 @@
         <Wifi class="h-6 w-6 text-primary" />
       </div>
       <div>
-        <h1 class="text-2xl font-bold tracking-tight">Connectors & Connected Apps</h1>
+        <h1 class="text-2xl font-bold tracking-tight">Connectors & Apps</h1>
         <p class="text-muted-foreground">
           Manage data sources, set up new connections, and control app access
         </p>
       </div>
     </div>
-    <Button variant="outline" size="sm" onclick={refreshAll} class="gap-2">
+    <Button variant="outline" size="sm" onclick={refreshAll}>
       <RefreshCw
         class="h-4 w-4 {isLoading || isLoadingConnectorStatuses
           ? 'animate-spin'
@@ -423,7 +395,7 @@
   {#if isLoading && !servicesOverview}
     <SettingsPageSkeleton cardCount={3} />
   {:else if error}
-    <Card class="border-destructive">
+    <Card variant="destructive">
       <CardContent class="py-8">
         <div class="text-center">
           <AlertCircle class="h-12 w-12 mx-auto mb-4 text-destructive" />
@@ -475,16 +447,13 @@
               >
                 {#snippet badges()}
                   {#if isDemo}
-                    <Badge
-                      variant="secondary"
-                      class="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100 text-xs"
-                    >
+                    <Badge variant="demo">
                       <Sparkles class="h-3 w-3 mr-1" />
                       Demo
                     </Badge>
                   {/if}
                   {#if matchingUploader}
-                    <Badge variant="outline" class="text-xs">
+                    <Badge variant="outline">
                       {getUploaderName(matchingUploader)}
                     </Badge>
                   {/if}
@@ -553,10 +522,10 @@
               <Button
                 variant="outline"
                 size="icon"
-                onclick={() => copyField(window.location.origin, "baseUrl")}
+                onclick={() => copy.copy(window.location.origin, "baseUrl")}
               >
-                {#if copiedField === "baseUrl"}
-                  <Check class="h-4 w-4 text-green-500" />
+                {#if copy.isCopied("baseUrl")}
+                  <Check class="h-4 w-4 text-success" />
                 {:else}
                   <Copy class="h-4 w-4" />
                 {/if}
@@ -583,128 +552,6 @@
         </CardContent>
       </Card>
     {/if}
-
-    <!-- Data Maintenance -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="flex items-center gap-2">
-          <Wrench class="h-5 w-5" />
-          Data Maintenance
-        </CardTitle>
-        <CardDescription>
-          Administrative tools for managing your data
-        </CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="flex items-start gap-4 p-4 rounded-lg border bg-card">
-          <div
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
-          >
-            <Link2 class="h-5 w-5 text-primary" />
-          </div>
-          <div class="flex-1">
-            <h4 class="font-medium">Deduplicate Records</h4>
-            <p class="text-sm text-muted-foreground mt-1">
-              Link records from multiple data sources that represent the same
-              underlying event. This improves data quality when the same glucose
-              readings or treatments are uploaded from different apps.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              class="mt-3 gap-2"
-              onclick={() => (showDeduplicationDialog = true)}
-            >
-              {#if isDeduplicating}
-                <Loader2 class="h-4 w-4 animate-spin" />
-                Deduplication Running...
-              {:else}
-                <Link2 class="h-4 w-4" />
-                Run Deduplication
-              {/if}
-            </Button>
-          </div>
-        </div>
-
-        <div class="flex items-start gap-4 p-4 rounded-lg border bg-card">
-          <div
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
-          >
-            <Sparkles class="h-5 w-5 text-primary" />
-          </div>
-          <div class="flex-1">
-            <h4 class="font-medium">Remove Demo Data</h4>
-            <p class="text-sm text-muted-foreground mt-1">
-              Delete the sample readings and treatments that were generated to
-              show you around. Your own data is not affected.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              class="mt-3 gap-2"
-              onclick={() => (showDemoDataDialog = true)}
-            >
-              <Sparkles class="h-4 w-4" />
-              Remove Demo Data
-            </Button>
-          </div>
-        </div>
-
-        {#if isPlatformAdmin}
-          <a
-            href={resolve("/settings/admin/connector-cursors")}
-            class="group flex items-center gap-4 rounded-lg border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
-          >
-            <div
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
-            >
-              <RefreshCw class="h-5 w-5 text-primary" />
-            </div>
-            <div class="min-w-0 flex-1">
-              <h4 class="font-medium">Reset Connector Cursors</h4>
-              <p class="text-sm text-muted-foreground mt-1">
-                Re-sync a connector from a chosen point.
-              </p>
-            </div>
-            <ChevronRight
-              class="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-            />
-          </a>
-        {/if}
-      </CardContent>
-    </Card>
-
-    <!-- Integrations -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="flex items-center gap-2">
-          <Link2 class="h-5 w-5" />
-          Integrations
-        </CardTitle>
-        <CardDescription>
-          Connect Nocturne to chat platforms and other external services
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <a
-          href={resolve("/settings/integrations/discord")}
-          class="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors"
-        >
-          <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-muted">
-              <AppLogo icon="discord" />
-            </div>
-            <div>
-              <p class="font-medium">Discord</p>
-              <p class="text-sm text-muted-foreground">
-                Link a Discord account to receive alerts and use the Nocturne bot
-              </p>
-            </div>
-          </div>
-          <ChevronRight class="h-4 w-4 text-muted-foreground" />
-        </a>
-      </CardContent>
-    </Card>
 
     <!-- Connected Apps Section -->
     <ConnectedApps />
@@ -738,9 +585,6 @@
   }}
 />
 
-<!-- Demo Data Management Dialog -->
-<DemoDataSection bind:open={showDemoDataDialog} onDeleteComplete={loadServices} />
-
 <!-- Data Source Management Dialog -->
 <DataSourceManageDialog
   bind:open={showManageDataSourceDialog}
@@ -753,4 +597,3 @@
 <!-- Connector Details Dialog -->
 <ConnectorDetailsDialog bind:open={showConnectorDialog} {selectedConnector} {selectedConnectorCapabilities} onSyncComplete={loadConnectorStatuses} />
 
-<DeduplicationDialog bind:open={showDeduplicationDialog} bind:isDeduplicating />
