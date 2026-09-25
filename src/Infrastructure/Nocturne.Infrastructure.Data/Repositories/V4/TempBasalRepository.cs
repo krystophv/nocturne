@@ -173,9 +173,34 @@ public class TempBasalRepository : ITempBasalRepository
         var entity = TempBasalMapper.ToEntity(model);
         ctx.TempBasals.Add(entity);
         await ctx.SaveChangesAsync(ct);
+        await LinkInsertedAsync([entity], ct);
         var created = TempBasalMapper.ToDomainModel(entity);
         await RaiseBroadcastAsync([created], [], [], origin, ct);
         return created;
+    }
+
+    /// <summary>
+    /// Links committed inserts into canonical groups, best-effort: a failure is logged rather than
+    /// failing a committed write. Only the full dedup job links a row missed here; the reconcile
+    /// pass reads links, so it never sees one.
+    /// </summary>
+    private async Task LinkInsertedAsync(IReadOnlyList<TempBasalEntity> inserted, CancellationToken ct)
+    {
+        try
+        {
+            var dedupInputs = inserted.Select(e => new DeduplicationInput(
+                RecordId: e.Id,
+                Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+                DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
+                Criteria: MatchCriteriaMapper.From(e)
+            )).ToList();
+
+            await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", inserted.Count);
+        }
     }
 
     /// <summary>
@@ -382,23 +407,7 @@ public class TempBasalRepository : ITempBasalRepository
             }
 
             await tx.CommitAsync(ct);
-
-            // Cross-connector deduplication: link saved records to canonical groups
-            try
-            {
-                var dedupInputs = entities.Select(e => new DeduplicationInput(
-                    RecordId: e.Id,
-                    Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
-                    DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
-                    Criteria: MatchCriteriaMapper.From(e)
-                )).ToList();
-
-                await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", entities.Count);
-            }
+            await LinkInsertedAsync(entities, ct);
 
             var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
             await RaiseBroadcastAsync(created, [], [], origin, ct);
