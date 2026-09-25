@@ -24936,3 +24936,113 @@ msgstr "1 record was not added because Nocturne does not store that kind of reco
 #: src/lib/components/shared/SkippedRecordsNote.svelte
 msgid "{0} records were not added because Nocturne does not store that kind of record."
 msgstr "{0} records were not added because Nocturne does not store that kind of record."
+
+#: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
+msgid "Profile time zone"
+msgstr "Profile time zone"
+
+#: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
+msgid "Use the profile time zone"
+msgstr "Use the profile time zone"
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "Part of this rule's conditions is malformed, so it can't be saved."
+msgstr "Part of this rule's conditions is malformed, so it can't be saved."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "Every group needs at least one condition."
+msgstr "Every group needs at least one condition."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A condition has no comparison chosen. Pick one and save again."
+msgstr "A condition has no comparison chosen. Pick one and save again."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A condition has a comparison that isn't recognised. Pick one from the list and save again."
+msgstr "A condition has a comparison that isn't recognised. Pick one from the list and save again."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A glucose condition needs a direction: above or below, rising or falling."
+msgstr "A glucose condition needs a direction: above or below, rising or falling."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "An alert-state condition needs a state: firing, unacknowledged or acknowledged."
+msgstr "An alert-state condition needs a state: firing, unacknowledged or acknowledged."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "An alert-state condition needs a rule chosen."
+msgstr "An alert-state condition needs a rule chosen."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A tracker condition needs a tracker chosen."
+msgstr "A tracker condition needs a tracker chosen."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A time-of-day condition has a time zone that isn't recognised. Pick one from its time zone list, or clear it to use the profile's, and save again."
+msgstr "A time-of-day condition has a time zone that isn't recognised. Pick one from its time zone list, or clear it to use the profile's, and save again."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A “for at least” duration must be 1 minute or more."
+msgstr "A “for at least” duration must be 1 minute or more."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A signal loss condition needs a time without readings of 1 minute or more."
+msgstr "A signal loss condition needs a time without readings of 1 minute or more."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A predicted glucose condition needs to look ahead 1 minute or more."
+msgstr "A predicted glucose condition needs to look ahead 1 minute or more."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A condition compares a time since something against a negative number of minutes, so it would be the same every time it is checked. Use 0 or more."
+msgstr "A condition compares a time since something against a negative number of minutes, so it would be the same every time it is checked. Use 0 or more."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A NOT or “for at least” wrapper has nothing inside it."
+msgstr "A NOT or “for at least” wrapper has nothing inside it."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A condition is missing a setting it needs. Fill it in and save again."
+msgstr "A condition is missing a setting it needs. Fill it in and save again."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A time-of-day condition needs both a start and an end time."
+msgstr "A time-of-day condition needs both a start and an end time."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A condition has a choice that isn't recognised. Pick one from its list and save again."
+msgstr "A condition has a choice that isn't recognised. Pick one from its list and save again."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A time-of-day condition needs its times as hours and minutes, like 09:00."
+msgstr "A time-of-day condition needs its times as hours and minutes, like 09:00."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A time-of-day condition starts and ends at the same time, so it would never be true. Choose different times."
+msgstr "A time-of-day condition starts and ends at the same time, so it would never be true. Choose different times."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A glucose bucket condition needs at least one bucket chosen."
+msgstr "A glucose bucket condition needs at least one bucket chosen."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A day-of-week condition needs at least one day chosen."
+msgstr "A day-of-week condition needs at least one day chosen."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "A condition needs at least one option chosen."
+msgstr "A condition needs at least one option chosen."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "Pump modes can't be checked with a “State active” condition. Use a “Pump mode” condition instead."
+msgstr "Pump modes can't be checked with a “State active” condition. Use a “Pump mode” condition instead."
+
+#: src/lib/components/alerts/conditionIssues.svelte.ts
+msgid "Part of this rule's conditions has a setting its kind of condition doesn't have, so it can't be saved."
+msgstr "Part of this rule's conditions has a setting its kind of condition doesn't have, so it can't be saved."
