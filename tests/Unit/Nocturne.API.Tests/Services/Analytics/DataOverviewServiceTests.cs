@@ -27,7 +27,6 @@ public class DataOverviewServiceTests : IDisposable
     private readonly NocturneDbContext _dbContext;
     private readonly DataOverviewService _service;
     private readonly Mock<ICacheService> _mockCacheService = new();
-    // Interceptors for the contexts the service leases; a test sets these to inject a query failure.
     private IInterceptor[] _interceptors = [];
     private readonly string _dbName = $"data_overview_{Guid.NewGuid()}";
     private static readonly Guid TenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -1540,9 +1539,6 @@ public class DataOverviewServiceTests : IDisposable
             Times.Never);
     }
 
-    /// <summary>
-    /// Fails every SensorGlucose query at compile time, standing in for a database timeout.
-    /// </summary>
     private sealed class SensorGlucoseQueryFailure : IQueryExpressionInterceptor
     {
         public Expression QueryCompilationStarting(
