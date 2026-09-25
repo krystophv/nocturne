@@ -103,7 +103,7 @@ public class ConnectorPollingRegistrationTests
             ("CareLink", 300),
             ("Dexcom", 300),
             ("Eversense", 300),
-            ("LibreLinkUp", 60),
+            ("LibreLinkUp", 300),
         });
         aligned.Should().OnlyContain(r => !string.IsNullOrEmpty(r.DataSourceId));
     }
