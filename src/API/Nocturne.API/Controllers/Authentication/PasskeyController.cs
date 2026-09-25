@@ -652,23 +652,21 @@ public class PasskeyController : ControllerBase
             .Select(tm => tm.Subject)
             .FirstOrDefaultAsync(s => s != null && s.Username == request.Username);
 
-        if (subjectEntity == null)
-        {
-            // Don't reveal whether the username exists
-            return Problem(detail: "Invalid username or recovery code", statusCode: 400, title: "Bad Request");
-        }
-
-        var verified = await _recoveryCodeService.VerifyAndConsumeAsync(subjectEntity.Id, request.Code);
+        // A null subject id still pays for every code slot, so neither the response nor the
+        // work done reveals whether the username exists.
+        var verified = await _recoveryCodeService.VerifyAndConsumeAsync(subjectEntity?.Id, request.Code);
         if (!verified)
         {
-            await _auditService.LogAsync(AuthAuditEventType.FailedAuth, subjectEntity.Id, success: false,
+            await _auditService.LogAsync(AuthAuditEventType.FailedAuth, subjectEntity?.Id, success: false,
                 ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
                 userAgent: Request.Headers.UserAgent.ToString(),
                 detailsJson: JsonSerializer.Serialize(new { method = "recovery_code" }));
             return Problem(detail: "Invalid username or recovery code", statusCode: 400, title: "Bad Request");
         }
 
-        await _auditService.LogAsync(AuthAuditEventType.Login, subjectEntity.Id, success: true,
+        var subjectId = subjectEntity!.Id;
+
+        await _auditService.LogAsync(AuthAuditEventType.Login, subjectId, success: true,
             ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
             userAgent: Request.Headers.UserAgent.ToString(),
             detailsJson: JsonSerializer.Serialize(new { method = "recovery_code" }));
@@ -676,7 +674,7 @@ public class PasskeyController : ControllerBase
         // Issue a restricted recovery session (short-lived)
         var subjectInfo = new SubjectInfo
         {
-            Id = subjectEntity.Id,
+            Id = subjectId,
             Name = subjectEntity.Name,
             Email = subjectEntity.Email,
         };
@@ -695,7 +693,7 @@ public class PasskeyController : ControllerBase
         return Ok(new RecoveryVerifyResponse
         {
             Success = true,
-            RemainingCodes = await _recoveryCodeService.GetRemainingCountAsync(subjectEntity.Id),
+            RemainingCodes = await _recoveryCodeService.GetRemainingCountAsync(subjectId),
         });
     }
 
@@ -810,12 +808,14 @@ public class PasskeyController : ControllerBase
 
         var remaining = await _recoveryCodeService.GetRemainingCountAsync(auth.SubjectId.Value);
         var hasCodes = await _recoveryCodeService.HasCodesAsync(auth.SubjectId.Value);
+        var codesReset = await _recoveryCodeService.WereCodesResetAsync(auth.SubjectId.Value);
 
         return Ok(new RecoveryStatusResponse
         {
             RemainingCodes = remaining,
             HasCodes = hasCodes,
             TotalCodes = 8,
+            CodesReset = codesReset,
         });
     }
 
@@ -1388,6 +1388,12 @@ public class RecoveryStatusResponse
     public int RemainingCodes { get; set; }
     public bool HasCodes { get; set; }
     public int TotalCodes { get; set; }
+
+    /// <summary>
+    /// True when codes issued before the salted-hash change were invalidated and no new ones
+    /// have been generated yet.
+    /// </summary>
+    public bool CodesReset { get; set; }
 }
 
 /// <summary>
