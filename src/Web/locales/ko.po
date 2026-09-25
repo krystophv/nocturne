@@ -4828,6 +4828,7 @@ msgstr ""
 
 #: src/lib/components/members/CreateInviteCard.svelte
 #: src/lib/components/members/MemberCard.svelte
+#: src/lib/components/settings/ApiTokens.svelte
 #: src/routes/(authenticated)/settings/access-requests/+page.svelte
 msgid "Only last 24 hours"
 msgstr ""
@@ -5384,6 +5385,7 @@ msgid "<0/> Save Changes"
 msgstr ""
 
 #: src/lib/components/members/MemberCard.svelte
+#: src/lib/components/settings/ApiTokens.svelte
 msgid "<0/> 24-hour limit"
 msgstr ""
 
@@ -7455,7 +7457,6 @@ msgid "Diagnostic Info"
 msgstr ""
 
 #: src/lib/components/support/IssueCreatorDialog.svelte
-#: src/routes/(authenticated)/settings/account/+page.svelte
 msgid "<0/> Copied"
 msgstr ""
 
@@ -12736,9 +12737,8 @@ msgstr ""
 msgid "New recovery codes"
 msgstr ""
 
-#: src/routes/(authenticated)/settings/account/+page.svelte
-msgid "<0/> Copy all codes"
-msgstr ""
+#~ msgid "<0/> Copy all codes"
+#~ msgstr ""
 
 #: src/routes/(authenticated)/settings/account/+page.svelte
 msgid "Remove authenticator"
@@ -18480,9 +18480,8 @@ msgstr ""
 msgid "This will invalidate all existing recovery codes and generate new ones. Make sure to save the new codes in a safe place."
 msgstr ""
 
-#: src/routes/(authenticated)/settings/account/+page.svelte
-msgid "Save these codes in a safe place. Each code can only be used once. This is the only time they will be shown."
-msgstr ""
+#~ msgid "Save these codes in a safe place. Each code can only be used once. This is the only time they will be shown."
+#~ msgstr ""
 
 #. 0: totpRemoveTarget?.label ?? "Unnamed authenticator"
 #: src/routes/(authenticated)/settings/account/+page.svelte
@@ -25132,4 +25131,16 @@ msgstr ""
 
 #: src/routes/(unauthenticated)/join/+page.svelte
 msgid "You're signed in as <0/>"
+msgstr ""
+
+#: src/lib/components/layout/HistoryLimitNotice.svelte
+msgid "You can see the last 24 hours only"
+msgstr ""
+
+#: src/lib/components/layout/HistoryLimitNotice.svelte
+msgid "The person who shared this data has limited you to the most recent 24 hours. Anything older, including longer report periods, is not shown."
+msgstr ""
+
+#: src/lib/components/settings/ApiTokens.svelte
+msgid "Restrict this token to only the most recent 24 hours of data."
 msgstr ""
