@@ -138,10 +138,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                                                       ORDER BY sys_updated_at, id) - 1 AS k,
                                    count(*) OVER (PARTITION BY date_trunc('milliseconds', sys_updated_at)) AS n
                             FROM temp_basals)
-                        UPDATE temp_basals t
-                        SET sys_updated_at = t.sys_updated_at + (ranked.k / 1000) * interval '1 millisecond'
+                        UPDATE temp_basals tb
+                        SET sys_updated_at = tb.sys_updated_at + (ranked.k / 1000) * interval '1 millisecond'
                         FROM ranked
-                        WHERE ranked.id = t.id AND ranked.n > 1000 AND ranked.k >= 1000;
+                        WHERE ranked.id = tb.id AND ranked.n > 1000 AND ranked.k >= 1000;
                     END LOOP;
                 END $$;
                 """);
