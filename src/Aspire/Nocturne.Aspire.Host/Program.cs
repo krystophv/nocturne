@@ -48,8 +48,7 @@ class Program
         }
 
         // ------------------------------------------------------------------
-        // Published compose defaults. Docker's own defaults are restart "no"
-        // and a json-file log with no size limit.
+        // Published compose defaults: restart policy and log rotation.
         // ------------------------------------------------------------------
         compose.ConfigureComposeFile(file =>
         {
