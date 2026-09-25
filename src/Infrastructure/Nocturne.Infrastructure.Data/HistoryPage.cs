@@ -21,6 +21,9 @@ namespace Nocturne.Infrastructure.Data;
 /// page may therefore exceed <c>limit</c>, with no cap;</item>
 /// <item>log a warning when it does, naming the table, the millisecond and the row count.</item>
 /// </list>
+/// A single millisecond can only hold up to <see cref="NocturneDbContext.SystemTimestampGroupSize"/>
+/// rows of one type, because the write path spreads a bulk save across successive milliseconds, and
+/// controllers clamp <c>limit</c> to the same size, so the extension adds at most one page.
 /// Both bounds are plain range predicates on the stamp column, so an index on it would serve them.
 /// </remarks>
 public static class HistoryPage
