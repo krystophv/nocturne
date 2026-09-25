@@ -45,6 +45,51 @@ public static class StateSpanMetadataExtensions
         };
     }
 
+    /// <summary>
+    /// Whether two <see cref="StateSpanCategory.Override"/> spans record the same override, so
+    /// neither ends the other: by name when either has one, else by scale factor.
+    /// </summary>
+    public static bool IsSameOverrideAs(
+        this IDictionary<string, object>? metadata, IDictionary<string, object>? other)
+    {
+        if (metadata is null || other is null)
+            return false;
+
+        var names = OverrideNames(metadata);
+        var otherNames = OverrideNames(other);
+        if (names.Count == 0 && otherNames.Count == 0)
+            return metadata.OverrideScaleFactor() == other.OverrideScaleFactor();
+
+        return names.Overlaps(otherNames);
+    }
+
+    /// <summary>
+    /// Devicestatus <c>multiplier</c> or treatment <c>insulinNeedsScaleFactor</c>. Loop omits it at 100%.
+    /// </summary>
+    public static decimal OverrideScaleFactor(this IDictionary<string, object> metadata) =>
+        metadata.TryReadDecimal("multiplier") ?? metadata.TryReadDecimal("insulinNeedsScaleFactor") ?? 1m;
+
+    private static HashSet<string> OverrideNames(IDictionary<string, object> metadata)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        if (metadata.ContainsKey("name"))
+        {
+            if (metadata.TryReadString("name") is { Length: > 0 } name)
+                names.Add(name);
+        }
+        else if (metadata.TryReadString("reason") is { Length: > 0 } reason)
+        {
+            names.Add(reason);
+            // Loop prefixes a treatment reason with the preset symbol, at most two characters.
+            if (reason.IndexOf(' ') is var space and > 0
+                && space + 1 < reason.Length
+                && new StringInfo(reason[..space]).LengthInTextElements <= 2)
+                names.Add(reason[(space + 1)..]);
+        }
+
+        return names;
+    }
+
     private static decimal? CoerceDecimal(object v) => v switch
     {
         decimal d => d,
