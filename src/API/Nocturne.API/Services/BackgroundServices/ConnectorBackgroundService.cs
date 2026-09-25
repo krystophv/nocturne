@@ -37,6 +37,17 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
         ConnectorRegistrationAttribute.DeclaredOn(typeof(TConfig));
 
     /// <summary>
+    /// The sensor cadence the connector declares (see
+    /// <see cref="ConnectorRegistrationAttribute.SensorReadingIntervalSeconds"/>), or <c>null</c> when
+    /// it declares none or no data source to find its readings by, in which case it is polled on its
+    /// interval alone.
+    /// </summary>
+    private static readonly TimeSpan? SensorCadence =
+        Registration.SensorReadingIntervalSeconds > 0 && !string.IsNullOrEmpty(Registration.DataSourceId)
+            ? TimeSpan.FromSeconds(Registration.SensorReadingIntervalSeconds)
+            : null;
+
+    /// <summary>
     /// Tracks the last sync time per tenant so each tenant's configured
     /// SyncIntervalMinutes is respected independently.
     /// </summary>
@@ -176,9 +187,13 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
 
     /// <summary>
     /// Interval between poll ticks. Each tenant is still only synced when its own
-    /// SyncIntervalMinutes has elapsed since its last sync. Overridable for tests.
+    /// SyncIntervalMinutes has elapsed since its last sync, or its aligned time has arrived. A
+    /// connector that declares a sensor cadence ticks every fifteen seconds so that time is met to
+    /// within seconds rather than a minute; a tenant that is not due costs nothing on a tick, since
+    /// the schedule is checked before any scope is opened. Overridable for tests.
     /// </summary>
-    protected virtual TimeSpan PollInterval => TimeSpan.FromMinutes(1);
+    protected virtual TimeSpan PollInterval =>
+        SensorCadence is null ? TimeSpan.FromMinutes(1) : TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// How long a tenant with no usable configuration for this connector is left alone before its
@@ -195,22 +210,43 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     protected virtual TimeSpan MinimumAlignedSyncSpacing => TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Called after each successful sync. A connector whose source publishes on a known cadence (a
-    /// CGM every five minutes) returns when the next record should be available, and the tenant is
-    /// synced then instead of waiting out <c>SyncIntervalMinutes</c>, so the poll lands just after the
-    /// data rather than at an arbitrary phase of the interval. Return <c>null</c> to keep the plain
-    /// interval, which is the default. The result is honoured to the resolution of
-    /// <see cref="PollInterval"/>, so a connector that aligns should shorten its tick too.
+    /// Called after each successful sync to say when the tenant should next be synced, ahead of
+    /// <c>SyncIntervalMinutes</c>, or <c>null</c> to leave the interval in charge. For a connector
+    /// that declares a sensor cadence this is just after its next reading should reach the cloud (see
+    /// <see cref="SensorSyncAlignment"/>), worked out from the newest reading stored under the
+    /// connector's data source; every other connector answers <c>null</c>. Overridable for tests.
     /// </summary>
     /// <param name="scopeProvider">The tenant-scoped provider the sync ran in.</param>
     /// <param name="config">The tenant's connector configuration.</param>
     /// <param name="now">The current UTC time.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected virtual Task<DateTime?> GetAlignedSyncTimeAsync(
+    protected virtual async Task<DateTime?> GetAlignedSyncTimeAsync(
         IServiceProvider scopeProvider,
         TConfig config,
         DateTime now,
-        CancellationToken cancellationToken) => Task.FromResult<DateTime?>(null);
+        CancellationToken cancellationToken)
+    {
+        if (SensorCadence is not { } cadence)
+            return null;
+
+        var publisher = scopeProvider.GetService<IGlucosePublisher>();
+        if (publisher is null)
+            return null;
+
+        var latest = await publisher.GetLatestSensorGlucoseTimestampAsync(
+            Registration.DataSourceId, cancellationToken);
+        if (latest is not { } reading)
+            return null;
+
+        reading = reading.Kind switch
+        {
+            DateTimeKind.Local => reading.ToUniversalTime(),
+            DateTimeKind.Unspecified => DateTime.SpecifyKind(reading, DateTimeKind.Utc),
+            _ => reading,
+        };
+
+        return SensorSyncAlignment.NextSyncAt(reading, cadence, now, Random.Shared.NextDouble());
+    }
 
     private DateTime _lastRealtimeSupervision = DateTime.MinValue;
 

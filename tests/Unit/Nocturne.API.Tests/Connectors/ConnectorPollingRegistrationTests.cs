@@ -62,9 +62,9 @@ public class ConnectorPollingRegistrationTests
     }
 
     /// <summary>
-    /// A connector that also runs a real-time listener, or schedules its syncs by its source's cadence,
-    /// subclasses the poller. It must be scheduled by that subclass and by nothing else: a second,
-    /// generic poller for the same connector would run a competing sync loop over the same tenants.
+    /// A connector that also runs a real-time listener subclasses the poller. It must be scheduled by
+    /// that subclass and by nothing else: a second, generic poller for the same connector would run a
+    /// competing sync loop over the same tenants.
     /// </summary>
     [Fact]
     public void ConnectorsWithTheirOwnSubclass_AreScheduledByIt()
@@ -72,9 +72,7 @@ public class ConnectorPollingRegistrationTests
         var subclasses = HandWrittenPollers();
 
         subclasses.Select(t => t.Name).Should().BeEquivalentTo(
-            "DexcomConnectorBackgroundService",
-            "NightscoutConnectorBackgroundService",
-            "NocturneRemoteConnectorBackgroundService");
+            "NightscoutConnectorBackgroundService", "NocturneRemoteConnectorBackgroundService");
 
         var scheduled = ScheduledPollers();
         foreach (var subclass in subclasses)
@@ -83,6 +81,31 @@ public class ConnectorPollingRegistrationTests
                 .ContainSingle(poller => PolledConfigurationOf(poller) == PolledConfigurationOf(subclass))
                 .Which.Should().Be(subclass);
         }
+    }
+
+    /// <summary>
+    /// A connector that declares a sensor cadence is polled just after each reading is due, finding
+    /// its newest reading by its data source. One that declared a cadence without a data source would
+    /// be left on its interval with nothing to say so.
+    /// </summary>
+    [Fact]
+    public void SensorAlignedConnectors_DeclareTheirCadenceAndADataSource()
+    {
+        var aligned = ConnectorInstallers.Types()
+            .Select(t => t.GetCustomAttribute<ConnectorRegistrationAttribute>(inherit: false))
+            .OfType<ConnectorRegistrationAttribute>()
+            .DistinctBy(r => r.ConnectorName)
+            .Where(r => r.SensorReadingIntervalSeconds > 0)
+            .ToList();
+
+        aligned.Select(r => (r.ConnectorName, r.SensorReadingIntervalSeconds)).Should().BeEquivalentTo(new[]
+        {
+            ("CareLink", 300),
+            ("Dexcom", 300),
+            ("Eversense", 300),
+            ("LibreLinkUp", 60),
+        });
+        aligned.Should().OnlyContain(r => !string.IsNullOrEmpty(r.DataSourceId));
     }
 
     /// <summary>
