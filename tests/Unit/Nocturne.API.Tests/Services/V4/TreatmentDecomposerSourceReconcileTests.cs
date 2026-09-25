@@ -7,6 +7,7 @@ using Nocturne.API.Services.Audit;
 using Nocturne.API.Services.V4;
 using Nocturne.Core.Contracts.Devices;
 using Nocturne.Core.Contracts.Glucose;
+using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Contracts.Profiles.Resolvers;
 using Nocturne.Core.Contracts.Treatments;
 using Nocturne.Core.Contracts.V4;
@@ -44,10 +45,12 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
         _db = TestDbContextFactory.CreateSqliteWithTenant(TenantId);
         _context = _db.CreateContext();
 
-        var deduplication = new DeduplicationService(
-            _context, Mock.Of<IServiceScopeFactory>(), NullLogger<DeduplicationService>.Instance);
+        _decomposer = NewDecomposer(new DeduplicationService(
+            _context, Mock.Of<IServiceScopeFactory>(), NullLogger<DeduplicationService>.Instance));
+    }
 
-        _decomposer = new TreatmentDecomposer(
+    private TreatmentDecomposer NewDecomposer(IDeduplicationService deduplication) =>
+        new(
             _context,
             Mock.Of<IBolusRepository>(), Mock.Of<ITempBasalRepository>(),
             Mock.Of<ICarbIntakeRepository>(), Mock.Of<IBGCheckRepository>(), Mock.Of<INoteRepository>(),
@@ -62,7 +65,6 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
             new AuditContext { IsSystem = true },
             deduplication,
             NullLogger<TreatmentDecomposer>.Instance);
-    }
 
     public void Dispose()
     {
@@ -118,6 +120,25 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
     }
 
     [Fact]
+    public async Task A_failed_repoint_rolls_the_delete_back()
+    {
+        var named = await AddCarbAsync("t-1", Connector);
+        var deduplication = new Mock<IDeduplicationService>();
+        deduplication
+            .Setup(d => d.RepointPrimariesAwayFromAsync(
+                It.IsAny<RecordType>(), It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("repoint failed"));
+        var decomposer = NewDecomposer(deduplication.Object);
+
+        var act = () => decomposer.DeleteFromSourceAsync(Connector, new HashSet<string> { "t-1" });
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        _context.ChangeTracker.Clear();
+        (await DeletedAtAsync<CarbIntakeEntity>(named)).Should().BeNull(
+            "a deleted primary left in place would hide the other sources' copies");
+    }
+
+    [Fact]
     public async Task Stored_ids_are_this_sources_live_rows_in_the_window()
     {
         await AddCarbAsync("in-window", Connector);
@@ -151,6 +172,26 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
             new HashSet<string> { "live", "user-deleted", "swept", "override", "new" });
 
         held.Should().BeEquivalentTo(["live", "user-deleted", "override"]);
+    }
+
+    [Theory]
+    [InlineData("Carb Correction", false, true)]
+    [InlineData("Carb Correction", true, true)]
+    [InlineData("Temp Basal", true, true)]
+    [InlineData("Temporary Override", false, true)]
+    [InlineData("Temporary Override", true, false)]
+    [InlineData("Temporary Target", true, false)]
+    [InlineData("Profile Switch", true, false)]
+    [InlineData("Pump Suspend", false, true)]
+    [InlineData("Pump Suspend", true, false)]
+    [InlineData("Pump Resume", true, false)]
+    [InlineData("Not A Nocturne Type", false, false)]
+    public void Only_treatments_that_decompose_again_safely_are_republished(
+        string eventType, bool stored, bool republished)
+    {
+        var treatment = new Treatment { Id = "t-1", EventType = eventType, Created_at = "2026-03-01T12:00:00.000Z" };
+
+        _decomposer.CanRepublish(treatment, stored).Should().Be(republished);
     }
 
     private async Task<Guid> AddCarbAsync(string legacyId, string source, DateTime? at = null)

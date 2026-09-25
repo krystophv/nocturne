@@ -1377,8 +1377,9 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, WriteOrigin origin, CancellationToken ct = default)
     {
         // origin is accepted for interface uniformity; the v4-native delete broadcast is deferred to the glucose-unification follow-up (deletes here bypass the repository chokepoint).
-        var deleted = (await DeleteDecomposedAsync([legacyId], source: null, $"legacy_id={legacyId}", ct))
-            .Sum(d => d.Result.Count);
+        var deleted = 0;
+        foreach (var table in DecomposedTables)
+            deleted += (await table.SoftDeleteAsync([legacyId], source: null, $"legacy_id={legacyId}", ct)).Count;
 
         if (deleted > 0)
             Logger.LogDebug("Soft-deleted {Count} v4 records for legacy treatment {LegacyId}", deleted, legacyId);
@@ -1387,100 +1388,57 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The repoint joins the delete's transaction only because the deduplication service shares this
+    /// scope's <see cref="NocturneDbContext"/>, so a failed repoint rolls the delete back with it.
+    /// </remarks>
     public async Task<int> DeleteFromSourceAsync(
         string source, IReadOnlySet<string> legacyIds, CancellationToken ct = default)
     {
         if (legacyIds.Count == 0)
             return 0;
 
-        var deleted = await DeleteDecomposedAsync(legacyIds.ToArray(), source, $"data_source={source}", ct);
+        var ids = legacyIds.ToArray();
+        var scope = $"data_source={source}";
 
-        foreach (var (recordType, result) in deleted)
-            await _deduplicationService.RepointPrimariesAwayFromAsync(recordType, result.Entities, ct);
-
-        return deleted.Sum(d => d.Result.Count);
-    }
-
-    /// <summary>
-    /// Soft-deletes the records decomposed from <paramref name="legacyIds"/>, through the audited
-    /// path so a user-issued delete is attributed and a later connector resync cannot re-create it
-    /// (<see cref="SoftDeleteDedupExtensions"/>).
-    /// </summary>
-    /// <remarks>
-    /// A legacy id fans out to a handful of correlated rows, never a set, so the per-record audit
-    /// rows <see cref="AuditedBulkDeleteExtensions.AuditedSoftDeleteWithEntitiesAsync{T}"/> writes
-    /// below its cap are the right shape.
-    /// </remarks>
-    /// <param name="source">Only this data source's rows, or every source's when null.</param>
-    private async Task<List<(RecordType RecordType, AuditedSoftDeleteResult<Guid> Result)>> DeleteDecomposedAsync(
-        string[] legacyIds, string? source, string scope, CancellationToken ct)
-    {
-        var deleted = new List<(RecordType, AuditedSoftDeleteResult<Guid>)>();
-
-        await DeleteAsync(RecordType.Bolus, _dbContext.Boluses);
-        await DeleteAsync(RecordType.TempBasal, _dbContext.TempBasals);
-        await DeleteAsync(RecordType.CarbIntake, _dbContext.CarbIntakes);
-        await DeleteAsync(RecordType.BGCheck, _dbContext.BGChecks);
-        await DeleteAsync(RecordType.Note, _dbContext.Notes);
-        await DeleteAsync(RecordType.DeviceEvent, _dbContext.DeviceEvents);
-        await DeleteAsync(RecordType.BolusCalculation, _dbContext.BolusCalculations);
-
-        return deleted;
-
-        async Task DeleteAsync<T>(RecordType recordType, DbSet<T> dbSet)
-            where T : class, IV4Entity, ISourcedEntity, IAuditable
+        return await _dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            var result = await _dbContext.AuditedSoftDeleteWithIdsAsync(
-                Decomposed(dbSet, legacyIds, source), _auditContext, scope, ct);
-            if (result.Count > 0)
-                deleted.Add((recordType, result));
-        }
-    }
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
-    internal static IQueryable<T> Decomposed<T>(IQueryable<T> rows, string[] legacyIds, string? source)
-        where T : IV4Entity, ISourcedEntity
-        => rows.Where(e => e.LegacyId != null && legacyIds.Contains(e.LegacyId)
-                        && (source == null || e.DataSource == source));
+            var deleted = 0;
+            foreach (var table in DecomposedTables)
+            {
+                var result = await table.SoftDeleteAsync(ids, source, scope, ct);
+                deleted += result.Count;
+                await _deduplicationService.RepointPrimariesAwayFromAsync(table.RecordType, result.Entities, ct);
+            }
+
+            await transaction.CommitAsync(ct);
+            return deleted;
+        });
+    }
 
     /// <inheritdoc />
     public async Task<IReadOnlySet<string>> GetLegacyIdsFromSourceAsync(
         string source, DateTime from, DateTime to, CancellationToken ct = default)
     {
         var ids = new HashSet<string>();
-
-        await AddAsync(ByTimeRange(_dbContext.Boluses, from, to));
-        await AddAsync(ByTimeRange(_dbContext.CarbIntakes, from, to));
-        await AddAsync(ByTimeRange(_dbContext.BGChecks, from, to));
-        await AddAsync(ByTimeRange(_dbContext.Notes, from, to));
-        await AddAsync(ByTimeRange(_dbContext.DeviceEvents, from, to));
-        await AddAsync(ByTimeRange(_dbContext.BolusCalculations, from, to));
-        await AddAsync(SpansByTimeRange(_dbContext.TempBasals, from, to));
-
+        foreach (var table in DecomposedTables)
+            ids.UnionWith(await table.LegacyIdsFromSourceAsync(source, from, to, ct));
         return ids;
-
-        async Task AddAsync<T>(IQueryable<T> rows) where T : class, IV4Entity, ISourcedEntity
-            => ids.UnionWith(await rows.AsNoTracking()
-                .Where(e => e.DataSource == source && e.LegacyId != null)
-                .Select(e => e.LegacyId!)
-                .ToListAsync(ct));
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
         IReadOnlySet<string> legacyIds, CancellationToken ct = default)
     {
-        var wanted = legacyIds.ToHashSet();
         var held = new HashSet<string>();
-        if (wanted.Count == 0)
+        if (legacyIds.Count == 0)
             return held;
 
-        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<BolusEntity>(wanted, ct)).Held);
-        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<TempBasalEntity>(wanted, ct)).Held);
-        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<CarbIntakeEntity>(wanted, ct)).Held);
-        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<BGCheckEntity>(wanted, ct)).Held);
-        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<NoteEntity>(wanted, ct)).Held);
-        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<DeviceEventEntity>(wanted, ct)).Held);
-        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<BolusCalculationEntity>(wanted, ct)).Held);
+        var wanted = legacyIds.ToHashSet();
+        foreach (var table in DecomposedTables)
+            held.UnionWith(await table.HeldAsync(wanted, ct));
 
         // Profile switches, overrides and temporary targets land as state spans keyed by OriginalId.
         var ids = wanted.ToArray();
@@ -1491,6 +1449,20 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
             .ToListAsync(ct));
 
         return held;
+    }
+
+    /// <inheritdoc />
+    public bool CanRepublish(Treatment treatment, bool stored)
+    {
+        var c = ClassifyTreatment(treatment);
+        if (c.ProducesNothing)
+            return false;
+
+        var rewritesLaterState = c.IsProfileSwitch || c.IsOverride || c.IsTemporaryTarget
+            || (c.ProduceDeviceEvent
+                && c.ParsedDeviceEventType is DeviceEventType.PumpSuspend or DeviceEventType.PumpResume);
+
+        return !stored || !rewritesLaterState;
     }
 
     /// <inheritdoc />
@@ -1532,28 +1504,85 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         var scope = $"timestamp={from:O}..{to:O}";
 
         long total = 0;
-        total += await DeleteEntitiesByTimeRange(_dbContext.Boluses, from, to, scope, ct);
-        total += await DeleteEntitiesByTimeRange(_dbContext.CarbIntakes, from, to, scope, ct);
-        total += await DeleteEntitiesByTimeRange(_dbContext.BGChecks, from, to, scope, ct);
-        total += await DeleteEntitiesByTimeRange(_dbContext.Notes, from, to, scope, ct);
-        total += await DeleteEntitiesByTimeRange(_dbContext.DeviceEvents, from, to, scope, ct);
-        total += await DeleteEntitiesByTimeRange(_dbContext.BolusCalculations, from, to, scope, ct);
-        total += await _dbContext.AuditedSoftDeleteAsync(
-            SpansByTimeRange(_dbContext.TempBasals, from, to), _auditContext, scope, ct);
+        foreach (var table in DecomposedTables)
+            total += await table.SoftDeleteInRangeAsync(from, to, scope, ct);
 
         Logger.LogInformation("BulkDelete: removed {Total} v4 treatment records for find={Find}", total, findForLog);
         return total;
     }
 
     /// <summary>
-    /// Soft-deletes the point-in-time records in the window through the audited bulk-delete path, so a
-    /// user-issued delete is attributed and a later connector resync cannot re-create it
+    /// The tables a legacy treatment decomposes into, each row keyed by the treatment's id as its
+    /// <see cref="IV4Entity.LegacyId"/>. Deletes go through the audited soft-delete path: a
+    /// user-issued one is attributed, and blocks a later connector resync from re-creating the row
     /// (<see cref="SoftDeleteDedupExtensions"/>).
     /// </summary>
-    private Task<int> DeleteEntitiesByTimeRange<T>(
-        DbSet<T> dbSet, DateTime? from, DateTime? to, string scope, CancellationToken ct)
-        where T : class, IV4TimeSeriesEntity, IAuditable
-        => _dbContext.AuditedSoftDeleteAsync(ByTimeRange(dbSet, from, to), _auditContext, scope, ct);
+    private IDecomposedTable[] DecomposedTables =>
+    [
+        Table(RecordType.Bolus, _dbContext.Boluses, ByTimeRange),
+        Table(RecordType.TempBasal, _dbContext.TempBasals, SpansByTimeRange),
+        Table(RecordType.CarbIntake, _dbContext.CarbIntakes, ByTimeRange),
+        Table(RecordType.BGCheck, _dbContext.BGChecks, ByTimeRange),
+        Table(RecordType.Note, _dbContext.Notes, ByTimeRange),
+        Table(RecordType.DeviceEvent, _dbContext.DeviceEvents, ByTimeRange),
+        Table(RecordType.BolusCalculation, _dbContext.BolusCalculations, ByTimeRange),
+    ];
+
+    private DecomposedTable<T> Table<T>(
+        RecordType recordType, DbSet<T> rows, Func<IQueryable<T>, DateTime?, DateTime?, IQueryable<T>> inRange)
+        where T : class, IV4Entity, ISourcedEntity, IAuditable
+        => new(_dbContext, _auditContext, recordType, rows, inRange);
+
+    private interface IDecomposedTable
+    {
+        RecordType RecordType { get; }
+
+        /// <param name="source">Only this data source's rows, or every source's when null.</param>
+        /// <remarks>
+        /// A legacy id fans out to a handful of correlated rows, never a set. The per-record audit
+        /// rows <see cref="AuditedBulkDeleteExtensions.AuditedSoftDeleteWithEntitiesAsync{T}"/>
+        /// writes below its cap are the right shape for that.
+        /// </remarks>
+        Task<AuditedSoftDeleteResult<Guid>> SoftDeleteAsync(
+            string[] legacyIds, string? source, string scope, CancellationToken ct);
+
+        Task<int> SoftDeleteInRangeAsync(DateTime? from, DateTime? to, string scope, CancellationToken ct);
+
+        Task<List<string>> LegacyIdsFromSourceAsync(string source, DateTime from, DateTime to, CancellationToken ct);
+
+        Task<IReadOnlySet<string>> HeldAsync(HashSet<string> legacyIds, CancellationToken ct);
+    }
+
+    private sealed class DecomposedTable<T>(
+        NocturneDbContext context,
+        IAuditContext auditContext,
+        RecordType recordType,
+        DbSet<T> rows,
+        Func<IQueryable<T>, DateTime?, DateTime?, IQueryable<T>> inRange) : IDecomposedTable
+        where T : class, IV4Entity, ISourcedEntity, IAuditable
+    {
+        public RecordType RecordType => recordType;
+
+        public Task<AuditedSoftDeleteResult<Guid>> SoftDeleteAsync(
+            string[] legacyIds, string? source, string scope, CancellationToken ct)
+            => context.AuditedSoftDeleteWithIdsAsync(
+                rows.Where(e => e.LegacyId != null && legacyIds.Contains(e.LegacyId)
+                             && (source == null || e.DataSource == source)),
+                auditContext, scope, ct);
+
+        public Task<int> SoftDeleteInRangeAsync(DateTime? from, DateTime? to, string scope, CancellationToken ct)
+            => context.AuditedSoftDeleteAsync(inRange(rows, from, to), auditContext, scope, ct);
+
+        public Task<List<string>> LegacyIdsFromSourceAsync(
+            string source, DateTime from, DateTime to, CancellationToken ct)
+            => inRange(rows.AsNoTracking(), from, to)
+                .Where(e => e.DataSource == source && e.LegacyId != null)
+                .Select(e => e.LegacyId!)
+                .ToListAsync(ct);
+
+        public async Task<IReadOnlySet<string>> HeldAsync(HashSet<string> legacyIds, CancellationToken ct)
+            => (await context.GetBlockingLegacyIdsAsync<T>(legacyIds, ct)).Held;
+    }
 
     private static IQueryable<T> ByTimeRange<T>(IQueryable<T> rows, DateTime? from, DateTime? to)
         where T : IV4TimeSeriesEntity

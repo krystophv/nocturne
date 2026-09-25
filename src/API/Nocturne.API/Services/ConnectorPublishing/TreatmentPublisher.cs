@@ -23,6 +23,8 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
 {
     private readonly ITenantDbContextFactory _contextFactory;
     private readonly ITreatmentService _treatmentService;
+    private readonly ITreatmentDecomposer _treatmentDecomposer;
+    private readonly ITreatmentCache _treatmentCache;
     private readonly IBolusRepository _bolusRepository;
     private readonly ICarbIntakeRepository _carbIntakeRepository;
     private readonly IBGCheckRepository _bgCheckRepository;
@@ -39,6 +41,8 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
     public TreatmentPublisher(
         ITenantDbContextFactory contextFactory,
         ITreatmentService treatmentService,
+        ITreatmentDecomposer treatmentDecomposer,
+        ITreatmentCache treatmentCache,
         IBolusRepository bolusRepository,
         ICarbIntakeRepository carbIntakeRepository,
         IBGCheckRepository bgCheckRepository,
@@ -58,6 +62,8 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
     {
         _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
         _treatmentService = treatmentService ?? throw new ArgumentNullException(nameof(treatmentService));
+        _treatmentDecomposer = treatmentDecomposer ?? throw new ArgumentNullException(nameof(treatmentDecomposer));
+        _treatmentCache = treatmentCache ?? throw new ArgumentNullException(nameof(treatmentCache));
         _bolusRepository = bolusRepository ?? throw new ArgumentNullException(nameof(bolusRepository));
         _carbIntakeRepository = carbIntakeRepository ?? throw new ArgumentNullException(nameof(carbIntakeRepository));
         _bgCheckRepository = bgCheckRepository ?? throw new ArgumentNullException(nameof(bgCheckRepository));
@@ -241,21 +247,48 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
             () => _deviceEventRepository.GetLatestTimestampAsync(source, cancellationToken));
 
     /// <inheritdoc />
-    public Task<IReadOnlySet<string>> GetStoredTreatmentIdsAsync(
-        string source, DateTime from, DateTime to, CancellationToken cancellationToken = default)
-        => _treatmentService.GetLegacyIdsFromSourceAsync(source, from, to, cancellationToken);
+    public async Task<bool> PublishRecentTreatmentsAsync(
+        IEnumerable<Treatment> treatments,
+        string source,
+        WriteOrigin origin, CancellationToken cancellationToken = default)
+    {
+        var list = treatments.ToList();
+        IReadOnlySet<string> stored;
+        try
+        {
+            stored = await _treatmentDecomposer.GetHeldLegacyIdsAsync(
+                list.Select(t => t.Id).OfType<string>().ToHashSet(), cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to read stored treatments for {Source}", source);
+            return false;
+        }
+
+        var republish = list
+            .Where(t => _treatmentDecomposer.CanRepublish(t, t.Id is { } id && stored.Contains(id)))
+            .ToList();
+
+        return republish.Count == 0 || await PublishTreatmentsAsync(republish, source, origin, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<IReadOnlySet<string>> GetHeldTreatmentIdsAsync(
-        IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default)
-        => _treatmentService.GetHeldLegacyIdsAsync(legacyIds, cancellationToken);
+    public Task<IReadOnlySet<string>> GetStoredTreatmentIdsAsync(
+        string source, DateTime from, DateTime to, CancellationToken cancellationToken = default)
+        => _treatmentDecomposer.GetLegacyIdsFromSourceAsync(source, from, to, cancellationToken);
 
     /// <inheritdoc />
     public async Task<int> DeleteTreatmentsAsync(
         string source, IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default)
     {
+        int deleted;
         using (PushSystemAudit())
-            return await _treatmentService.DeleteFromSourceAsync(source, legacyIds, cancellationToken);
+            deleted = await _treatmentDecomposer.DeleteFromSourceAsync(source, legacyIds, cancellationToken);
+
+        if (deleted > 0)
+            await _treatmentCache.InvalidateAsync(cancellationToken);
+        return deleted;
     }
 
     // ── Patient Insulin resolution helpers ──────────────────────────────

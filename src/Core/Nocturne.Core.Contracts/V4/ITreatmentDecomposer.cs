@@ -70,6 +70,14 @@ public interface ITreatmentDecomposer
     Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(IReadOnlySet<string> legacyIds, CancellationToken ct = default);
 
     /// <summary>
+    /// Whether decomposing <paramref name="treatment"/> again is safe and worthwhile. A treatment
+    /// that stores nothing is not. One already <paramref name="stored"/> is not when its type
+    /// re-derives state later writes have moved on: a profile switch, override or temporary target
+    /// resets its span's end, and a pump suspend or resume reopens or closes the current suspension.
+    /// </summary>
+    bool CanRepublish(Treatment treatment, bool stored);
+
+    /// <summary>
     /// Bulk-deletes V4 treatment records matching the optional find filter (time range).
     /// </summary>
     /// <param name="find">Optional Nightscout-compatible find query for time range filtering.</param>

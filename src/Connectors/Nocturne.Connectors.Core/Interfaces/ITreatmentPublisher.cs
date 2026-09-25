@@ -56,11 +56,14 @@ public interface ITreatmentPublisher
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The subset of <paramref name="legacyIds"/> publishing again would find stored, or withheld
-    /// because the user deleted it.
+    /// Publishes treatments a source may already have delivered: an edit made in place under the
+    /// same id updates the stored record, and one never stored is created. Treatments that would
+    /// store nothing, and stored ones whose type cannot be decomposed again safely, are left out.
     /// </summary>
-    Task<IReadOnlySet<string>> GetHeldTreatmentIdsAsync(
-        IReadOnlySet<string> legacyIds,
+    Task<bool> PublishRecentTreatmentsAsync(
+        IEnumerable<Treatment> treatments,
+        string source,
+        WriteOrigin origin,
         CancellationToken cancellationToken = default);
 
     /// <summary>

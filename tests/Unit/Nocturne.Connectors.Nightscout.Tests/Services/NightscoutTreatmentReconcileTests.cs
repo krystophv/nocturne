@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using Nocturne.Connectors.Core.Interfaces;
 using Nocturne.Connectors.Core.Models;
@@ -14,140 +15,210 @@ using Xunit;
 namespace Nocturne.Connectors.Nightscout.Tests.Services;
 
 /// <summary>
-/// The catch-up's re-read of recent treatments: it imports what the event-time cursor cannot see,
-/// and deletes this connector's rows the source no longer has, but only on a positive answer.
+/// The catch-up's reconcile of its recent treatments: it publishes again what the event-time
+/// cursor cannot see, and deletes this connector's rows the source no longer has, but only on a
+/// lookup the source has shown it can answer.
 /// </summary>
 public class NightscoutTreatmentReconcileTests
 {
     private const string Source = "nightscout-connector";
-    private const string KeptId = "aaaaaaaaaaaaaaaaaaaaaaa1";
-    private const string GoneId = "aaaaaaaaaaaaaaaaaaaaaaa2";
-    private const string LateId = "aaaaaaaaaaaaaaaaaaaaaaa3";
 
-    private static readonly DateTime Now = DateTime.UtcNow;
+    // Synthetic ids in the shapes uploaders write: Trio sends its own UUID `id` alongside Mongo's `_id`.
+    private const string TrioKept = "11111111-1111-4111-8111-111111111111";
+    private const string TrioGone = "22222222-2222-4222-8222-222222222222";
+    private const string LoopKept = "aaaaaaaaaaaaaaaaaaaaaaa1";
+    private const string LoopGone = "aaaaaaaaaaaaaaaaaaaaaaa2";
+    private const string MongoIdA = "bbbbbbbbbbbbbbbbbbbbbbb1";
+
+    private static readonly DateTimeOffset Now = new(2026, 3, 1, 12, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task A_treatment_the_source_deleted_is_deleted_here()
+    public async Task A_trio_treatment_the_source_deleted_is_looked_up_by_its_uuid_and_deleted()
     {
         var harness = new Harness
         {
-            Window = Json(Carb(KeptId, Now.AddHours(-1))),
-            Stored = [KeptId, GoneId],
-            Held = [KeptId],
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioKept, TrioGone],
         };
 
         var result = await harness.SyncAsync();
 
         result.Success.Should().BeTrue();
-        harness.Deleted.Should().ContainSingle().Which.Should().BeEquivalentTo([GoneId]);
-        harness.LookedUp.Should().Equal(GoneId);
+        harness.Deleted.Should().ContainSingle().Which.Should().BeEquivalentTo([TrioGone]);
+        harness.Lookups.Should().Contain($"find[id]={TrioGone}");
+        harness.Lookups.Should().NotContain(l => l.StartsWith("find[_id]"),
+            "a UUID is not an ObjectId, and asking for one by _id fails on older Nightscout");
     }
 
     [Fact]
-    public async Task A_failed_window_read_deletes_nothing()
+    public async Task A_loop_treatment_the_source_deleted_is_looked_up_by_its_object_id()
     {
         var harness = new Harness
         {
-            Window = Failure(),
-            Stored = [KeptId, GoneId],
-        };
-
-        var result = await harness.SyncAsync();
-
-        result.Success.Should().BeFalse();
-        harness.Deleted.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task A_row_the_id_lookup_still_finds_is_kept()
-    {
-        // Missing from the window read, as a record at a page boundary or with a created_at outside
-        // the window would be, but the source still has it.
-        var harness = new Harness
-        {
-            Window = Json(Carb(KeptId, Now.AddHours(-1))),
-            Stored = [KeptId, GoneId],
-            Held = [KeptId],
-            Lookups = { [GoneId] = Json(Carb(GoneId, Now.AddDays(-3))) },
+            Upstream = [Loop(LoopKept, Now.AddMinutes(-30))],
+            Stored = [LoopKept, LoopGone],
         };
 
         await harness.SyncAsync();
 
-        harness.LookedUp.Should().Equal(GoneId);
+        harness.Lookups.Should().Contain([$"find[_id]={LoopKept}", $"find[_id]={LoopGone}", $"find[id]={LoopGone}"]);
+        harness.Deleted.Should().ContainSingle().Which.Should().BeEquivalentTo([LoopGone]);
+    }
+
+    [Fact]
+    public async Task A_failing_lookup_deletes_nothing_and_does_not_fail_the_sync()
+    {
+        var harness = new Harness
+        {
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioKept, TrioGone],
+            LookupFails = true,
+        };
+
+        var result = await harness.SyncAsync();
+
+        result.Success.Should().BeTrue();
         harness.Deleted.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_failed_id_lookup_deletes_nothing()
+    public async Task A_source_that_cannot_find_what_it_just_returned_deletes_nothing()
     {
         var harness = new Harness
         {
-            Window = Json(Carb(KeptId, Now.AddHours(-1))),
-            Stored = [KeptId, GoneId],
-            Held = [KeptId],
-            Lookups = { [GoneId] = Failure() },
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioKept, TrioGone],
+            LookupFindsNothing = true,
+        };
+
+        await harness.SyncAsync();
+
+        harness.Lookups.Should().Equal($"find[id]={TrioKept}");
+        harness.Deleted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_row_the_lookup_still_finds_is_kept_and_not_looked_up_again()
+    {
+        // Missing from the read, as a record at a page boundary or with a created_at outside the
+        // window would be, but the source still has it.
+        var harness = new Harness
+        {
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioKept, TrioGone],
+            AlsoUpstream = [TrioGone],
+        };
+
+        await harness.SyncAsync();
+        var firstLookups = harness.Lookups.Count;
+        await harness.SyncAsync();
+
+        harness.Deleted.Should().BeEmpty();
+        harness.Lookups.Skip(firstLookups).Should().NotContain($"find[id]={TrioGone}");
+    }
+
+    [Fact]
+    public async Task A_source_missing_much_of_the_window_deletes_nothing()
+    {
+        var missing = Enumerable.Range(0, 5).Select(i => $"cccccccc-cccc-4ccc-8ccc-00000000000{i}").ToList();
+        var harness = new Harness
+        {
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioKept, .. missing],
+        };
+
+        var result = await harness.SyncAsync();
+
+        result.Success.Should().BeTrue();
+        harness.Lookups.Should().BeEmpty();
+        harness.Deleted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_sparse_window_can_still_lose_its_one_deleted_treatment()
+    {
+        var harness = new Harness
+        {
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioGone, TrioKept],
+        };
+
+        await harness.SyncAsync();
+
+        harness.Deleted.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Treatments_the_crawl_did_not_publish_are_published_again()
+    {
+        // Both sit below the crawl's resume point: one a late upload, one an in-place edit of a
+        // stored treatment. Which of them the store takes is its decision.
+        var harness = new Harness
+        {
+            LatestStored = Now.AddMinutes(-5),
+            Upstream =
+            [
+                Loop(LoopKept, Now.AddMinutes(-3)),
+                Trio(MongoIdA, TrioKept, Now.AddMinutes(-40)),
+                Loop(LoopGone, Now.AddMinutes(-50)),
+            ],
+            Stored = [TrioKept, LoopKept],
+        };
+
+        var result = await harness.SyncAsync();
+
+        result.Success.Should().BeTrue();
+        harness.Crawled.Select(t => t.Id).Should().Equal(LoopKept);
+        harness.Republished.Select(t => t.Id).Should().BeEquivalentTo([TrioKept, LoopGone]);
+        harness.Republished.Should().OnlyContain(t => t.DataSource == Source);
+    }
+
+    [Fact]
+    public async Task One_sync_an_hour_reads_back_across_the_full_window()
+    {
+        var widened = 0;
+        var url = $"https://{Guid.NewGuid():N}.ns.example";
+        for (var minute = 0; minute < 60; minute++)
+        {
+            var harness = new Harness
+            {
+                Url = url,
+                At = new DateTimeOffset(2026, 3, 1, 12, minute, 0, TimeSpan.Zero),
+                Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            };
+            await harness.SyncAsync();
+            if (harness.CrawlLowerBound < harness.At.UtcDateTime.AddHours(-20))
+                widened++;
+        }
+
+        widened.Should().Be(5, "the sync interval is five minutes, so one sync an hour falls in the slot");
+    }
+
+    [Fact]
+    public async Task A_failed_read_deletes_nothing()
+    {
+        var harness = new Harness
+        {
+            ReadFails = true,
+            Stored = [TrioKept, TrioGone],
         };
 
         var result = await harness.SyncAsync();
 
         result.Success.Should().BeFalse();
         harness.Deleted.Should().BeEmpty();
+        harness.Lookups.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task An_empty_window_deletes_nothing()
+    public async Task An_empty_read_deletes_nothing()
     {
-        var harness = new Harness
-        {
-            Window = Json(),
-            Stored = [KeptId, GoneId],
-        };
+        var harness = new Harness { Stored = [TrioKept, TrioGone] };
 
         var result = await harness.SyncAsync();
 
         result.Success.Should().BeTrue();
-        harness.Deleted.Should().BeEmpty();
-        harness.LookedUp.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task A_source_missing_most_of_the_window_deletes_nothing()
-    {
-        var missing = Enumerable.Range(0, 100)
-            .Select(i => $"bbbbbbbbbbbbbbbbbbbb{i:0000}")
-            .ToList();
-        var harness = new Harness
-        {
-            Window = Json(Carb(KeptId, Now.AddHours(-1))),
-            Stored = [KeptId, .. missing],
-            Held = [KeptId],
-        };
-
-        var result = await harness.SyncAsync();
-
-        result.Success.Should().BeTrue();
-        harness.Deleted.Should().BeEmpty();
-        harness.LookedUp.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task A_treatment_uploaded_after_a_newer_one_is_imported()
-    {
-        // Its event time sits well before the newest stored treatment, below the crawl's resume
-        // point, as an edit re-uploaded under its original time or a back-dated entry does.
-        var harness = new Harness
-        {
-            LatestStored = Now.AddMinutes(-2),
-            Window = Json(Carb(KeptId, Now.AddMinutes(-2)), Carb(LateId, Now.AddMinutes(-40))),
-            Stored = [KeptId],
-            Held = [KeptId],
-        };
-
-        var result = await harness.SyncAsync();
-
-        result.Success.Should().BeTrue();
-        harness.Published.Select(t => t.Id).Should().Equal(LateId);
-        harness.Published.Single().DataSource.Should().Be(Source);
+        harness.Lookups.Should().BeEmpty();
         harness.Deleted.Should().BeEmpty();
     }
 
@@ -156,9 +227,8 @@ public class NightscoutTreatmentReconcileTests
     {
         var harness = new Harness
         {
-            Window = Json(Carb(KeptId, Now.AddHours(-1))),
-            Stored = [KeptId, GoneId],
-            Held = [KeptId],
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioKept, TrioGone],
         };
 
         await harness.SyncAsync();
@@ -172,53 +242,63 @@ public class NightscoutTreatmentReconcileTests
     {
         var harness = new Harness
         {
-            Window = Json(Carb(KeptId, Now.AddHours(-1))),
-            Stored = [KeptId, GoneId],
+            Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],
+            Stored = [TrioKept, TrioGone],
         };
 
         await harness.SyncAsync(new SyncRequest
         {
-            From = Now.AddDays(-2),
-            To = Now.AddDays(-1),
+            From = Now.UtcDateTime.AddDays(-2),
+            To = Now.UtcDateTime.AddDays(-1),
             DataTypes = [SyncDataType.CarbIntake],
         });
 
-        harness.TreatmentReads.Should().Be(1);
-        harness.Deleted.Should().BeEmpty();
+        harness.StoredAskedOf.Should().BeEmpty();
+        harness.Republished.Should().BeEmpty();
+        harness.Lookups.Should().BeEmpty();
     }
 
-    private static string Carb(string id, DateTime at) =>
-        $$"""{"_id":"{{id}}","eventType":"Carb Correction","carbs":20,"created_at":"{{at:o}}"}""";
+    private static string Trio(string mongoId, string trioId, DateTimeOffset at) =>
+        $$"""{"_id":"{{mongoId}}","id":"{{trioId}}","enteredBy":"Trio","eventType":"Carb Correction","carbs":20,"created_at":"{{at.UtcDateTime:o}}"}""";
 
-    private static Func<HttpResponseMessage> Json(params string[] treatments) =>
-        () => new HttpResponseMessage(HttpStatusCode.OK)
+    private static string Loop(string mongoId, DateTimeOffset at) =>
+        $$"""{"_id":"{{mongoId}}","syncIdentifier":"loop-sync-{{mongoId}}","enteredBy":"Loop","eventType":"Carb Correction","carbs":20,"created_at":"{{at.UtcDateTime:o}}"}""";
+
+    private static HttpResponseMessage Json(IEnumerable<string> treatments) =>
+        new(HttpStatusCode.OK)
         {
             Content = new StringContent($"[{string.Join(',', treatments)}]", Encoding.UTF8, "application/json"),
         };
 
-    private static Func<HttpResponseMessage> Failure() =>
-        () => new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StringContent("") };
+    private static HttpResponseMessage Failure() =>
+        new(HttpStatusCode.InternalServerError) { Content = new StringContent("") };
 
     private sealed class Harness : HttpMessageHandler
     {
-        public DateTime LatestStored { get; init; } = Now.AddMinutes(-10);
-        public Func<HttpResponseMessage> Window { get; init; } = Json();
-        public HashSet<string> Stored { get; init; } = [];
-        public HashSet<string> Held { get; init; } = [];
-        public Dictionary<string, Func<HttpResponseMessage>> Lookups { get; } = [];
+        public string Url { get; init; } = $"https://{Guid.NewGuid():N}.ns.example";
 
-        public List<Treatment> Published { get; } = [];
+        public DateTimeOffset At { get; init; } = Now;
+        public DateTimeOffset LatestStored { get; init; } = Now.AddMinutes(-10);
+        public List<string> Upstream { get; init; } = [];
+        public HashSet<string> AlsoUpstream { get; init; } = [];
+        public HashSet<string> Stored { get; init; } = [];
+        public bool ReadFails { get; init; }
+        public bool LookupFails { get; init; }
+        public bool LookupFindsNothing { get; init; }
+
+        public List<Treatment> Crawled { get; } = [];
+        public List<Treatment> Republished { get; } = [];
         public List<IReadOnlySet<string>> Deleted { get; } = [];
         public List<string> DeletedFrom { get; } = [];
         public List<string> StoredAskedOf { get; } = [];
-        public List<string> LookedUp { get; } = [];
-        public int TreatmentReads { get; private set; }
+        public List<string> Lookups { get; } = [];
+        public DateTime? CrawlLowerBound { get; private set; }
 
         public Task<SyncResult> SyncAsync(SyncRequest? request = null)
         {
-            var config = new NightscoutConnectorConfiguration { Url = "https://ns.example", ApiSecret = "secret" };
+            var config = new NightscoutConnectorConfiguration { Url = Url, ApiSecret = "secret" };
             return NewService().SyncDataAsync(
-                request ?? new SyncRequest { From = Now.AddMinutes(-5), To = null, DataTypes = [SyncDataType.CarbIntake] },
+                request ?? new SyncRequest { From = At.UtcDateTime.AddMinutes(-5), To = null, DataTypes = [SyncDataType.CarbIntake] },
                 config,
                 CancellationToken.None);
         }
@@ -228,20 +308,27 @@ public class NightscoutTreatmentReconcileTests
         {
             var url = Uri.UnescapeDataString(request.RequestUri!.ToString());
             if (!url.Contains("/api/v1/treatments.json", StringComparison.Ordinal))
-                return Task.FromResult(Json()());
+                return Task.FromResult(Json([]));
 
-            const string idFilter = "&find[_id]=";
-            var at = url.IndexOf(idFilter, StringComparison.Ordinal);
-            if (at >= 0)
+            var lookup = System.Text.RegularExpressions.Regex.Match(url, @"find\[(_id|id)\]=(.+)$");
+            if (lookup.Success)
             {
-                var id = url[(at + idFilter.Length)..];
-                LookedUp.Add(id);
-                return Task.FromResult(Lookups.TryGetValue(id, out var lookup) ? lookup() : Json()());
+                var (field, id) = (lookup.Groups[1].Value, lookup.Groups[2].Value);
+                Lookups.Add($"find[{field}]={id}");
+                if (LookupFails)
+                    return Task.FromResult(Failure());
+
+                var found = !LookupFindsNothing && (AlsoUpstream.Contains(id) || Upstream.Any(doc =>
+                    doc.Contains(field == "_id" ? $"\"_id\":\"{id}\"" : $"\"id\":\"{id}\"", StringComparison.Ordinal)));
+                return Task.FromResult(Json(found ? [Upstream.FirstOrDefault() ?? "{}"] : []));
             }
 
-            // The first read is the catch-up crawl, which here finds nothing new; the next is the
-            // window re-read.
-            return Task.FromResult(TreatmentReads++ == 0 ? Json()() : Window());
+            var gte = System.Text.RegularExpressions.Regex.Match(url, @"find\[created_at\]\[\$gte\]=([^&]+)");
+            if (gte.Success && CrawlLowerBound is null)
+                CrawlLowerBound = DateTime.Parse(gte.Groups[1].Value, null,
+                    System.Globalization.DateTimeStyles.RoundtripKind).ToUniversalTime().AddHours(14);
+
+            return Task.FromResult(ReadFails ? Failure() : Json(Upstream));
         }
 
         private NightscoutConnectorService NewService()
@@ -249,15 +336,17 @@ public class NightscoutTreatmentReconcileTests
             var treatments = new Mock<ITreatmentPublisher>();
             treatments
                 .Setup(p => p.GetLatestTreatmentTimestampAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(LatestStored);
+                .ReturnsAsync(LatestStored.UtcDateTime);
             treatments
                 .Setup(p => p.PublishTreatmentsAsync(
                     It.IsAny<IEnumerable<Treatment>>(), It.IsAny<string>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
-                .Callback<IEnumerable<Treatment>, string, WriteOrigin, CancellationToken>((batch, _, _, _) => Published.AddRange(batch))
+                .Callback<IEnumerable<Treatment>, string, WriteOrigin, CancellationToken>((batch, _, _, _) => Crawled.AddRange(batch))
                 .ReturnsAsync(true);
             treatments
-                .Setup(p => p.GetHeldTreatmentIdsAsync(It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync((IReadOnlySet<string> ids, CancellationToken _) => ids.Where(Held.Contains).ToHashSet());
+                .Setup(p => p.PublishRecentTreatmentsAsync(
+                    It.IsAny<IEnumerable<Treatment>>(), It.IsAny<string>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+                .Callback<IEnumerable<Treatment>, string, WriteOrigin, CancellationToken>((batch, _, _, _) => Republished.AddRange(batch))
+                .ReturnsAsync(true);
             treatments
                 .Setup(p => p.GetStoredTreatmentIdsAsync(
                     It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
@@ -290,7 +379,8 @@ public class NightscoutTreatmentReconcileTests
                 Mock.Of<IRetryDelayStrategy>(),
                 Mock.Of<IRateLimitingStrategy>(),
                 registration.Object,
-                publisher.Object);
+                publisher.Object,
+                new FakeTimeProvider(At));
         }
     }
 }

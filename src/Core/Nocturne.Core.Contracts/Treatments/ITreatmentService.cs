@@ -154,16 +154,4 @@ public interface ITreatmentService
         string? find = null,
         CancellationToken cancellationToken = default
     );
-
-    /// <inheritdoc cref="V4.ITreatmentDecomposer.DeleteFromSourceAsync"/>
-    Task<int> DeleteFromSourceAsync(
-        string source, IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default);
-
-    /// <inheritdoc cref="V4.ITreatmentDecomposer.GetLegacyIdsFromSourceAsync"/>
-    Task<IReadOnlySet<string>> GetLegacyIdsFromSourceAsync(
-        string source, DateTime from, DateTime to, CancellationToken cancellationToken = default);
-
-    /// <inheritdoc cref="V4.ITreatmentDecomposer.GetHeldLegacyIdsAsync"/>
-    Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
-        IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default);
 }

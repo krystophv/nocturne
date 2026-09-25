@@ -708,8 +708,8 @@ public class TandemE2eSyncTests
         public Task<IReadOnlySet<string>> GetStoredTreatmentIdsAsync(string source, DateTime from, DateTime to, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlySet<string>>(new HashSet<string>());
 
-        public Task<IReadOnlySet<string>> GetHeldTreatmentIdsAsync(IReadOnlySet<string> legacyIds, CancellationToken ct = default) =>
-            Task.FromResult<IReadOnlySet<string>>(new HashSet<string>());
+        public Task<bool> PublishRecentTreatmentsAsync(IEnumerable<Treatment> treatments, string source, WriteOrigin origin, CancellationToken ct = default) =>
+            Task.FromResult(true);
 
         public Task<int> DeleteTreatmentsAsync(string source, IReadOnlySet<string> legacyIds, CancellationToken ct = default) =>
             Task.FromResult(0);

@@ -24,6 +24,8 @@ namespace Nocturne.API.Tests.Services.ConnectorPublishing;
 public class TreatmentPublisherTests
 {
     private readonly Mock<ITreatmentService> _mockTreatmentService;
+    private readonly Mock<ITreatmentDecomposer> _mockDecomposer = new();
+    private readonly Mock<ITreatmentCache> _mockCache = new();
     private readonly Mock<IBolusRepository> _mockBolusRepository;
     private readonly Mock<ICarbIntakeRepository> _mockCarbIntakeRepository;
     private readonly Mock<IBGCheckRepository> _mockBGCheckRepository;
@@ -85,6 +87,8 @@ public class TreatmentPublisherTests
         return new TreatmentPublisher(
             _mockContextFactory.Object,
             _mockTreatmentService.Object,
+            _mockDecomposer.Object,
+            _mockCache.Object,
             _mockBolusRepository.Object,
             _mockCarbIntakeRepository.Object,
             _mockBGCheckRepository.Object,
@@ -337,8 +341,8 @@ public class TreatmentPublisherTests
         var publisher = CreatePublisher(auditContext);
 
         bool? systemDuringDelete = null;
-        _mockTreatmentService
-            .Setup(s => s.DeleteFromSourceAsync(
+        _mockDecomposer
+            .Setup(d => d.DeleteFromSourceAsync(
                 It.IsAny<string>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
             .Callback(() => systemDuringDelete = auditContext.IsSystem)
             .ReturnsAsync(1);
@@ -347,8 +351,38 @@ public class TreatmentPublisherTests
 
         systemDuringDelete.Should().BeTrue();
         auditContext.IsSystem.Should().BeFalse("the scope is restored once the delete returns");
-        _mockTreatmentService.Verify(s => s.DeleteFromSourceAsync(
+        _mockDecomposer.Verify(d => d.DeleteFromSourceAsync(
             "nightscout-connector", It.Is<IReadOnlySet<string>>(ids => ids.SetEquals(new[] { "t-1" })),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _mockCache.Verify(c => c.InvalidateAsync(It.IsAny<CancellationToken>()), Times.Once,
+            "reads served from the treatment cache would still show what was deleted");
+    }
+
+    [Fact]
+    public async Task PublishRecentTreatmentsAsync_PublishesOnlyWhatCanBeDecomposedAgain()
+    {
+        _mockDecomposer
+            .Setup(d => d.GetHeldLegacyIdsAsync(It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string> { "stored-edit", "stored-override" });
+        _mockDecomposer
+            .Setup(d => d.CanRepublish(It.IsAny<Treatment>(), It.IsAny<bool>()))
+            .Returns((Treatment t, bool stored) => t.Id != "unsupported" && !(stored && t.Id == "stored-override"));
+        _mockTreatmentService
+            .Setup(s => s.CreateTreatmentsAsync(It.IsAny<IEnumerable<Treatment>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BulkWrite<Treatment>([], 0));
+
+        var published = await _publisher.PublishRecentTreatmentsAsync(
+            [
+                new Treatment { Id = "stored-edit" }, new Treatment { Id = "stored-override" },
+                new Treatment { Id = "late" }, new Treatment { Id = "unsupported" },
+            ],
+            "nightscout-connector", WriteOrigin.Live);
+
+        published.Should().BeTrue();
+        _mockDecomposer.Verify(d => d.CanRepublish(It.Is<Treatment>(t => t.Id == "stored-edit"), true));
+        _mockDecomposer.Verify(d => d.CanRepublish(It.Is<Treatment>(t => t.Id == "late"), false));
+        _mockTreatmentService.Verify(s => s.CreateTreatmentsAsync(
+            It.Is<IEnumerable<Treatment>>(ts => ts.Select(t => t.Id).SequenceEqual(new[] { "stored-edit", "late" })),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
