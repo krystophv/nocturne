@@ -47,8 +47,12 @@ export interface HandshakeTicketPayload {
   subjectId?: string;
 }
 
-/** A subject id in canonical lowercase `D` GUID form, the only form the bridge rooms on. */
 const CANONICAL_SUBJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The value as a subject id in canonical lowercase `D` GUID form, the only form the bridge rooms on, else undefined. */
+export function canonicalSubjectId(value: unknown): string | undefined {
+  return typeof value === 'string' && CANONICAL_SUBJECT_ID.test(value) ? value : undefined;
+}
 
 /**
  * The API endpoint answering whether a credential may read glucose live and
@@ -133,9 +137,6 @@ export function verifyHandshakeTicket(
     h,
     exp,
     tenantRelay: parsed.tenantRelay === true,
-    subjectId:
-      typeof subjectId === 'string' && CANONICAL_SUBJECT_ID.test(subjectId)
-        ? subjectId
-        : undefined,
+    subjectId: canonicalSubjectId(subjectId),
   };
 }

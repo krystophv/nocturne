@@ -92,8 +92,8 @@ describe("realtime ticket endpoint", () => {
   });
 
   it("signs the admission's subject id into a member ticket", async () => {
-    // The bridge routes each relayed notification to the subject room named here, so
-    // dropping the id would send every member the tenant-wide copy again.
+    // The bridge routes each relayed notification to the subject room named here; without
+    // the id the member's socket receives none of its own notifications.
     probe.mockResolvedValue(
       admits({ tenantRelay: true, subjectId: "0a5f2c1e-1111-4222-8333-444455556666" })
     );

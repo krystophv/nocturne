@@ -82,8 +82,8 @@ public class RealtimeAdmissionControllerTests
     [Fact]
     public void A_member_session_admission_names_the_subject_to_room_on()
     {
-        // The bridge carries this id into a per-subject room, so dropping it would send every
-        // member the tenant-wide copy of the notification.
+        // The bridge carries this id into a per-subject room; without it the member's socket
+        // receives none of its own notifications.
         var subject = Guid.CreateVersion7();
 
         AdmissionFor(new AuthContext

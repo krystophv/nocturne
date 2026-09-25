@@ -6,6 +6,7 @@ import {
   verifyHandshakeTicket,
   normalizeHandshakeHost,
   REALTIME_ADMISSION_PATH,
+  canonicalSubjectId,
 } from './handshake-ticket.js';
 import { isRecord, stringField, type Payload } from './payload.js';
 
@@ -430,10 +431,7 @@ class SocketIOServer {
       socket.data.tenantSlug = tenantSlug;
       socket.data.pendingTenantSlug = undefined;
       socket.data.tenantRelay = isRecord(admission) && admission.tenantRelay === true;
-      socket.data.subjectId =
-        isRecord(admission) && typeof admission.subjectId === 'string'
-          ? admission.subjectId
-          : undefined;
+      socket.data.subjectId = isRecord(admission) ? canonicalSubjectId(admission.subjectId) : undefined;
       this.joinTenantRoom(socket);
       logger.info(`Client ${socket.id} authorized via legacy credentials for tenant: ${tenantSlug}`);
       callback?.({ read: true, write: false, write_treatment: false });

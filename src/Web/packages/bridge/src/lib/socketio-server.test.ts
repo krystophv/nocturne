@@ -353,6 +353,48 @@ describe('SocketIOServer.handleAuthorize', () => {
     expect(callback).toHaveBeenCalledWith(expect.objectContaining({ read: true }));
   });
 
+  const SUBJECT = '0a5f2c1e-1111-4222-8333-444455556666';
+
+  it("joins the subject's room when the admission names a subject", async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(admission({ tenantRelay: true, subjectId: SUBJECT })));
+
+    const server = makeApiServer();
+    const socket = pendingSocket('rhys');
+
+    await server.handleAuthorize(socket as never, { secret: 'sha1hash' });
+
+    expect(socket.join.mock.calls.map(([room]) => room)).toEqual([
+      'tenant:rhys',
+      `tenant:rhys:subject:${SUBJECT}`,
+    ]);
+  });
+
+  it('joins no room for a restricted credential that names a subject', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(admission({ tenantRelay: false, subjectId: SUBJECT })));
+
+    const server = makeApiServer();
+    const socket = pendingSocket('rhys');
+
+    await server.handleAuthorize(socket as never, { token: 'guest-token' });
+
+    expect(socket.data.tenantSlug).toBe('rhys');
+    expect(socket.join).not.toHaveBeenCalled();
+  });
+
+  it('joins no subject room for a subject id not in canonical form', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(admission({ tenantRelay: true, subjectId: SUBJECT.toUpperCase() })),
+    );
+
+    const server = makeApiServer();
+    const socket = pendingSocket('rhys');
+
+    await server.handleAuthorize(socket as never, { secret: 'sha1hash' });
+
+    expect(socket.join.mock.calls.map(([room]) => room)).toEqual(['tenant:rhys']);
+  });
+
   it('passes a subject token through as a query parameter', async () => {
     const fetchMock = vi.fn().mockResolvedValue(admission({ tenantRelay: true }));
     vi.stubGlobal('fetch', fetchMock);
