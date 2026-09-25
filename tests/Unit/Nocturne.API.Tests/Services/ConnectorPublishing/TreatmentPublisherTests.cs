@@ -329,6 +329,30 @@ public class TreatmentPublisherTests
     }
 
     [Fact]
+    public async Task DeleteTreatmentsAsync_DeletesUnderSystemAttribution()
+    {
+        // A user-attributed delete would permanently block the source from publishing the
+        // treatment again should it reappear upstream.
+        var auditContext = new AuditContext { AuthType = "bearer", SubjectId = Guid.NewGuid() };
+        var publisher = CreatePublisher(auditContext);
+
+        bool? systemDuringDelete = null;
+        _mockTreatmentService
+            .Setup(s => s.DeleteFromSourceAsync(
+                It.IsAny<string>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
+            .Callback(() => systemDuringDelete = auditContext.IsSystem)
+            .ReturnsAsync(1);
+
+        await publisher.DeleteTreatmentsAsync("nightscout-connector", new HashSet<string> { "t-1" });
+
+        systemDuringDelete.Should().BeTrue();
+        auditContext.IsSystem.Should().BeFalse("the scope is restored once the delete returns");
+        _mockTreatmentService.Verify(s => s.DeleteFromSourceAsync(
+            "nightscout-connector", It.Is<IReadOnlySet<string>>(ids => ids.SetEquals(new[] { "t-1" })),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task PublishTempBasalsAsync_RunsReconcileDeleteUnderSystemAttribution()
     {
         // The reconcile delete must write delete audit rows with AuthType IS NULL so the dedup

@@ -278,6 +278,26 @@ public class TreatmentService : ITreatmentService
         return count;
     }
 
+    /// <inheritdoc />
+    public async Task<int> DeleteFromSourceAsync(
+        string source, IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default)
+    {
+        var count = await _decomposer.DeleteFromSourceAsync(source, legacyIds, cancellationToken);
+        if (count > 0)
+            await _cache.InvalidateAsync(cancellationToken);
+        return count;
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlySet<string>> GetLegacyIdsFromSourceAsync(
+        string source, DateTime from, DateTime to, CancellationToken cancellationToken = default)
+        => _decomposer.GetLegacyIdsFromSourceAsync(source, from, to, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
+        IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default)
+        => _decomposer.GetHeldLegacyIdsAsync(legacyIds, cancellationToken);
+
     private async Task<long> DeleteMatchingTreatmentsAsync(string? find, CancellationToken ct)
     {
         var matching = await _store.QueryAsync(

@@ -7,6 +7,7 @@ using Nocturne.Core.Contracts.Audit;
 using Nocturne.Core.Contracts.Devices;
 using Nocturne.Core.Contracts.Treatments;
 using Nocturne.Core.Contracts.Glucose;
+using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Contracts.Profiles.Resolvers;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Models;
@@ -55,6 +56,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     private readonly IActiveProfileResolver _activeProfileResolver;
     private readonly IPatientInsulinRepository _insulinRepo;
     private readonly IAuditContext _auditContext;
+    private readonly IDeduplicationService _deduplicationService;
 
     /// <summary>
     /// Event types that indicate a temp basal treatment (case-insensitive comparison)
@@ -83,6 +85,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         IActiveProfileResolver activeProfileResolver,
         IPatientInsulinRepository insulinRepo,
         IAuditContext auditContext,
+        IDeduplicationService deduplicationService,
         ILogger<TreatmentDecomposer> logger)
         : base(logger)
     {
@@ -102,6 +105,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         _activeProfileResolver = activeProfileResolver;
         _insulinRepo = insulinRepo;
         _auditContext = auditContext;
+        _deduplicationService = deduplicationService;
     }
 
     /// <summary>
@@ -1373,16 +1377,8 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, WriteOrigin origin, CancellationToken ct = default)
     {
         // origin is accepted for interface uniformity; the v4-native delete broadcast is deferred to the glucose-unification follow-up (deletes here bypass the repository chokepoint).
-        var scope = $"legacy_id={legacyId}";
-        var deleted = 0;
-
-        deleted += await DeleteRecordsByLegacyId(_dbContext.Boluses, legacyId, scope, ct);
-        deleted += await DeleteRecordsByLegacyId(_dbContext.TempBasals, legacyId, scope, ct);
-        deleted += await DeleteRecordsByLegacyId(_dbContext.CarbIntakes, legacyId, scope, ct);
-        deleted += await DeleteRecordsByLegacyId(_dbContext.BGChecks, legacyId, scope, ct);
-        deleted += await DeleteRecordsByLegacyId(_dbContext.Notes, legacyId, scope, ct);
-        deleted += await DeleteRecordsByLegacyId(_dbContext.DeviceEvents, legacyId, scope, ct);
-        deleted += await DeleteRecordsByLegacyId(_dbContext.BolusCalculations, legacyId, scope, ct);
+        var deleted = (await DeleteDecomposedAsync([legacyId], source: null, $"legacy_id={legacyId}", ct))
+            .Sum(d => d.Result.Count);
 
         if (deleted > 0)
             Logger.LogDebug("Soft-deleted {Count} v4 records for legacy treatment {LegacyId}", deleted, legacyId);
@@ -1390,9 +1386,24 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         return deleted;
     }
 
+    /// <inheritdoc />
+    public async Task<int> DeleteFromSourceAsync(
+        string source, IReadOnlySet<string> legacyIds, CancellationToken ct = default)
+    {
+        if (legacyIds.Count == 0)
+            return 0;
+
+        var deleted = await DeleteDecomposedAsync(legacyIds.ToArray(), source, $"data_source={source}", ct);
+
+        foreach (var (recordType, result) in deleted)
+            await _deduplicationService.RepointPrimariesAwayFromAsync(recordType, result.Entities, ct);
+
+        return deleted.Sum(d => d.Result.Count);
+    }
+
     /// <summary>
-    /// Soft-deletes one legacy treatment's decomposed records through the audited path, so a
-    /// user-issued delete is attributed and a later connector resync cannot re-create it
+    /// Soft-deletes the records decomposed from <paramref name="legacyIds"/>, through the audited
+    /// path so a user-issued delete is attributed and a later connector resync cannot re-create it
     /// (<see cref="SoftDeleteDedupExtensions"/>).
     /// </summary>
     /// <remarks>
@@ -1400,11 +1411,87 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     /// rows <see cref="AuditedBulkDeleteExtensions.AuditedSoftDeleteWithEntitiesAsync{T}"/> writes
     /// below its cap are the right shape.
     /// </remarks>
-    private async Task<int> DeleteRecordsByLegacyId<T>(
-        DbSet<T> dbSet, string legacyId, string scope, CancellationToken ct)
-        where T : class, IV4Entity, IAuditable
-        => (await _dbContext.AuditedSoftDeleteWithEntitiesAsync(
-            dbSet.Where(e => e.LegacyId == legacyId), _auditContext, scope, ct)).Count;
+    /// <param name="source">Only this data source's rows, or every source's when null.</param>
+    private async Task<List<(RecordType RecordType, AuditedSoftDeleteResult<Guid> Result)>> DeleteDecomposedAsync(
+        string[] legacyIds, string? source, string scope, CancellationToken ct)
+    {
+        var deleted = new List<(RecordType, AuditedSoftDeleteResult<Guid>)>();
+
+        await DeleteAsync(RecordType.Bolus, _dbContext.Boluses);
+        await DeleteAsync(RecordType.TempBasal, _dbContext.TempBasals);
+        await DeleteAsync(RecordType.CarbIntake, _dbContext.CarbIntakes);
+        await DeleteAsync(RecordType.BGCheck, _dbContext.BGChecks);
+        await DeleteAsync(RecordType.Note, _dbContext.Notes);
+        await DeleteAsync(RecordType.DeviceEvent, _dbContext.DeviceEvents);
+        await DeleteAsync(RecordType.BolusCalculation, _dbContext.BolusCalculations);
+
+        return deleted;
+
+        async Task DeleteAsync<T>(RecordType recordType, DbSet<T> dbSet)
+            where T : class, IV4Entity, ISourcedEntity, IAuditable
+        {
+            var result = await _dbContext.AuditedSoftDeleteWithIdsAsync(
+                Decomposed(dbSet, legacyIds, source), _auditContext, scope, ct);
+            if (result.Count > 0)
+                deleted.Add((recordType, result));
+        }
+    }
+
+    internal static IQueryable<T> Decomposed<T>(IQueryable<T> rows, string[] legacyIds, string? source)
+        where T : IV4Entity, ISourcedEntity
+        => rows.Where(e => e.LegacyId != null && legacyIds.Contains(e.LegacyId)
+                        && (source == null || e.DataSource == source));
+
+    /// <inheritdoc />
+    public async Task<IReadOnlySet<string>> GetLegacyIdsFromSourceAsync(
+        string source, DateTime from, DateTime to, CancellationToken ct = default)
+    {
+        var ids = new HashSet<string>();
+
+        await AddAsync(ByTimeRange(_dbContext.Boluses, from, to));
+        await AddAsync(ByTimeRange(_dbContext.CarbIntakes, from, to));
+        await AddAsync(ByTimeRange(_dbContext.BGChecks, from, to));
+        await AddAsync(ByTimeRange(_dbContext.Notes, from, to));
+        await AddAsync(ByTimeRange(_dbContext.DeviceEvents, from, to));
+        await AddAsync(ByTimeRange(_dbContext.BolusCalculations, from, to));
+        await AddAsync(SpansByTimeRange(_dbContext.TempBasals, from, to));
+
+        return ids;
+
+        async Task AddAsync<T>(IQueryable<T> rows) where T : class, IV4Entity, ISourcedEntity
+            => ids.UnionWith(await rows.AsNoTracking()
+                .Where(e => e.DataSource == source && e.LegacyId != null)
+                .Select(e => e.LegacyId!)
+                .ToListAsync(ct));
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
+        IReadOnlySet<string> legacyIds, CancellationToken ct = default)
+    {
+        var wanted = legacyIds.ToHashSet();
+        var held = new HashSet<string>();
+        if (wanted.Count == 0)
+            return held;
+
+        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<BolusEntity>(wanted, ct)).Held);
+        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<TempBasalEntity>(wanted, ct)).Held);
+        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<CarbIntakeEntity>(wanted, ct)).Held);
+        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<BGCheckEntity>(wanted, ct)).Held);
+        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<NoteEntity>(wanted, ct)).Held);
+        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<DeviceEventEntity>(wanted, ct)).Held);
+        held.UnionWith((await _dbContext.GetBlockingLegacyIdsAsync<BolusCalculationEntity>(wanted, ct)).Held);
+
+        // Profile switches, overrides and temporary targets land as state spans keyed by OriginalId.
+        var ids = wanted.ToArray();
+        held.UnionWith(await _dbContext.StateSpans.IgnoreQueryFilters().AsNoTracking()
+            .Where(s => s.TenantId == _dbContext.TenantId && s.OriginalId != null && ids.Contains(s.OriginalId))
+            .WhereBlocksRecreation()
+            .Select(s => s.OriginalId!)
+            .ToListAsync(ct));
+
+        return held;
+    }
 
     /// <inheritdoc />
     public async Task<long> BulkDeleteAsync(string? find, WriteOrigin origin, CancellationToken ct = default)
@@ -1451,7 +1538,8 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         total += await DeleteEntitiesByTimeRange(_dbContext.Notes, from, to, scope, ct);
         total += await DeleteEntitiesByTimeRange(_dbContext.DeviceEvents, from, to, scope, ct);
         total += await DeleteEntitiesByTimeRange(_dbContext.BolusCalculations, from, to, scope, ct);
-        total += await DeleteSpansByTimeRange(from, to, scope, ct);
+        total += await _dbContext.AuditedSoftDeleteAsync(
+            SpansByTimeRange(_dbContext.TempBasals, from, to), _auditContext, scope, ct);
 
         Logger.LogInformation("BulkDelete: removed {Total} v4 treatment records for find={Find}", total, findForLog);
         return total;
@@ -1465,30 +1553,29 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     private Task<int> DeleteEntitiesByTimeRange<T>(
         DbSet<T> dbSet, DateTime? from, DateTime? to, string scope, CancellationToken ct)
         where T : class, IV4TimeSeriesEntity, IAuditable
+        => _dbContext.AuditedSoftDeleteAsync(ByTimeRange(dbSet, from, to), _auditContext, scope, ct);
+
+    private static IQueryable<T> ByTimeRange<T>(IQueryable<T> rows, DateTime? from, DateTime? to)
+        where T : IV4TimeSeriesEntity
     {
-        var query = dbSet.AsQueryable();
-
         if (from.HasValue)
-            query = query.Where(e => e.Timestamp >= from.Value);
+            rows = rows.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
-            query = query.Where(e => e.Timestamp <= to.Value);
-
-        return _dbContext.AuditedSoftDeleteAsync(query, _auditContext, scope, ct);
+            rows = rows.Where(e => e.Timestamp <= to.Value);
+        return rows;
     }
 
     /// <summary>
-    /// <see cref="DeleteEntitiesByTimeRange{T}"/> for temp basals, which key on
+    /// <see cref="ByTimeRange{T}"/> for temp basals, which key on
     /// <see cref="TempBasalEntity.StartTimestamp"/> and so stay off <see cref="IV4TimeSeriesEntity"/>.
     /// </summary>
-    private Task<int> DeleteSpansByTimeRange(DateTime? from, DateTime? to, string scope, CancellationToken ct)
+    private static IQueryable<TempBasalEntity> SpansByTimeRange(
+        IQueryable<TempBasalEntity> rows, DateTime? from, DateTime? to)
     {
-        var query = _dbContext.TempBasals.AsQueryable();
-
         if (from.HasValue)
-            query = query.Where(e => e.StartTimestamp >= from.Value);
+            rows = rows.Where(e => e.StartTimestamp >= from.Value);
         if (to.HasValue)
-            query = query.Where(e => e.StartTimestamp <= to.Value);
-
-        return _dbContext.AuditedSoftDeleteAsync(query, _auditContext, scope, ct);
+            rows = rows.Where(e => e.StartTimestamp <= to.Value);
+        return rows;
     }
 }

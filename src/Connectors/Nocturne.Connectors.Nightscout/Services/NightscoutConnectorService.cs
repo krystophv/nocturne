@@ -224,6 +224,12 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                     oldestOf: p => OldestCreatedAt(p, t => t.CreatedAt),
                     publishAsync: p => PublishTreatmentDataInBatchesAsync(p, config, cancellationToken));
 
+                if (openEnded && treatmentFrom is not null && outcome.Success)
+                {
+                    var reconciled = await ReconcileRecentTreatmentsAsync(config, cancellationToken);
+                    outcome = new PagedCrawlOutcome(outcome.Count + reconciled.Count, reconciled.Success);
+                }
+
                 foreach (var treatmentType in treatmentTypes.Where(activeTypes.Contains))
                     RecordPublishOutcome(result, treatmentType, outcome.Count, outcome.Success);
             }
@@ -620,6 +626,110 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                 treatment.DataSource = ConnectorSource;
             yield return page;
         }
+    }
+
+    /// <summary>
+    ///     How far back each catch-up re-reads the source's treatments. The crawl resumes from the
+    ///     newest stored event time, so it never sees a record that reaches the source after a newer
+    ///     one: an edit Trio makes by deleting a treatment and re-uploading it under its original event
+    ///     time, a back-dated entry, an upload from a phone that was offline. Nightscout's v1 API
+    ///     hard-deletes, leaving no tombstone to page for, so comparing this window with what is
+    ///     stored is also the only way a deletion is seen.
+    /// </summary>
+    private static readonly TimeSpan TreatmentReconcileWindow = TimeSpan.FromHours(24);
+
+    /// <summary>
+    ///     How much further back than <see cref="TreatmentReconcileWindow"/> the re-read reaches, so a
+    ///     row near the window's edge whose stored time differs slightly from its created_at is
+    ///     matched by the re-read instead of costing a lookup every sync.
+    /// </summary>
+    private static readonly TimeSpan ReconcileReadMargin = TimeSpan.FromHours(1);
+
+    /// <summary>
+    ///     The most stored treatments one sync will delete. A source reporting more of the window
+    ///     missing than this is more likely broken, or re-keyed by a restore, than edited, so the
+    ///     sync deletes none of them and says so.
+    /// </summary>
+    private const int MaxReconcileDeletesPerSync = 25;
+
+    /// <summary>
+    ///     Re-reads the last <see cref="TreatmentReconcileWindow"/> of treatments, publishes the ones
+    ///     nothing stored holds, and deletes this connector's rows in the window the source no longer
+    ///     has. A row is deleted only when the re-read did not return it and a lookup of its id then
+    ///     came back empty. The lookup is what makes the delete safe: a paged re-read can drop a record
+    ///     sharing a page's boundary timestamp, and a stored time can differ from its created_at. A
+    ///     failed request throws before anything is deleted, and an empty window deletes nothing.
+    /// </summary>
+    private async Task<PagedCrawlOutcome> ReconcileRecentTreatmentsAsync(
+        TConfig config, CancellationToken cancellationToken)
+    {
+        if (Publisher is not { IsAvailable: true } publisher)
+            return new PagedCrawlOutcome(0, true);
+
+        var to = DateTime.UtcNow;
+        var from = to - TreatmentReconcileWindow;
+
+        var upstream = new List<Treatment>();
+        await foreach (var page in FetchTreatmentPagesAsync(from - ReconcileReadMargin, to))
+            upstream.AddRange(page);
+
+        if (upstream.Count == 0)
+            return new PagedCrawlOutcome(0, true);
+
+        var upstreamIds = upstream
+            .Select(t => t.Id)
+            .OfType<string>()
+            .Where(id => id.Length > 0)
+            .ToHashSet();
+
+        var held = await publisher.Treatments.GetHeldTreatmentIdsAsync(upstreamIds, cancellationToken);
+        var unstored = upstream.Where(t => t.Id is { Length: > 0 } id && !held.Contains(id)).ToList();
+        if (unstored.Count > 0 && !await PublishTreatmentDataInBatchesAsync(unstored, config, cancellationToken))
+            return new PagedCrawlOutcome(unstored.Count, false);
+
+        var stored = await publisher.Treatments.GetStoredTreatmentIdsAsync(
+            ConnectorSource, from, to, cancellationToken);
+        var candidates = stored.Where(id => !upstreamIds.Contains(id)).ToList();
+
+        if (candidates.Count > MaxReconcileDeletesPerSync)
+        {
+            _logger.LogWarning(
+                "[{ConnectorSource}] {Count} stored treatments from the last {Hours}h are missing from the source; deleting none",
+                ConnectorSource, candidates.Count, TreatmentReconcileWindow.TotalHours);
+            return new PagedCrawlOutcome(unstored.Count, true);
+        }
+
+        var gone = new HashSet<string>();
+        foreach (var id in candidates)
+        {
+            if (!await TreatmentExistsUpstreamAsync(id))
+                gone.Add(id);
+        }
+
+        if (gone.Count > 0)
+        {
+            var deleted = await publisher.Treatments.DeleteTreatmentsAsync(ConnectorSource, gone, cancellationToken);
+            _logger.LogInformation(
+                "[{ConnectorSource}] Deleted {Records} records of {Treatments} treatments the source no longer has",
+                ConnectorSource, deleted, gone.Count);
+        }
+
+        return new PagedCrawlOutcome(unstored.Count, true);
+    }
+
+    /// <summary>
+    ///     Looks a treatment up by id alone. The created_at floor is there only because Nightscout
+    ///     applies its implicit recency window to a query carrying no date filter (see
+    ///     <see cref="AnchorUnboundedFetch"/>).
+    /// </summary>
+    private async Task<bool> TreatmentExistsUpstreamAsync(string id)
+    {
+        const string operation = "ConfirmTreatmentDeleted";
+        var url = BuildCreatedAtUrl("treatments", DateTime.UnixEpoch, null)
+            + $"&find[_id]={Uri.EscapeDataString(id)}";
+
+        var found = await FetchDataAsync<Treatment[]>(url, operation) ?? throw FetchFailed(operation);
+        return found.Length > 0;
     }
 
     protected override async Task<IEnumerable<Profile>> FetchProfilesAsync()

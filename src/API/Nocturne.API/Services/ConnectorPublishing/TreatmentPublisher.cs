@@ -240,6 +240,24 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
             () => _noteRepository.GetLatestTimestampAsync(source, cancellationToken),
             () => _deviceEventRepository.GetLatestTimestampAsync(source, cancellationToken));
 
+    /// <inheritdoc />
+    public Task<IReadOnlySet<string>> GetStoredTreatmentIdsAsync(
+        string source, DateTime from, DateTime to, CancellationToken cancellationToken = default)
+        => _treatmentService.GetLegacyIdsFromSourceAsync(source, from, to, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<IReadOnlySet<string>> GetHeldTreatmentIdsAsync(
+        IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default)
+        => _treatmentService.GetHeldLegacyIdsAsync(legacyIds, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<int> DeleteTreatmentsAsync(
+        string source, IReadOnlySet<string> legacyIds, CancellationToken cancellationToken = default)
+    {
+        using (PushSystemAudit())
+            return await _treatmentService.DeleteFromSourceAsync(source, legacyIds, cancellationToken);
+    }
+
     // ── Patient Insulin resolution helpers ──────────────────────────────
 
     /// <summary>
