@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nocturne.API.Controllers.Authentication;
 using Nocturne.API.Middleware.Handlers;
+using Nocturne.API.Services.ClientDevices;
 using Nocturne.Connectors.Core.Utilities;
 using Nocturne.Core.Models.Authorization;
 using Nocturne.Infrastructure.Data;
@@ -164,7 +165,6 @@ public class DirectGrantService : IDirectGrantService
             // before sending — authenticate with this same token via ApiKeyHandler's legacy path.
             LegacySecretHash = HashUtils.Sha1Hex(plaintextToken),
             ExpiresAt = expiresAt,
-            CreatedAt = DateTime.UtcNow,
         };
 
         dbContext.OAuthGrants.Add(entity);
@@ -245,11 +245,12 @@ public class DirectGrantService : IDirectGrantService
         }
 
         grant.RevokedAt = DateTime.UtcNow;
+        var deviceCount = await dbContext.RemoveGrantDevicesAsync(grantId, ct);
         await dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "DirectGrantAudit: {Event} grant_id={GrantId} subject_id={SubjectId}",
-            "direct_grant_revoked", grantId, grant.SubjectId);
+            "DirectGrantAudit: {Event} grant_id={GrantId} subject_id={SubjectId} revoked_devices={DeviceCount}",
+            "direct_grant_revoked", grantId, grant.SubjectId, deviceCount);
 
         await _auditService.LogAsync(
             actor is null ? AuthAuditEventType.TokenRevoked : AuthAuditEventType.PlatformAdminGrantRevoked,

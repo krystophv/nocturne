@@ -38,7 +38,8 @@ public class OrphanedSubjectFilterTests : IDisposable
         bool isSystemSubject = false,
         bool isDemoSubject = false,
         bool withPasskey = false,
-        bool withOidc = false)
+        bool withOidc = false,
+        bool oidcProviderEnabled = true)
     {
         var subjectId = Guid.CreateVersion7();
         _context.Subjects.Add(new SubjectEntity
@@ -78,6 +79,7 @@ public class OrphanedSubjectFilterTests : IDisposable
                 Name = "Test provider",
                 IssuerUrl = "https://idp.invalid",
                 ClientId = "client",
+                IsEnabled = oidcProviderEnabled,
             });
             _context.SubjectOidcIdentities.Add(new SubjectOidcIdentityEntity
             {
@@ -134,6 +136,14 @@ public class OrphanedSubjectFilterTests : IDisposable
             withOidc: withOidc);
 
         (await OrphansAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_provider_identity_on_a_disabled_provider_does_not_count_as_a_way_in()
+    {
+        SeedMember("Locked out", withOidc: true, oidcProviderEnabled: false);
+
+        (await OrphansAsync()).Should().ContainSingle().Which.Should().Be("Locked out");
     }
 
     [Fact]

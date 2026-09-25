@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nocturne.Connectors.Core.Interfaces;
+using Nocturne.Connectors.Core.Models;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Core.Contracts.Health;
@@ -38,6 +39,7 @@ internal sealed class MetadataPublisher : IMetadataPublisher
     private readonly ITenantOwnerResolver _tenantOwnerResolver;
     private readonly ITenantAccessor _tenantAccessor;
     private readonly NocturneDbContext _db;
+    private readonly PublishSkipTally _skips;
     private readonly ILogger<MetadataPublisher> _logger;
 
     public MetadataPublisher(
@@ -54,6 +56,7 @@ internal sealed class MetadataPublisher : IMetadataPublisher
         ITenantOwnerResolver tenantOwnerResolver,
         ITenantAccessor tenantAccessor,
         NocturneDbContext db,
+        PublishSkipTally skips,
         ILogger<MetadataPublisher> logger)
     {
         _profileWriteService = profileWriteService ?? throw new ArgumentNullException(nameof(profileWriteService));
@@ -69,6 +72,7 @@ internal sealed class MetadataPublisher : IMetadataPublisher
         _tenantOwnerResolver = tenantOwnerResolver ?? throw new ArgumentNullException(nameof(tenantOwnerResolver));
         _tenantAccessor = tenantAccessor ?? throw new ArgumentNullException(nameof(tenantAccessor));
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _skips = skips ?? throw new ArgumentNullException(nameof(skips));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -267,7 +271,8 @@ internal sealed class MetadataPublisher : IMetadataPublisher
             var recordList = records.ToList();
             if (recordList.Count == 0) return true;
 
-            await _noteRepository.BulkCreateAsync(recordList, origin, cancellationToken);
+            var written = await _noteRepository.BulkCreateAsync(recordList, origin, cancellationToken);
+            _skips.AddSkippedDeleted(written.SkippedDeleted);
             _logger.LogDebug("Published {Count} Note records for {Source}", recordList.Count, source);
             return true;
         }
@@ -490,9 +495,10 @@ internal sealed class MetadataPublisher : IMetadataPublisher
         CancellationToken cancellationToken)
     {
         const string suffix = "-connector";
-        var name = source.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
-            ? source[..^suffix.Length]
-            : source;
+        var canonicalSource = ConnectorNames.Canonical(source);
+        var canonicalName = canonicalSource.EndsWith(suffix, StringComparison.Ordinal)
+            ? canonicalSource[..^suffix.Length]
+            : canonicalSource;
 
         var query = _db.Database.IsNpgsql()
             ? _db.ConnectorConfigurations.AsNoTracking()
@@ -500,8 +506,7 @@ internal sealed class MetadataPublisher : IMetadataPublisher
 
         return await query
             .FirstOrDefaultAsync(
-                c => c.ConnectorName.ToLower() == name.ToLower()
-                    || c.ConnectorName.ToLower() == source.ToLower(),
+                c => c.ConnectorName == canonicalName || c.ConnectorName == canonicalSource,
                 cancellationToken);
     }
 }

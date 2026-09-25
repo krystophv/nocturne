@@ -270,6 +270,10 @@ class Program
             "",
             secret: false
         );
+        var resendApiKey = builder.AddParameter("resend-api-key", "", secret: true);
+        var resendFromAddress = builder.AddParameter("resend-from-address", "", secret: false);
+        var resendFromName = builder.AddParameter("resend-from-name", "", secret: false);
+        var resendWebhookSecret = builder.AddParameter("resend-webhook-secret", "", secret: true);
 
         // OpenTelemetry export. Optional and off by default: the OTLP exporters
         // (API .NET SDK and web Node SDK) only start when the endpoint is set, so
@@ -426,7 +430,11 @@ class Program
                 .WithEnvironment("WHATSAPP_ACCESS_TOKEN", whatsappAccessToken)
                 .WithEnvironment("WHATSAPP_VERIFY_TOKEN", whatsappVerifyToken)
                 .WithEnvironment("WHATSAPP_APP_SECRET", whatsappAppSecret)
-                .WithEnvironment("WHATSAPP_PHONE_NUMBER_ID", whatsappPhoneNumberId);
+                .WithEnvironment("WHATSAPP_PHONE_NUMBER_ID", whatsappPhoneNumberId)
+                .WithEnvironment("RESEND_API_KEY", resendApiKey)
+                .WithEnvironment("RESEND_FROM_ADDRESS", resendFromAddress)
+                .WithEnvironment("RESEND_FROM_NAME", resendFromName)
+                .WithEnvironment("RESEND_WEBHOOK_SECRET", resendWebhookSecret);
             // PUBLIC_DEFAULT_LANGUAGE comes from the web app's own .env.
             // OTEL_EXPORTER_OTLP_ENDPOINT: in run mode Aspire injects the
             // dashboard endpoint automatically; in publish mode the operator-

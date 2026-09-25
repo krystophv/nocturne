@@ -10,6 +10,7 @@ using Nocturne.Connectors.Core.Utilities;
 using Nocturne.Core.Constants;
 using Nocturne.Core.Models;
 using Nocturne.Core.Models.Authorization;
+using DecompositionResult = Nocturne.Core.Models.V4.DecompositionResult;
 using Nocturne.Core.Contracts.Audit;
 using Nocturne.Core.Contracts.Multitenancy;
 using Nocturne.Core.Contracts.V4;
@@ -255,7 +256,8 @@ public class MigrationJobService : IMigrationJobService
 
         try
         {
-            await MigrationJob.ReadFromSourceAsync(httpClient, "/api/v1/status", "status", ct);
+            await MigrationJob.ReadFromSourceAsync(
+                httpClient, "/api/v1/status", "status", ct, NightscoutRead.ImportProbe);
 
             return new TestMigrationConnectionResult
             {
@@ -956,8 +958,13 @@ internal class MigrationJob
     /// single place a migration read decides whether a response is usable, so that no page loop can
     /// mistake a rejection for the end of the data.
     /// </summary>
+    /// <param name="read">
+    ///     What this read is, for the wording a failure gets. Collections are the ordinary case and
+    ///     the default; the connection test names itself, because a 404 means something else there.
+    /// </param>
     internal static async Task<string> ReadFromSourceAsync(
-        HttpClient httpClient, string url, string label, CancellationToken ct)
+        HttpClient httpClient, string url, string label, CancellationToken ct,
+        NightscoutRead read = NightscoutRead.ImportCollection)
     {
         HttpResponseMessage response;
         try
@@ -970,7 +977,7 @@ internal class MigrationJob
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            throw new MigrationSourceException(UnreachableMessage, MigrationFailureCause.Unreachable, ex);
+            throw new MigrationSourceException(NightscoutMessages.Unreachable, MigrationFailureCause.Unreachable, ex);
         }
 
         using (response)
@@ -978,21 +985,16 @@ internal class MigrationJob
             if (response.IsSuccessStatusCode)
                 return await response.Content.ReadAsStringAsync(ct);
 
-            throw response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden
-                ? new MigrationSourceException(ApiSecretRejectedMessage, MigrationFailureCause.ApiSecretRejected)
-                : new MigrationSourceException(
-                    $"Nightscout answered {(int)response.StatusCode} for {label}.",
-                    MigrationFailureCause.Status);
+            // 403 is worded as a refusal rather than a rejected secret, but keeps the
+            // ApiSecretRejected cause. That is how Nightscout's admin routes turn down a
+            // non-admin secret, which the subjects step skips over rather than failing on.
+            throw new MigrationSourceException(
+                NightscoutMessages.ForStatus(response.StatusCode, label, read),
+                response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden
+                    ? MigrationFailureCause.ApiSecretRejected
+                    : MigrationFailureCause.Status);
         }
     }
-
-    private const string ApiSecretRejectedMessage =
-        "Nightscout rejected the API secret. Check it matches your Nightscout API_SECRET exactly, "
-        + "or leave it blank if your site allows reading without one.";
-
-    private const string UnreachableMessage =
-        "Could not reach your Nightscout server. Check it is online and that it allows connections "
-        + "from Nocturne.";
 
     private const string SubjectsNeedAdminSecretMessage =
         "Skipped: listing the people and devices that can sign in needs an admin API secret.";
@@ -1053,7 +1055,7 @@ internal class MigrationJob
     private void UpdateOverallProgress()
     {
         _totalDocumentsAllCollections = _collectionProgress.Values.Sum(c => c.TotalDocuments);
-        _migratedDocumentsAllCollections = _collectionProgress.Values.Sum(c => c.DocumentsMigrated);
+        _migratedDocumentsAllCollections = _collectionProgress.Values.Sum(c => c.DocumentsProcessed);
 
         if (_totalDocumentsAllCollections > 0)
         {
@@ -1061,7 +1063,9 @@ internal class MigrationJob
         }
     }
 
-    private void UpdateCollectionProgress(string collectionName, long totalDocuments, long migrated, long failed, bool isComplete)
+    private void UpdateCollectionProgress(
+        string collectionName, long totalDocuments, long migrated, long failed, bool isComplete,
+        DecompositionTally tally = default)
     {
         _collectionProgress[collectionName] = new CollectionProgress
         {
@@ -1069,8 +1073,28 @@ internal class MigrationJob
             TotalDocuments = totalDocuments,
             DocumentsMigrated = migrated,
             DocumentsFailed = failed,
+            DocumentsSkippedUnsupported = tally.DocumentsSkippedUnsupported,
+            DocumentsSkippedDeleted = tally.DocumentsSkippedDeleted,
+            RecordsStored = tally.RecordsStored,
+            RecordsSkippedDeleted = tally.RecordsSkippedDeleted,
             IsComplete = isComplete,
         };
+    }
+
+    /// <summary>What a collection's decompositions stored and passed over; see <see cref="DecompositionResult"/>.</summary>
+    private readonly record struct DecompositionTally(
+        long RecordsStored, long RecordsSkippedDeleted, long DocumentsSkippedDeleted, long DocumentsSkippedUnsupported)
+    {
+        public long DocumentsSkipped => DocumentsSkippedDeleted + DocumentsSkippedUnsupported;
+
+        /// <param name="oneRecordPerDocument">
+        /// Whether each document becomes exactly one record, so a deleted record is a skipped document.
+        /// </param>
+        public DecompositionTally Add(DecompositionResult result, bool oneRecordPerDocument) => new(
+            RecordsStored + result.CreatedRecords.Count + result.UpdatedRecords.Count,
+            RecordsSkippedDeleted + result.SkippedDeleted,
+            DocumentsSkippedDeleted + (oneRecordPerDocument ? result.SkippedDeleted : 0),
+            DocumentsSkippedUnsupported + result.SkippedUnsupported);
     }
 
     /// <summary>
@@ -1122,18 +1146,20 @@ internal class MigrationJob
     /// <summary>
     ///     A legacy collection pulled page by page over a time cursor. <paramref name="Name"/> is
     ///     both the v1 route segment and the progress key; <paramref name="Label"/> names the
-    ///     records in operation and log text; <paramref name="Decompose"/> resolves the
+    ///     records in operation and log text; <paramref name="OneRecordPerDocument"/> is whether each
+    ///     document becomes exactly one record; <paramref name="Decompose"/> resolves the
     ///     collection's decomposer from the migration's tenant scope once per pull.
     /// </summary>
     private sealed record PagedCollection<T>(
         string Name,
         string Label,
         PageCursor Cursor,
-        Func<IServiceProvider, Func<T[], CancellationToken, Task>> Decompose
+        bool OneRecordPerDocument,
+        Func<IServiceProvider, Func<T[], CancellationToken, Task<DecompositionResult>>> Decompose
     ) where T : ProcessableDocumentBase;
 
     private static readonly PagedCollection<Entry> s_entriesCollection = new(
-        "entries", "entries", s_dateCursor,
+        "entries", "entries", s_dateCursor, OneRecordPerDocument: true,
         sp =>
         {
             var decomposer = sp.GetRequiredService<IEntryDecomposer>();
@@ -1141,7 +1167,7 @@ internal class MigrationJob
         });
 
     private static readonly PagedCollection<Treatment> s_treatmentsCollection = new(
-        "treatments", "treatments", s_createdAtCursor,
+        "treatments", "treatments", s_createdAtCursor, OneRecordPerDocument: false,
         sp =>
         {
             var decomposer = sp.GetRequiredService<ITreatmentDecomposer>();
@@ -1149,7 +1175,7 @@ internal class MigrationJob
         });
 
     private static readonly PagedCollection<DeviceStatus> s_deviceStatusCollection = new(
-        "devicestatus", "device statuses", s_createdAtCursor,
+        "devicestatus", "device statuses", s_createdAtCursor, OneRecordPerDocument: false,
         sp =>
         {
             var decomposer = sp.GetRequiredService<IDeviceStatusDecomposer>();
@@ -1157,7 +1183,7 @@ internal class MigrationJob
         });
 
     private static readonly PagedCollection<Activity> s_activityCollection = new(
-        "activity", "activities", s_createdAtCursor,
+        "activity", "activities", s_createdAtCursor, OneRecordPerDocument: false,
         sp =>
         {
             var decomposer = sp.GetRequiredService<IActivityDecomposer>();
@@ -1176,6 +1202,7 @@ internal class MigrationJob
 
         var totalMigrated = 0L;
         var totalFailed = 0L;
+        var tally = new DecompositionTally();
         DateTime? currentTo = FirstPageAnchor;
 
         using var scope = CreateTenantScope();
@@ -1196,8 +1223,9 @@ internal class MigrationJob
 
             try
             {
-                await decompose(page, ct);
-                totalMigrated += page.Length;
+                var before = tally.DocumentsSkipped;
+                tally = tally.Add(await decompose(page, ct), collection.OneRecordPerDocument);
+                totalMigrated += page.Length - (tally.DocumentsSkipped - before);
             }
             catch (Exception ex)
             {
@@ -1206,8 +1234,8 @@ internal class MigrationJob
             }
 
             UpdateCollectionProgress(collection.Name,
-                Math.Max(knownTotal, totalMigrated + totalFailed),
-                totalMigrated, totalFailed, false);
+                Math.Max(knownTotal, totalMigrated + totalFailed + tally.DocumentsSkipped),
+                totalMigrated, totalFailed, false, tally);
             UpdateOverallProgress();
 
             if (page.Length < ApiPageSize) break;
@@ -1219,11 +1247,13 @@ internal class MigrationJob
             currentTo = oldestDate.Value.AddMilliseconds(-1);
         }
 
-        UpdateCollectionProgress(collection.Name, Math.Max(knownTotal, totalMigrated + totalFailed),
-            totalMigrated, totalFailed, true);
+        UpdateCollectionProgress(collection.Name,
+            Math.Max(knownTotal, totalMigrated + totalFailed + tally.DocumentsSkipped),
+            totalMigrated, totalFailed, true, tally);
         UpdateOverallProgress();
         _logger.LogInformation(
-            "Migrated {Count} {Collection} via API", totalMigrated, collection.Label);
+            "Migrated {Count} {Collection} via API as {Stored} records, skipped {Unsupported} of an unsupported kind and {Deleted} deleted records",
+            totalMigrated, collection.Label, tally.RecordsStored, tally.DocumentsSkippedUnsupported, tally.RecordsSkippedDeleted);
     }
 
     private async Task MigrateProfilesViaApiAsync(
@@ -1236,6 +1266,7 @@ internal class MigrationJob
 
         var totalMigrated = 0L;
         var totalFailed = 0L;
+        var tally = new DecompositionTally();
 
         var content = await ReadFromSourceAsync(httpClient, "/api/v1/profile.json", collectionName, ct);
         var profiles = System.Text.Json.JsonSerializer.Deserialize<Profile[]>(content) ?? [];
@@ -1257,9 +1288,10 @@ internal class MigrationJob
                     profile.Id = Guid.CreateVersion7().ToString();
                 }
 
-                await decomposer.DecomposeAsync(profile, WriteOrigin.Backfill, ct);
+                tally = tally.Add(
+                    await decomposer.DecomposeAsync(profile, WriteOrigin.Backfill, ct), oneRecordPerDocument: false);
                 totalMigrated++;
-                UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, false);
+                UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, false, tally);
                 UpdateOverallProgress();
             }
             catch
@@ -1268,10 +1300,11 @@ internal class MigrationJob
             }
         }
 
-        UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, true);
+        UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, true, tally);
         UpdateOverallProgress();
 
-        _logger.LogInformation("Migrated {Count} profiles via API", totalMigrated);
+        _logger.LogInformation(
+            "Migrated {Count} profiles via API, skipped {Deleted} deleted records", totalMigrated, tally.RecordsSkippedDeleted);
     }
 
     private async Task MigrateFoodViaApiAsync(
@@ -1757,29 +1790,14 @@ internal class MigrationJob
                 // holder is not a person.
                 deviceSubjectId ??= await dbContext.DeviceSubjectOf(_tenantId, ct);
 
-                dbContext.OAuthGrants.Add(new OAuthGrantEntity
-                {
-                    Id = Guid.CreateVersion7(),
-                    TenantId = _tenantId,
-                    ClientEntityId = null,
-                    SubjectId = deviceSubjectId.Value,
-                    GrantType = OAuthGrantTypes.Direct,
-
-                    // "*" is stored as the single superuser atom; Normalize expands it back, so
-                    // spelling the expansion out here would only bake today's scope list in.
-                    Scopes = scopes.Contains(Scope.FullAccess)
-                        ? [Scope.FullAccess]
-                        : [.. scopes],
-
-                    Label = subject.Name ?? "Unnamed",
-
-                    // Both spellings the source instance would have accepted: the token verbatim,
-                    // and any other digest prefix. Existing AAPS and xDrip setups keep uploading.
-                    TokenHash = tokenHash,
-                    LegacyTokenDigest = legacyDigest,
-                    IsMigrated = true,
-                    CreatedAt = DateTime.UtcNow,
-                });
+                // Both spellings the source instance would have accepted: the token verbatim, and
+                // any other digest prefix. Existing AAPS and xDrip setups keep uploading.
+                dbContext.OAuthGrants.Add(OAuthGrantEntity.AdoptedLegacyCredential(
+                    deviceSubjectId.Value,
+                    subject.Name ?? "Unnamed",
+                    scopes,
+                    tokenHash: tokenHash,
+                    legacyTokenDigest: legacyDigest));
 
                 await dbContext.SaveChangesAsync(ct);
 
@@ -1836,7 +1854,6 @@ internal class MigrationJob
                     Description = "Migrated from Nightscout",
                     Permissions = sourcePermissions.GetValueOrDefault(roleName, []),
                     IsSystemRole = false,
-                    CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                 };
                 dbContext.Roles.Add(role);

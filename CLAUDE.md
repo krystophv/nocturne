@@ -30,6 +30,9 @@ dotnet test tests/E2E/Nocturne.E2E.Tests -p:RunE2E=true
 # Frontend type checking
 cd src/Web/packages/app && pnpm run check
 
+# Lint the frontend before pushing (CI gate: no errors, warnings capped in each package's lint:ci)
+cd src/Web && pnpm --recursive --no-bail run lint:ci
+
 # Seed a loginable tenant with sample data (stack must be running; see README
 # "Multitenancy and Passkeys"). Response has url + loginLink (browser session).
 curl -X POST http://localhost:1610/api/v4/dev-only/admin/seed-tenant \
@@ -77,13 +80,15 @@ The `--skip-worktree` bits may be cleared by git during branch switches that tou
 
 Git worktrees are supported. In the main checkout, `aspire start` uses persistent Postgres (named volume, pgAdmin at `http://localhost:1611`), binds the gateway to `https://nocturne.localhost:1612` (tenants at `https://<slug>.nocturne.localhost:1612`), and pins nocturne-api to `http://localhost:1610`. In a worktree, Postgres is automatically ephemeral (anonymous volume, no pgAdmin) and ports are dynamic.
 
+On Windows, deep worktree paths can push `Nocturne.Desktop.Tray`'s extracted WindowsAppSDK files past MAX_PATH, and a root `dotnet build` then fails with MSB3030 "could not copy ... because it was not found". The tray project tolerates a checkout root of about 124 characters. Beyond that, enable long paths (`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1`, admin) or use a shorter worktree path.
+
 **Always use `--isolated` when running Aspire from a worktree** to avoid dashboard port collisions with the main instance:
 
 ```bash
 aspire run --isolated
 ```
 
-`--isolated` randomizes all Aspire infrastructure ports (dashboard, OTLP, resource service) and creates isolated user secrets. Without it, the worktree shares `launchSettings.json` ports with main and will fail to start if main is already running.
+`--isolated` randomizes all Aspire infrastructure ports (dashboard, OTLP, resource service) and creates isolated user secrets. Without it, the worktree shares `launchSettings.json` ports with main and will fail to start if main is already running. It overrides only the `ASPIRE_*` endpoint variables, so the AppHost's `launchSettings.json` must use those names: a legacy `DOTNET_RESOURCE_SERVICE_ENDPOINT_URL` or `DOTNET_DASHBOARD_OTLP_ENDPOINT_URL` wins over the randomised port and collides across worktrees.
 
 To force persistent mode in a worktree (e.g. long-lived debugging): `NOCTURNE_DB_PERSISTENCE=persistent aspire run --isolated`.
 
@@ -276,7 +281,9 @@ Design notes:
   presenting neither a cookie nor an `Authorization` header (the legacy `api-secret`
   header) would be served another credential's unredacted body. Those endpoints
   (`ChartDataController`'s dashboard, `ActogramController`) declare
-  `ResponseCacheLocation.Client`.
+  `ResponseCacheLocation.Client`. Hand-set `Cache-Control` headers follow the same rule:
+  a tenant data read is never `public` (V3 reads send `private, max-age=60`, pinned by
+  `V3CacheControlTests`).
 
 ## Testing
 

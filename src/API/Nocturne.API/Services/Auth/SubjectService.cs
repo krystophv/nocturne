@@ -6,6 +6,7 @@ using Nocturne.Connectors.Core.Utilities;
 using Nocturne.Core.Models.Authorization;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Entities;
+using Nocturne.Infrastructure.Data.Extensions;
 
 namespace Nocturne.API.Services.Auth;
 
@@ -109,7 +110,6 @@ public class SubjectService : ISubjectService
             Name = name ?? email ?? oidcSubjectId,
             Email = email,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
 
@@ -179,7 +179,6 @@ public class SubjectService : ISubjectService
             Email = subject.Email,
             Notes = subject.Notes,
             IsActive = subject.IsActive,
-            CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
 
@@ -530,7 +529,6 @@ public class SubjectService : ISubjectService
             Notes = "Represents unauthenticated access. Assign roles to control what the public can see.",
             IsActive = true,
             IsSystemSubject = true,
-            CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
 
@@ -671,7 +669,7 @@ public class SubjectService : ISubjectService
 
             var remainingPasskeys = await _dbContext.PasskeyCredentials
                 .CountAsync(p => p.SubjectId == subjectId);
-            var remainingOidc = await _dbContext.SubjectOidcIdentities
+            var remainingOidc = await _dbContext.WorkingOidcIdentities()
                 .CountAsync(i => i.SubjectId == subjectId && i.Id != identityId);
             if (remainingPasskeys + remainingOidc < 1)
             {
@@ -711,7 +709,7 @@ public class SubjectService : ISubjectService
 
             var remainingPasskeys = await _dbContext.PasskeyCredentials
                 .CountAsync(p => p.SubjectId == subjectId && p.Id != credentialId);
-            var remainingOidc = await _dbContext.SubjectOidcIdentities
+            var remainingOidc = await _dbContext.WorkingOidcIdentities()
                 .CountAsync(i => i.SubjectId == subjectId);
             if (remainingPasskeys + remainingOidc < 1)
             {
@@ -734,7 +732,8 @@ public class SubjectService : ISubjectService
     public async Task<int> CountPrimaryAuthFactorsAsync(Guid subjectId)
     {
         var passkeys = await _dbContext.PasskeyCredentials.CountAsync(p => p.SubjectId == subjectId);
-        var oidc = await _dbContext.SubjectOidcIdentities.CountAsync(i => i.SubjectId == subjectId);
+        var oidc = await _dbContext.WorkingOidcIdentities()
+            .CountAsync(i => i.SubjectId == subjectId);
         return passkeys + oidc;
     }
 

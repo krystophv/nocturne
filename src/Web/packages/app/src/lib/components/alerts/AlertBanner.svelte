@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isoNow } from "$lib/utils/now";
   import {
     getActiveAlerts,
     acknowledgeExcursion,
@@ -52,7 +53,7 @@
       }).updates(
         activeAlerts.withOverride((current) =>
           (current ?? []).map((a) =>
-            a.id === id ? { ...a, acknowledgedAt: new Date() } : a
+            a.id === id ? { ...a, acknowledgedAt: isoNow() } : a
           )
         )
       );
@@ -64,7 +65,7 @@
 </script>
 
 {#if visibleAlerts.length > 0}
-  <div class="border-b">
+  <div class="border-b print:hidden">
     {#each visibleAlerts as alert (alert.id)}
       <!-- Coloured by the rule's own severity: styling every banner as
            destructive made an info rule indistinguishable from a critical low. -->
@@ -78,7 +79,7 @@
         <div class="flex-1 min-w-0">
           <!-- Named as well as coloured: colour alone is unavailable to a
                screen reader and to anyone who can't distinguish these hues. -->
-          <span class="text-[10px] font-semibold uppercase tracking-wider">
+          <span class="text-2xs font-semibold uppercase tracking-wider">
             {severityLabel(alert.severity)}
           </span>
           <span class="text-sm font-medium">
@@ -95,8 +96,7 @@
           {#if !alert.acknowledgedAt}
             <Button
               variant="outline"
-              size="sm"
-              class="h-7 text-xs"
+              size="xs"
               onclick={() => handleAcknowledge(alert.id ?? "")}
               disabled={acknowledgingId === alert.id}
             >
