@@ -652,8 +652,7 @@ public class PasskeyController : ControllerBase
             .Select(tm => tm.Subject)
             .FirstOrDefaultAsync(s => s != null && s.Username == request.Username);
 
-        // A null subject id still pays for every code slot, so neither the response nor the
-        // work done reveals whether the username exists.
+        // Unknown usernames go through the same verification; see IRecoveryCodeService.VerifyAndConsumeAsync.
         var verified = await _recoveryCodeService.VerifyAndConsumeAsync(subjectEntity?.Id, request.Code);
         if (!verified)
         {
@@ -1390,8 +1389,7 @@ public class RecoveryStatusResponse
     public int TotalCodes { get; set; }
 
     /// <summary>
-    /// True when codes issued before the salted-hash change were invalidated and no new ones
-    /// have been generated yet.
+    /// True when the subject's codes were invalidated and none have been generated since.
     /// </summary>
     public bool CodesReset { get; set; }
 }

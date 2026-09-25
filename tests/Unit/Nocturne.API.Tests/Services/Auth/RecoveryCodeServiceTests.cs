@@ -170,6 +170,58 @@ public class RecoveryCodeServiceTests : IDisposable
         result.Should().BeFalse();
     }
 
+    private (RecoveryCodeService Service, Func<int> Derivations) CountingService()
+    {
+        var count = 0;
+        var service = new RecoveryCodeService(_dbContext, (code, salt) =>
+        {
+            count++;
+            return RecoveryCodeService.Derive(code, salt);
+        });
+        return (service, () => count);
+    }
+
+    [Theory]
+    [Trait("Category", "Unit")]
+    [InlineData("unknown user")]
+    [InlineData("no live codes")]
+    [InlineData("eight live codes, wrong code")]
+    [InlineData("eight live codes, matching code")]
+    public async Task VerifyAndConsumeAsync_DerivesAgainstEightSlotsWhateverTheSubject(string scenario)
+    {
+        var (service, derivations) = CountingService();
+        Guid? subject = scenario == "unknown user" ? null : _subjectId;
+        var code = "AAAAA-AAAAA";
+
+        if (scenario.StartsWith("eight"))
+        {
+            var codes = await service.GenerateCodesAsync(_subjectId);
+            if (scenario.EndsWith("matching code"))
+                code = codes[3];
+        }
+
+        var before = derivations();
+        await service.VerifyAndConsumeAsync(subject, code);
+
+        (derivations() - before).Should().Be(8);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task VerifyAndConsumeAsync_RowAtAnotherIterationCount_NeverVerifies()
+    {
+        var codes = await _service.GenerateCodesAsync(_subjectId);
+        var entity = await _dbContext.RecoveryCodes.FirstAsync(r => r.SubjectId == _subjectId);
+        entity.CodeHash = entity.CodeHash.Replace("$100000$", "$1$");
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        foreach (var code in codes)
+            await _service.VerifyAndConsumeAsync(_subjectId, code);
+
+        (await _service.GetRemainingCountAsync(_subjectId)).Should().Be(1);
+    }
+
     [Fact]
     [Trait("Category", "Unit")]
     public async Task VerifyAndConsumeAsync_InvalidatedCode_ReturnsFalse()

@@ -23,8 +23,7 @@ public interface IRecoveryCodeService
     Task<bool> HasCodesAsync(Guid subjectId);
 
     /// <summary>
-    /// Returns whether the subject has invalidated codes and none live, i.e. codes issued before
-    /// the salted-hash change that were retired without being replaced.
+    /// Returns whether the subject has invalidated codes and none live.
     /// </summary>
     Task<bool> WereCodesResetAsync(Guid subjectId);
 }

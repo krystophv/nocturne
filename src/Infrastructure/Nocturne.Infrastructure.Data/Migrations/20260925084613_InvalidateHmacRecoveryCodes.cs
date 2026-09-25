@@ -20,7 +20,7 @@ namespace Nocturne.Infrastructure.Data.Migrations
             // HMAC-keyed codes cannot be re-hashed, only retired. The rows stay so the recovery
             // status can tell their owner the codes were reset.
             migrationBuilder.Sql(
-                "UPDATE recovery_codes SET invalidated_at = now() WHERE invalidated_at IS NULL");
+                "UPDATE recovery_codes SET invalidated_at = now() WHERE invalidated_at IS NULL AND used_at IS NULL");
         }
 
         /// <inheritdoc />

@@ -9,8 +9,8 @@ namespace Nocturne.API.Services.Auth;
 /// <summary>
 /// Generates and verifies single-use recovery codes for break-glass account access.
 /// Each code consists of two 5-character segments from a reduced unambiguous alphabet,
-/// separated by a hyphen. Codes are stored as per-code salted PBKDF2-HMAC-SHA256 hashes,
-/// so they stay valid when any instance secret is rotated.
+/// separated by a hyphen. Codes are stored as per-code salted PBKDF2-HMAC-SHA256 hashes, which
+/// depend on no instance secret.
 /// </summary>
 /// <seealso cref="IRecoveryCodeService"/>
 public class RecoveryCodeService : IRecoveryCodeService
@@ -24,19 +24,27 @@ public class RecoveryCodeService : IRecoveryCodeService
     private const int Iterations = 100_000;
     private const string HashAlgorithm = "pbkdf2-sha256";
 
-    // A code is checked against every slot so an attempt costs the same whether the subject
-    // exists and holds codes or not; the padding salt is what the empty slots derive against.
+    // A code is checked against at least CodeCount slots, one derivation each, so an attempt costs
+    // the same whether the subject exists and holds codes or not; the padding salt is what the
+    // empty slots derive against. Every row is parsed at the one iteration count for the same reason.
     private static readonly byte[] DummySalt = RandomNumberGenerator.GetBytes(SaltSize);
 
     private readonly NocturneDbContext _dbContext;
+    private readonly Func<string, byte[], byte[]> _derive;
 
     /// <summary>
     /// Initialises a new <see cref="RecoveryCodeService"/>.
     /// </summary>
     /// <param name="dbContext">Database context for reading and writing recovery code records.</param>
     public RecoveryCodeService(NocturneDbContext dbContext)
+        : this(dbContext, Derive)
+    {
+    }
+
+    internal RecoveryCodeService(NocturneDbContext dbContext, Func<string, byte[], byte[]> derive)
     {
         _dbContext = dbContext;
+        _derive = derive;
     }
 
     /// <inheritdoc />
@@ -75,29 +83,21 @@ public class RecoveryCodeService : IRecoveryCodeService
     /// <inheritdoc />
     public async Task<bool> VerifyAndConsumeAsync(Guid? subjectId, string code)
     {
-        var live = subjectId is null
-            ? []
-            : await _dbContext.RecoveryCodes
-                .Where(r => r.SubjectId == subjectId && r.UsedAt == null && r.InvalidatedAt == null)
-                .ToListAsync();
+        var owner = subjectId ?? Guid.Empty;
+        var live = await _dbContext.RecoveryCodes
+            .AsNoTracking()
+            .Where(r => r.SubjectId == owner && r.UsedAt == null && r.InvalidatedAt == null)
+            .OrderBy(r => r.Id)
+            .ToListAsync();
 
         var normalized = NormalizeCode(code);
 
         Guid? matchedId = null;
 
-        for (var i = 0; i < CodeCount; i++)
+        for (var i = 0; i < Math.Max(CodeCount, live.Count); i++)
         {
             var candidate = i < live.Count ? TryParseHash(live[i].CodeHash) : null;
-            var salt = candidate?.Salt ?? DummySalt;
-            var iterations = candidate?.Iterations ?? Iterations;
-
-            var derived = KeyDerivation.Pbkdf2(
-                password: normalized,
-                salt: salt,
-                prf: KeyDerivationPrf.HMACSHA256,
-                iterationCount: iterations,
-                numBytesRequested: HashSize
-            );
+            var derived = _derive(normalized, candidate?.Salt ?? DummySalt);
 
             if (candidate is not null && CryptographicOperations.FixedTimeEquals(derived, candidate.Hash))
             {
@@ -187,17 +187,10 @@ public class RecoveryCodeService : IRecoveryCodeService
     /// Hashes a normalised code with a fresh random salt, returning the self-describing
     /// <c>pbkdf2-sha256$iterations$salt$hash</c> string stored in the database.
     /// </summary>
-    private static string Hash(string normalizedCode)
+    private string Hash(string normalizedCode)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
-
-        var hash = KeyDerivation.Pbkdf2(
-            password: normalizedCode,
-            salt: salt,
-            prf: KeyDerivationPrf.HMACSHA256,
-            iterationCount: Iterations,
-            numBytesRequested: HashSize
-        );
+        var hash = _derive(normalizedCode, salt);
 
         return $"{HashAlgorithm}${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
@@ -210,7 +203,7 @@ public class RecoveryCodeService : IRecoveryCodeService
             return null;
         }
 
-        if (!int.TryParse(parts[1], out var iterations) || iterations <= 0)
+        if (!int.TryParse(parts[1], out var iterations) || iterations != Iterations)
         {
             return null;
         }
@@ -224,7 +217,7 @@ public class RecoveryCodeService : IRecoveryCodeService
                 return null;
             }
 
-            return new ParsedHash(iterations, salt, hash);
+            return new ParsedHash(salt, hash);
         }
         catch (FormatException)
         {
@@ -232,5 +225,13 @@ public class RecoveryCodeService : IRecoveryCodeService
         }
     }
 
-    private sealed record ParsedHash(int Iterations, byte[] Salt, byte[] Hash);
+    internal static byte[] Derive(string normalizedCode, byte[] salt) =>
+        KeyDerivation.Pbkdf2(
+            password: normalizedCode,
+            salt: salt,
+            prf: KeyDerivationPrf.HMACSHA256,
+            iterationCount: Iterations,
+            numBytesRequested: HashSize);
+
+    private sealed record ParsedHash(byte[] Salt, byte[] Hash);
 }
