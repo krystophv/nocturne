@@ -22108,26 +22108,17 @@ msgstr ""
 msgid "<0/> What the Averages Show"
 msgstr ""
 
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "Average glucose after a site change"
-msgstr ""
+#~ msgid "Average glucose after a site change"
+#~ msgstr ""
 
-#. 0: percentImprovement.toFixed(1)
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "{0}% lower than in the hours before."
-msgstr ""
+#~ msgid "{0}% lower than in the hours before."
+#~ msgstr ""
 
-#. 0: Math.abs(percentImprovement).toFixed(1)
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "{0}% higher than in the hours before. This can reflect insertion or site-location factors."
-msgstr ""
+#~ msgid "{0}% higher than in the hours before. This can reflect insertion or site-location factors."
+#~ msgstr ""
 
-#. 0: Math.abs(percentImprovement).toFixed(1)
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "Differs by {0}% from the hours before; differences under 5% are counted as no material change."
-msgstr ""
+#~ msgid "Differs by {0}% from the hours before; differences under 5% are counted as no material change."
+#~ msgstr ""
 
 #: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
 msgid "Time in range around a site change"
@@ -24378,12 +24369,12 @@ msgstr ""
 msgid "TIR after"
 msgstr ""
 
-#. 0: bolusCount; 1: dailyAvgBoluses.toFixed(1); 2: avgInsulinPerBolus.toFixed(1)
+#. 0: treatmentSummary.bolusCount ?? 0; 1: (treatmentSummary.dailyBoluses ?? 0).toFixed(1); 2: (treatmentSummary.averagePerBolus ?? 0).toFixed(1)
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "{0} boluses · {1}/day · {2}U avg"
 msgstr ""
 
-#. 0: carbEntriesCount; 1: dailyAvgCarbs.toFixed(0); 2: avgCarbsPerEntry.toFixed(0)
+#. 0: treatmentSummary.carbEntryCount ?? 0; 1: (treatmentSummary.dailyCarbs ?? 0).toFixed(0); 2: (treatmentSummary.averageCarbsPerEntry ?? 0).toFixed(0)
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "{0} meals · {1}g/day · {2}g avg/meal"
 msgstr ""
