@@ -279,6 +279,7 @@ msgstr "UrgentHigh"
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/GlucoseInspectionDialog.svelte
 #: src/lib/components/reports/TIRStackedChart.svelte
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
 #: src/lib/components/settings/alarm-profile/AlarmGeneralTab.svelte
 #: src/lib/components/settings/alarm-profile/AlarmGeneralTab.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
@@ -1762,7 +1763,6 @@ msgstr "Carbs:"
 #. 0: totalCarbs
 #. 0: (snapshot.cob ?? 0).toFixed(0)
 #. 0: Math.round(d.averageDailyCarbs)
-#. 0: selectedDay.totalCarbs.toFixed(0)
 #. 0: d.totalCarbs.toFixed(0)
 #. 0: totalCarbs
 #. 0: actualUnattributed
@@ -1785,7 +1785,6 @@ msgstr "Carbs:"
 #: src/lib/components/meals/MealsTable.svelte
 #: src/lib/components/reports/ApsStateCard.svelte
 #: src/lib/components/reports/GlycemicRiskIndexChart.svelte
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
 #: src/lib/components/treatments/TreatmentFoodEntryEditDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodEntryEditDialog.svelte
@@ -2706,7 +2705,6 @@ msgstr "Inactive"
 msgid "Records (24h)"
 msgstr "Records (24h)"
 
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "Total Records"
 msgstr "Total Records"
@@ -3594,7 +3592,6 @@ msgstr "Last 24 hours"
 #: src/lib/components/dashboard/widgets/TddWidget.svelte
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 #: src/lib/components/reports/InsulinDeliveryChart.svelte
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
@@ -3608,7 +3605,6 @@ msgstr "Bolus"
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartTooltip.svelte
 #: src/lib/components/meals/MealsTable.svelte
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 #: src/routes/(authenticated)/food/Composer.svelte
@@ -4081,7 +4077,6 @@ msgstr "Event Type"
 #: src/lib/components/status-pills/IOBPill.svelte
 #: src/lib/components/treatments/edit-dialog/BasalInjectionFormFields.svelte
 #: src/lib/components/treatments/edit-dialog/DeviceEventFormFields.svelte
-#: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Notes"
 msgstr "Notes"
@@ -4187,7 +4182,6 @@ msgid "Loading breakdown..."
 msgstr "Loading breakdown..."
 
 #: src/lib/components/entries/FoodBreakdown.svelte
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "Total Carbs"
 msgstr "Total Carbs"
@@ -4327,7 +4321,6 @@ msgstr "Snack"
 #: src/lib/components/reports/RetrospectiveStats.svelte
 #: src/lib/components/reports/sleep/single-night/Hypnogram.svelte
 #: src/lib/components/reports/sleep/single-night/Hypnogram.svelte
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
 #: src/lib/components/status-pills/BasalPill.svelte
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
@@ -4763,7 +4756,6 @@ msgid "No meals match the current filters."
 msgstr "No meals match the current filters."
 
 #: src/lib/components/meals/MealsTable.svelte
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 #: src/lib/components/reports/year-overview/YearHeatmap.svelte
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
@@ -10127,26 +10119,21 @@ msgstr "No 90-day data available"
 msgid "Failed to load data"
 msgstr "Failed to load data"
 
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
-msgid "Day Details"
-msgstr "Day Details"
+#~ msgid "Day Details"
+#~ msgstr "Day Details"
 
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
-msgid "Average Glucose"
-msgstr "Average Glucose"
+#~ msgid "Average Glucose"
+#~ msgstr "Average Glucose"
 
 #: src/lib/components/dashboard/widgets/TddWidget.svelte
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
 msgid "Total Daily Dose"
 msgstr "Total Daily Dose"
 
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
-msgid "By Data Type"
-msgstr "By Data Type"
+#~ msgid "By Data Type"
+#~ msgstr "By Data Type"
 
-#: src/lib/components/reports/year-overview/DayDetailPanel.svelte
-msgid "View Day in Review <0/>"
-msgstr "View Day in Review <0/>"
+#~ msgid "View Day in Review <0/>"
+#~ msgstr "View Day in Review <0/>"
 
 #: src/lib/components/dashboard/widgets/TddWidget.svelte
 msgid "No insulin"
@@ -11542,9 +11529,8 @@ msgstr "Error Loading Data Quality Report"
 msgid "Data Quality - Nocturne"
 msgstr "Data Quality - Nocturne"
 
-#: src/routes/(authenticated)/reports/data-quality/+page.svelte
-msgid "Monitor and manage data exclusions"
-msgstr "Monitor and manage data exclusions"
+#~ msgid "Monitor and manage data exclusions"
+#~ msgstr "Monitor and manage data exclusions"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 msgid "Pending Review"
@@ -11589,9 +11575,8 @@ msgstr "Falsely low readings from sleeping on sensor"
 msgid "You have {0} item{1} waiting for review"
 msgstr "You have {0} item{1} waiting for review"
 
-#: src/routes/(authenticated)/reports/data-quality/+page.svelte
-msgid "Review detected compression lows to improve your statistics accuracy"
-msgstr "Review detected compression lows to improve your statistics accuracy"
+#~ msgid "Review detected compression lows to improve your statistics accuracy"
+#~ msgstr "Review detected compression lows to improve your statistics accuracy"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 msgid "Review Now"
@@ -13154,9 +13139,8 @@ msgstr "Automatically detect potential compression lows during sleep"
 msgid "Enable automatic detection"
 msgstr "Enable automatic detection"
 
-#: src/routes/(authenticated)/settings/data-quality/+page.svelte
-msgid "Exclude from statistics"
-msgstr "Exclude from statistics"
+#~ msgid "Exclude from statistics"
+#~ msgstr "Exclude from statistics"
 
 #: src/routes/(authenticated)/settings/connectors/+page.svelte
 #: src/routes/(authenticated)/settings/connectors/+page.svelte
@@ -14948,9 +14932,8 @@ msgstr "Compression Lows - Nocturne"
 msgid "{0} pending review"
 msgstr "{0} pending review"
 
-#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
-msgid "Review history and manage exclusions"
-msgstr "Review history and manage exclusions"
+#~ msgid "Review history and manage exclusions"
+#~ msgstr "Review history and manage exclusions"
 
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Status:"
@@ -14985,9 +14968,8 @@ msgstr "Recovery (min)"
 msgid "Selected Range"
 msgstr "Selected Range"
 
-#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
-msgid "Exclusion Range"
-msgstr "Exclusion Range"
+#~ msgid "Exclusion Range"
+#~ msgstr "Exclusion Range"
 
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Drag the handles on the chart to adjust"
@@ -18623,13 +18605,11 @@ msgstr "Previously used migration sources with their last sync timestamps."
 msgid "Nocturne will analyze your overnight data and notify you when potential compression lows are detected"
 msgstr "Nocturne will analyze your overnight data and notify you when potential compression lows are detected"
 
-#: src/routes/(authenticated)/settings/data-quality/+page.svelte
-msgid "Don't include accepted compression lows when calculating Time in Range and other statistics"
-msgstr "Don't include accepted compression lows when calculating Time in Range and other statistics"
+#~ msgid "Don't include accepted compression lows when calculating Time in Range and other statistics"
+#~ msgstr "Don't include accepted compression lows when calculating Time in Range and other statistics"
 
-#: src/routes/(authenticated)/settings/data-quality/+page.svelte
-msgid "Compression lows are falsely low CGM readings caused by sleeping on your sensor. When detected, you'll be notified to review and confirm them."
-msgstr "Compression lows are falsely low CGM readings caused by sleeping on your sensor. When detected, you'll be notified to review and confirm them."
+#~ msgid "Compression lows are falsely low CGM readings caused by sleeping on your sensor. When detected, you'll be notified to review and confirm them."
+#~ msgstr "Compression lows are falsely low CGM readings caused by sleeping on your sensor. When detected, you'll be notified to review and confirm them."
 
 #: src/routes/(authenticated)/settings/data-quality/+page.svelte
 msgid "Timezone History"
@@ -25144,3 +25124,64 @@ msgstr "The person who shared this data has limited you to the most recent 24 ho
 #: src/lib/components/settings/ApiTokens.svelte
 msgid "Restrict this token to only the most recent 24 hours of data."
 msgstr "Restrict this token to only the most recent 24 hours of data."
+
+#: src/routes/(authenticated)/reports/data-quality/+page.svelte
+msgid "Spot readings that may come from the sensor rather than your glucose"
+msgstr "Spot readings that may come from the sensor rather than your glucose"
+
+#: src/routes/(authenticated)/reports/data-quality/+page.svelte
+msgid "Accept each one as a false low from pressure on the sensor, or dismiss it as a real low. This is for your own record: your reports and statistics still include these readings."
+msgstr "Accept each one as a false low from pressure on the sensor, or dismiss it as a real low. This is for your own record: your reports and statistics still include these readings."
+
+#: src/routes/(authenticated)/reports/day-in-review/+page.svelte
+msgid "Edit treatment"
+msgstr "Edit treatment"
+
+#: src/routes/(authenticated)/settings/data-quality/+page.svelte
+msgid "Compression lows are falsely low CGM readings caused by sleeping on your sensor. When detected, you'll be notified to review and confirm them. Reviewing keeps a record for you; it does not remove the readings from your reports or statistics."
+msgstr "Compression lows are falsely low CGM readings caused by sleeping on your sensor. When detected, you'll be notified to review and confirm them. Reviewing keeps a record for you; it does not remove the readings from your reports or statistics."
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "During deep sleep"
+msgstr "During deep sleep"
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "During REM sleep"
+msgstr "During REM sleep"
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "During light sleep"
+msgstr "During light sleep"
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "While awake"
+msgstr "While awake"
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "<0/> Overnight Lows"
+msgstr "<0/> Overnight Lows"
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "No lows lasting 15 minutes or more during this session"
+msgstr "No lows lasting 15 minutes or more during this session"
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "Very low"
+msgstr "Very low"
+
+#. 0: bgLabel()
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "Lowest, {0}"
+msgstr "Lowest, {0}"
+
+#: src/lib/components/reports/sleep/single-night/OvernightLowsCard.svelte
+msgid "A low is counted when glucose stays below range for 15 minutes or more. Shorter dips still show in the time in range chart."
+msgstr "A low is counted when glucose stays below range for 15 minutes or more. Shorter dips still show in the time in range chart."
+
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "Suspected false lows from pressure on the sensor"
+msgstr "Suspected false lows from pressure on the sensor"
+
+#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
+msgid "Marked Range"
+msgstr "Marked Range"
