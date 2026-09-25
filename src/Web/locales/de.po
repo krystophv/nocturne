@@ -9016,6 +9016,7 @@ msgstr "Etwas ist schiefgelaufen"
 #~ msgstr "Analysierte Messwerte: {0}"
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
+#: src/routes/(authenticated)/reports/comparison/+page.svelte
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Est. A1C"
@@ -11619,7 +11620,6 @@ msgstr "Fehler beim Laden der Tagesübersicht"
 msgid "Mean"
 msgstr "Mittelwert"
 
-#: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Boluses"
 msgstr "Boli"
@@ -11962,7 +11962,7 @@ msgstr "Umfassende Analyse deiner Basal- und Bolus-Insulinmuster"
 msgid "Basal Analysis <0/>"
 msgstr "Basalanalyse <0/>"
 
-#. 0: (insulinStats.bolusCount ?? 0) + (insulinStats.basalCount ?? 0)
+#. 0: insulinStats.insulinEventCount ?? 0
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "{0} insulin events"
 msgstr "{0} Insulinereignisse"
@@ -17934,10 +17934,8 @@ msgstr ""
 msgid "No connected applications. When you authorize apps to access your data, they will appear here."
 msgstr ""
 
-#. 0: app.clientName ?? "this app"
-#: src/lib/components/settings/ConnectedApps.svelte
-msgid "Revoke {0}'s access to your data? The app will need to be re-authorized to regain access."
-msgstr ""
+#~ msgid "Revoke {0}'s access to your data? The app will need to be re-authorized to regain access."
+#~ msgstr ""
 
 #: src/lib/components/settings/ConnectorConfigForm.svelte
 msgid "Sensitive credentials are stored encrypted and never displayed after saving. <0/>"
@@ -25184,4 +25182,35 @@ msgstr ""
 
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Marked Range"
+msgstr ""
+
+#. 0: app.deviceCount; 1: app.deviceCount === 1 ? "" \\: "s"
+#: src/lib/components/settings/ConnectedApps.svelte
+msgid "Its {0} paired device{1} will also be removed and stop receiving alerts."
+msgstr ""
+
+#. 0: app.clientName ?? "this app"
+#: src/lib/components/settings/ConnectedApps.svelte
+msgid "Revoke {0}'s access to your data? The app will need to be re-authorized to regain access. <0/>"
+msgstr ""
+
+#. 0: device.appName
+#: src/lib/components/settings/ClientDevices.svelte
+msgid "Paired through {0}"
+msgstr ""
+
+#: src/lib/components/settings/ClientDevices.svelte
+msgid "Paired through an app that reports no name."
+msgstr ""
+
+#: src/lib/components/settings/ClientDevices.svelte
+msgid "Not linked to an app. Revoking an app will not remove this device."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/day-in-review/+page.svelte
+msgid "Manual boluses"
+msgstr ""
+
+#: src/routes/(authenticated)/reports/day-in-review/+page.svelte
+msgid "Automatic boluses"
 msgstr ""
