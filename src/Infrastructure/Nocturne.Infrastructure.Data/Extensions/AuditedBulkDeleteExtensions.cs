@@ -142,18 +142,29 @@ public static class AuditedBulkDeleteExtensions
         IAuditContext? auditContext,
         string scope,
         CancellationToken ct = default) where T : class, IAuditable, ISoftDeletable
-    {
-        var strategy = context.Database.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async () =>
+        => await InTransactionAsync(context, async () =>
         {
-            await using var transaction = await context.Database.BeginTransactionAsync(ct);
-
             var count = await SoftDeleteRowsAsync(query, auditContext, ct);
             await WriteBulkDeleteSummaryAsync<T>(context, count, scope, auditContext, ct);
-
-            await transaction.CommitAsync(ct);
             return count;
+        }, ct);
+
+    /// <summary>
+    /// Runs <paramref name="body"/> in the caller's open transaction when there is one, so a soft
+    /// delete can commit together with the caller's other writes, and in its own otherwise.
+    /// </summary>
+    private static async Task<TResult> InTransactionAsync<TResult>(
+        NocturneDbContext context, Func<Task<TResult>> body, CancellationToken ct)
+    {
+        if (context.Database.CurrentTransaction is not null)
+            return await body();
+
+        return await context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(ct);
+            var result = await body();
+            await transaction.CommitAsync(ct);
+            return result;
         });
     }
 
@@ -189,13 +200,8 @@ public static class AuditedBulkDeleteExtensions
         IAuditContext? auditContext,
         string scope,
         CancellationToken ct = default) where T : class, IAuditable, ISoftDeletable
-    {
-        var strategy = context.Database.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async () =>
+        => await InTransactionAsync(context, async () =>
         {
-            await using var transaction = await context.Database.BeginTransactionAsync(ct);
-
             // One row past the cap is all it takes to know the match set exceeds it.
             var records = await query.Take(BroadcastMaterializationCap + 1).ToListAsync(ct);
             var collapsed = records.Count > BroadcastMaterializationCap;
@@ -221,10 +227,8 @@ public static class AuditedBulkDeleteExtensions
             if (collapsed)
                 await WriteBulkDeleteSummaryAsync<T>(context, count, scope, auditContext, ct);
 
-            await transaction.CommitAsync(ct);
             return new AuditedSoftDeleteResult<T>(count, records);
-        });
-    }
+        }, ct);
 
     /// <summary>
     /// Stamps <c>DeletedAt</c> and the dedup attribution flag in one update: a user-initiated delete

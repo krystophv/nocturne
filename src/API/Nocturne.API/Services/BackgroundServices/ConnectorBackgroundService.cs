@@ -79,25 +79,40 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     private readonly ConnectorSyncMetrics? _metrics;
 
     /// <summary>
+    /// Absent, a scheduled sync does not check for one already in flight; production supplies the
+    /// singleton so a manual sync of the same tenant and connector makes the scheduled one skip.
+    /// </summary>
+    private readonly TenantRunGuard? _runGuard;
+
+    /// <summary>The active tenants, shared by every poller.</summary>
+    protected readonly ActiveTenantSnapshot ActiveTenants;
+
+    /// <summary>
     /// Initialises a new <see cref="ConnectorBackgroundService{TConfig}"/>.
     /// </summary>
     /// <param name="serviceProvider">Root DI service provider; a new scope is created per tenant sync.</param>
     /// <param name="budget">The process-wide budget.</param>
+    /// <param name="activeTenants">The active tenants every poller reads.</param>
     /// <param name="logger">Logger instance.</param>
     /// <param name="nudge">Delivers configuration writes for this connector; absent, a change is noticed on the tenant's next scheduled look.</param>
     /// <param name="metrics">Connector sync instruments; absent, the sync runs unmeasured.</param>
+    /// <param name="runGuard">Refuses a sync for a key another run already holds; absent, no exclusion.</param>
     protected ConnectorBackgroundService(
         IServiceProvider serviceProvider,
         ConnectorSyncBudget budget,
+        ActiveTenantSnapshot activeTenants,
         ILogger logger,
         ConnectorPollerNudge? nudge = null,
-        ConnectorSyncMetrics? metrics = null
+        ConnectorSyncMetrics? metrics = null,
+        TenantRunGuard? runGuard = null
     )
     {
         ServiceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _budget = budget ?? throw new ArgumentNullException(nameof(budget));
+        ActiveTenants = activeTenants ?? throw new ArgumentNullException(nameof(activeTenants));
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _metrics = metrics;
+        _runGuard = runGuard;
         nudge?.Subscribe(ConnectorName, RequestImmediateSync);
     }
 
@@ -370,14 +385,9 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
 
     private async Task SyncAllTenantsAsync(CancellationToken stoppingToken)
     {
-        using var lookupScope = ServiceProvider.CreateScope();
-        var factory = lookupScope.ServiceProvider.GetRequiredService<IDbContextFactory<NocturneDbContext>>();
-        await using var lookupContext = await factory.CreateDbContextAsync(stoppingToken);
+        var activeTenants = await ActiveTenants.GetAsync(stoppingToken);
         var now = DateTime.UtcNow;
-        var tenants = (await lookupContext.Tenants.AsNoTracking()
-                .Where(t => t.IsActive)
-                .Select(t => new { t.Id, t.Slug, t.DisplayName })
-                .ToListAsync(stoppingToken))
+        var tenants = activeTenants
             .Where(t => !_nextCheckByTenant.TryGetValue(t.Id, out var nextCheck) || nextCheck <= now)
             .ToList();
 
@@ -518,6 +528,18 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
 
         Logger.LogDebug("Syncing {ConnectorName} for tenant {TenantSlug}", ConnectorName, tenantSlug);
 
+        // A manual sync of the same tenant and connector holds this key for its whole run. This
+        // poller never waits: the manual run is already fetching this tenant's data, so this cycle
+        // skips the tenant and the next tick re-checks it.
+        using var lease = _runGuard?.TryAcquire(tenantId, Registration.ConnectorId);
+        if (_runGuard is not null && lease is null)
+        {
+            Logger.LogInformation(
+                "{ConnectorName} sync for tenant {TenantSlug} skipped: a sync is already running",
+                ConnectorName, tenantSlug);
+            return;
+        }
+
         _lastSyncByTenant[tenantId] = now;
         _nextCheckByTenant[tenantId] = now + interval;
 
@@ -617,10 +639,12 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
 public class ConnectorBackgroundService<TService, TConfig>(
     IServiceProvider serviceProvider,
     ConnectorSyncBudget budget,
+    ActiveTenantSnapshot activeTenants,
     ILogger<ConnectorBackgroundService<TService, TConfig>> logger,
     ConnectorPollerNudge? nudge = null,
-    ConnectorSyncMetrics? metrics = null)
-    : ConnectorBackgroundService<TConfig>(serviceProvider, budget, logger, nudge, metrics)
+    ConnectorSyncMetrics? metrics = null,
+    TenantRunGuard? runGuard = null)
+    : ConnectorBackgroundService<TConfig>(serviceProvider, budget, activeTenants, logger, nudge, metrics, runGuard)
     where TService : class, IConnectorService<TConfig>
     where TConfig : BaseConnectorConfiguration
 {

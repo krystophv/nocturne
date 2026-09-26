@@ -15,6 +15,7 @@
   import * as RadioGroup from "$lib/components/ui/radio-group";
   import { Progress } from "$lib/components/ui/progress";
   import * as Alert from "$lib/components/ui/alert";
+  import { SkippedRecordsNote } from "$lib/components/shared";
   import {
     Import,
     Loader2,
@@ -32,6 +33,7 @@
   } from "lucide-svelte";
   import * as migrationRemote from "$api/generated/migrations.generated.remote";
   import { describeSubmitError } from "$lib/forms/submit-error";
+  import { remoteErrorMessage } from "$lib/api/remote-error";
   import {
     type MigrationJobInfo,
     type MigrationJobStatus,
@@ -120,7 +122,7 @@
       }
     } catch (err) {
       console.error("Failed to load migration data:", err);
-      error = "Failed to load migration data";
+      error = remoteErrorMessage(err, "Failed to load migration data");
     } finally {
       loading = false;
     }
@@ -559,6 +561,11 @@
                           <span class="text-sm text-muted-foreground">
                             {collection.documentsMigrated} / {collection.totalDocuments}
                           </span>
+                          <SkippedRecordsNote
+                            deleted={collection.recordsSkippedDeleted}
+                            unsupported={collection.documentsSkippedUnsupported}
+                            class="text-xs text-muted-foreground"
+                          />
                         </div>
                       </div>
                     {/each}

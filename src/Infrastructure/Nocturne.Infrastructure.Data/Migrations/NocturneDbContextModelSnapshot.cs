@@ -554,9 +554,17 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("active_excursion_id");
 
+                    b.Property<bool>("AwaitingRearm")
+                        .HasColumnType("boolean")
+                        .HasColumnName("awaiting_rearm");
+
                     b.Property<int>("ConfirmationCount")
                         .HasColumnType("integer")
                         .HasColumnName("confirmation_count");
+
+                    b.Property<DateTime?>("HysteresisStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("hysteresis_started_at");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -3460,6 +3468,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTime?>("InvalidatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("invalidated_at");
+
                     b.Property<Guid>("SubjectId")
                         .HasColumnType("uuid")
                         .HasColumnName("subject_id");
@@ -5790,6 +5802,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("units");
 
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
+
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
                         .HasColumnName("utc_offset");
@@ -6166,6 +6182,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
 
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
+
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
                         .HasColumnName("utc_offset");
@@ -6326,6 +6346,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<double?>("Unabsorbed")
                         .HasColumnType("double precision")
                         .HasColumnName("unabsorbed");
+
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
 
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
@@ -6565,6 +6589,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
+
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
 
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
@@ -6860,6 +6888,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
 
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
+
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
                         .HasColumnName("utc_offset");
@@ -7135,6 +7167,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
+
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
 
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
@@ -8100,6 +8136,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
+
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
 
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")

@@ -4,13 +4,14 @@
     import { Button } from "$lib/components/ui/button";
     import {ReportsFilterSidebar} from "$lib/components/layout";
     import ResourceGuard from "$lib/components/reports/ResourceGuard.svelte";
+    import HistoryLimitNotice from "$lib/components/layout/HistoryLimitNotice.svelte";
     import ReportPrintHeader from "$lib/components/reports/print/ReportPrintHeader.svelte";
     import {
         createReportPrintContext,
         installPrintFitFallback,
         printReport,
     } from "$lib/components/reports/print/report-print.svelte";
-    import {reportCategories} from "$lib/navigation/report-navigation";
+    import {reportCategories} from "$lib/navigation/report-navigation.svelte";
     import {Filter, Calendar, ChevronDown, Printer} from "lucide-svelte";
     import {useDateParams, setDateParamsContext, createSharedRangeUse} from "$lib/hooks/date-params.svelte";
     import {createResourceContext} from "$lib/hooks/resource-context.svelte";
@@ -47,8 +48,8 @@
     let reportRoot = $state<HTMLElement | null>(null);
     $effect(() => installPrintFitFallback(() => reportRoot));
 
-    const registryTitles = new Map(
-        reportCategories.flatMap((c) => c.reports).map((r) => [r.href, r.title])
+    const registryTitles = $derived(
+        new Map(reportCategories().flatMap((c) => c.reports).map((r) => [r.href, r.title]))
     );
 
     // Extract report name from the URL
@@ -158,8 +159,10 @@
         </div>
     {/if}
 
+    <HistoryLimitNotice class="mx-3 mt-3 w-auto @md:mx-6 print:hidden" />
+
     <!-- Main Content -->
-    <main class="relative">
+    <div class="relative">
         {#if useResourceGuard}
             <ResourceGuard
                 loading={resourceCtx.loading}
@@ -174,7 +177,7 @@
         {:else}
             {@render children()}
         {/if}
-    </main>
+    </div>
 
     <!-- Filter Sidebar -->
     {#if showFilters}
