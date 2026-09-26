@@ -36,6 +36,7 @@ import {
 	Shield,
 	Stethoscope,
 	Sun,
+	SunMoon,
 	Syringe,
 	Target,
 	Timer,
@@ -66,9 +67,10 @@ export interface CommandPaletteItem {
 	keywords?: string[];
 	icon?: ComponentType;
 	shortcut?: string;
-	permission?: string;
-	/** Role required to see this item (e.g. "platform_admin"). */
-	role?: string;
+	/** Scope required to see this item (e.g. "audit.read"). */
+	scope?: string;
+	/** Shown only to a platform administrator. */
+	platformAdmin?: boolean;
 	href?: string;
 	linkedHref?: string;
 }
@@ -184,6 +186,15 @@ export const items: CommandPaletteItem[] = [
 		keywords: ["comparison", "trend", "weekly"],
 		icon: TrendingUp,
 		href: "/reports/week-to-week",
+	},
+	{
+		id: "report-hourly-patterns",
+		label: "Hourly Patterns",
+		group: "reports",
+		description: "Hours of the day with the most and least time in range",
+		keywords: ["hourly", "time of day", "best hours", "worst hours"],
+		icon: SunMoon,
+		href: "/reports/hourly-stats",
 	},
 	{
 		id: "report-year-overview",
@@ -358,7 +369,7 @@ export const items: CommandPaletteItem[] = [
 		keywords: ["tenants", "organizations", "accounts", "platform admin"],
 		icon: Building,
 		href: "/settings/admin/tenants",
-		role: "platform_admin",
+		platformAdmin: true,
 	},
 	{
 		id: "page-access-requests",
@@ -367,7 +378,7 @@ export const items: CommandPaletteItem[] = [
 		keywords: ["access requests", "join", "approve", "pending users"],
 		icon: UserPlus,
 		href: "/settings/access-requests",
-		role: "platform_admin",
+		platformAdmin: true,
 	},
 
 	// ─── Settings ────────────────────────────────────────────────────────
@@ -410,7 +421,7 @@ export const items: CommandPaletteItem[] = [
 		keywords: ["grants", "access", "permissions", "sharing"],
 		icon: Shield,
 		href: "/settings/grants",
-		permission: "api:settings:admin",
+		scope: "sharing.manage",
 	},
 	{
 		id: "settings-connectors",
@@ -482,7 +493,7 @@ export const items: CommandPaletteItem[] = [
 		keywords: ["audit", "log", "history", "changes"],
 		icon: FileSearch,
 		href: "/settings/audit",
-		permission: "api:settings:admin",
+		scope: "audit.read",
 	},
 	{
 		id: "settings-support",

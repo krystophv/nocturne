@@ -1541,6 +1541,69 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.ToTable("dedup_reconcile_state");
                 });
 
+            modelBuilder.Entity("Nocturne.Infrastructure.Data.Entities.DeviceClockObservationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applied_at");
+
+                    b.Property<string>("Connector")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("connector");
+
+                    b.Property<DateTime?>("CoversFrom")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("covers_from");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DeclaredTimezone")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("declared_timezone");
+
+                    b.Property<bool>("IsEstimate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_estimate");
+
+                    b.Property<DateTime>("ObservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("observed_at");
+
+                    b.Property<int>("OffsetMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("offset_minutes");
+
+                    b.Property<int>("SampleCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("sample_count");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer")
+                        .HasColumnName("source");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Connector", "Source", "ObservedAt")
+                        .IsUnique()
+                        .HasDatabaseName("ix_device_clock_observations_tenant_connector_source_observed");
+
+                    b.ToTable("device_clock_observations");
+                });
+
             modelBuilder.Entity("Nocturne.Infrastructure.Data.Entities.DiscrepancyAnalysisEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3467,6 +3530,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("InvalidatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("invalidated_at");
 
                     b.Property<Guid>("SubjectId")
                         .HasColumnType("uuid")
@@ -5793,6 +5860,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("units");
 
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
+
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
                         .HasColumnName("utc_offset");
@@ -6169,6 +6240,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
 
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
+
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
                         .HasColumnName("utc_offset");
@@ -6329,6 +6404,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<double?>("Unabsorbed")
                         .HasColumnType("double precision")
                         .HasColumnName("unabsorbed");
+
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
 
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
@@ -6568,6 +6647,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
+
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
 
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
@@ -6863,6 +6946,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
 
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
+
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
                         .HasColumnName("utc_offset");
@@ -7138,6 +7225,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
+
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
 
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
@@ -8104,6 +8195,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
 
+                    b.Property<string>("UpstreamFingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("upstream_fingerprint");
+
                     b.Property<int?>("UtcOffset")
                         .HasColumnType("integer")
                         .HasColumnName("utc_offset");
@@ -8734,6 +8829,15 @@ namespace Nocturne.Infrastructure.Data.Migrations
                 });
 
             modelBuilder.Entity("Nocturne.Infrastructure.Data.Entities.DedupReconcileStateEntity", b =>
+                {
+                    b.HasOne("Nocturne.Infrastructure.Data.Entities.TenantEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Nocturne.Infrastructure.Data.Entities.DeviceClockObservationEntity", b =>
                 {
                     b.HasOne("Nocturne.Infrastructure.Data.Entities.TenantEntity", null)
                         .WithMany()
