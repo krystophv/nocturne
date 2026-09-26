@@ -1,5 +1,8 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Models;
@@ -23,6 +26,10 @@ namespace Nocturne.Infrastructure.Data.Tests.Services;
 public class DeduplicationReconcileTests : IDisposable
 {
     private static readonly Guid TestTenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    // Shared because EF builds an internal service provider per distinct interceptor set, and one per
+    // test trips its many-providers guard. Tests within a class run one at a time.
+    private static readonly LinkLoadRecorder LoadedLinks = new();
+    private static readonly FailingReads FailingReadsInterceptor = new();
     private readonly SqliteTestDatabase _db;
     private readonly NocturneDbContext _context;
     private readonly DeduplicationService _service;
@@ -30,7 +37,7 @@ public class DeduplicationReconcileTests : IDisposable
     public DeduplicationReconcileTests()
     {
         // In-memory SQLite database for testing — mirrors CarbIntakeRepositoryTests.
-        _db = TestDbContextFactory.CreateSqliteWithTenant(TestTenantId);
+        _db = TestDbContextFactory.CreateSqliteWithTenant(TestTenantId, "test", LoadedLinks, FailingReadsInterceptor);
 
         _context = _db.CreateContext();
         _context.TenantId = TestTenantId;
@@ -765,6 +772,82 @@ public class DeduplicationReconcileTests : IDisposable
         afterMerge.Select(l => l.CanonicalId).Distinct().Should().HaveCount(2);
     }
 
+    [Theory]
+    [InlineData(RecordType.CarbIntake)]
+    [InlineData(RecordType.SensorGlucose)]
+    public async Task MergeDuplicateGroupsAsync_CandidatesYearsApart_LoadOnlyThePrimariesNearEachCandidate(RecordType recordType)
+    {
+        // Links are paged in creation order, so one batch can carry candidates years apart in event
+        // time. The primary between them is nobody's neighbour and must never be read.
+        var early = WideBase;
+        var between = WideBase.AddYears(1);
+        var late = WideBase.AddYears(3);
+        var earlyA = await AddReading(recordType, early, "mylife-connector");
+        var earlyB = await AddReading(recordType, early.AddSeconds(20), "glooko-connector");
+        var betweenId = await AddReading(recordType, between, "mylife-connector");
+        var lateA = await AddReading(recordType, late, "mylife-connector");
+        var lateB = await AddReading(recordType, late.AddSeconds(20), "glooko-connector");
+        var earlyCanonical = AddPrimaryLink(recordType, earlyA, ToMills(early), "mylife-connector");
+        AddPrimaryLink(recordType, earlyB, ToMills(early.AddSeconds(20)), "glooko-connector");
+        AddPrimaryLink(recordType, betweenId, ToMills(between), "mylife-connector");
+        var lateCanonical = AddPrimaryLink(recordType, lateA, ToMills(late), "mylife-connector");
+        AddPrimaryLink(recordType, lateB, ToMills(late.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+        LoadedLinks.Clear();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(
+            recordType,
+            new HashSet<Guid> { earlyCanonical, lateCanonical },
+            CancellationToken.None);
+
+        merged.Should().Be(2, "each candidate still merges with the neighbour beside it");
+        LoadedLinks.RecordIds.Should().Contain([earlyB, lateB]);
+        LoadedLinks.RecordIds.Should().NotContain(betweenId,
+            "the neighbour load is bounded around each candidate, not across the span between them");
+    }
+
+    [Fact]
+    public async Task ReconcileNewLinksAsync_AFailedMerge_LogsTheStuckCursorAndLeavesItInPlace()
+    {
+        var now = DateTime.UtcNow;
+        var cursor = new ReconcileCursor(now.AddHours(-1), Guid.CreateVersion7());
+        await _service.SetCursorAsync(cursor, CancellationToken.None);
+
+        var t = now.AddMinutes(-5);
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+        await SetAllLinkSysCreatedAt(now.AddMinutes(-5));
+
+        var logger = new Mock<ILogger<DeduplicationService>>();
+        var service = new DeduplicationService(_context, new Mock<IServiceScopeFactory>().Object, logger.Object);
+        FailingReadsInterceptor.FailWhen = sql => sql.Contains("carb_intakes");
+        try
+        {
+            var act = () => service.ReconcileNewLinksAsync(5000, 10, CancellationToken.None);
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+        finally
+        {
+            FailingReadsInterceptor.FailWhen = null;
+        }
+
+        (await _service.GetCursorAsync(CancellationToken.None))!.Value.Id.Should().Be(cursor.Id);
+        logger.Verify(l => l.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) =>
+                    v.ToString()!.Contains(TestTenantId.ToString())
+                    && v.ToString()!.Contains(nameof(RecordType.CarbIntake))
+                    && v.ToString()!.Contains(cursor.Id.ToString())),
+                It.IsAny<InvalidOperationException>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
     [Fact]
     public async Task ReconcileNewLinksAsync_MergesGroupsWithRecentLinks()
     {
@@ -1312,6 +1395,14 @@ public class DeduplicationReconcileTests : IDisposable
         return id;
     }
 
+    private Task<Guid> AddReading(RecordType recordType, DateTime timestamp, string dataSource) =>
+        recordType switch
+        {
+            RecordType.CarbIntake => AddCarb(timestamp, dataSource, 50),
+            RecordType.SensorGlucose => AddSensorGlucose(timestamp, dataSource, 120),
+            _ => throw new ArgumentOutOfRangeException(nameof(recordType), recordType, null)
+        };
+
     /// <summary>
     /// Inserts a <see cref="CarbIntakeEntity"/> for the test tenant and returns its id.
     /// </summary>
@@ -1383,4 +1474,46 @@ public class DeduplicationReconcileTests : IDisposable
     /// </summary>
     private static long ToMills(DateTime d) =>
         new DateTimeOffset(d, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+    private sealed class LinkLoadRecorder : IMaterializationInterceptor
+    {
+        private readonly List<Guid> _recordIds = [];
+
+        public IReadOnlyList<Guid> RecordIds => _recordIds;
+
+        public void Clear() => _recordIds.Clear();
+
+        public object InitializedInstance(MaterializationInterceptionData materializationData, object entity)
+        {
+            if (entity is LinkedRecordEntity link)
+                _recordIds.Add(link.RecordId);
+            return entity;
+        }
+    }
+
+    private sealed class FailingReads : DbCommandInterceptor
+    {
+        public Func<string, bool>? FailWhen { get; set; }
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+        {
+            ThrowIfArmed(command);
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowIfArmed(command);
+            return ValueTask.FromResult(result);
+        }
+
+        private void ThrowIfArmed(DbCommand command)
+        {
+            if (FailWhen?.Invoke(command.CommandText) == true)
+                throw new InvalidOperationException("Simulated read failure");
+        }
+    }
 }
