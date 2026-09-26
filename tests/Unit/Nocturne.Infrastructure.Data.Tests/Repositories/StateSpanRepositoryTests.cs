@@ -752,8 +752,11 @@ public class StateSpanRepositoryTests : IDisposable
         Metadata = metadata,
     };
 
-    private static Dictionary<string, object> TreatmentMetadata(string reason, double factor) =>
-        new() { ["reason"] = reason, ["insulinNeedsScaleFactor"] = factor, ["enteredBy"] = "Loop" };
+    private static Dictionary<string, object> TreatmentMetadata(string reason, double factor, string enteredBy = "Loop") =>
+        new()
+        {
+            ["reason"] = reason, ["insulinNeedsScaleFactor"] = factor, ["enteredBy"] = enteredBy, ["utcOffset"] = 0,
+        };
 
     private static Dictionary<string, object> DeviceStatusMetadata(string name, double multiplier) =>
         new() { ["name"] = name, ["multiplier"] = multiplier, ["currentCorrectionRange.minValue"] = 100 };
@@ -761,7 +764,7 @@ public class StateSpanRepositoryTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task UpsertStateSpanAsync_TheSameOverrideFromAnotherSource_SupersedesNeither(bool treatmentFirst)
+    public async Task UpsertStateSpanAsync_TheSameOverrideAsTreatmentAndSnapshot_SupersedesNeither(bool treatmentFirst)
     {
         var treatment = LoopOverride(
             "treatment", new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc), "Loop", TreatmentMetadata("N Night", 0.9));
@@ -787,6 +790,21 @@ public class StateSpanRepositoryTests : IDisposable
         var spans = (await _repository.GetStateSpansAsync(category: StateSpanCategory.Override)).ToList();
         spans.Single(s => s.OriginalId == "first").EndTimestamp.Should().Be(laterStart);
         spans.Single(s => s.OriginalId == "second").IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_TheSamePresetFromARemoteThenALocalTreatment_SupersedesTheOpenOne()
+    {
+        var localStart = new DateTime(2026, 1, 1, 5, 0, 0, DateTimeKind.Utc);
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "remote", new DateTime(2026, 1, 1, 1, 0, 0, DateTimeKind.Utc), "Loop (via remote command)",
+            TreatmentMetadata("R Running", 0.8, enteredBy: "Loop (via remote command)")));
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "local", localStart, "Loop", TreatmentMetadata("R Running", 0.8)));
+
+        var spans = (await _repository.GetStateSpansAsync(category: StateSpanCategory.Override)).ToList();
+        spans.Single(s => s.OriginalId == "remote").EndTimestamp.Should().Be(localStart);
+        spans.Single(s => s.OriginalId == "local").IsActive.Should().BeTrue();
     }
 
     [Fact]
@@ -936,6 +954,108 @@ public class StateSpanRepositoryTests : IDisposable
         rows["pr-c"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
         rows["pr-c"].SupersededById.Should().Be(rows["pr-b"].Id);
         rows["pr-b"].EndTimestamp.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_BackfillBehindASuccessor_LeavesAnUploadedEndInPlace()
+    {
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 1, "pr-x"));
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 5, "pr-b"));
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 1, "pr-x", endHour: 2));
+        (await LiveRowsAsync())["pr-x"].SupersededById.Should().BeNull();
+
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 3, "pr-c"));
+
+        var rows = await LiveRowsAsync();
+        rows["pr-x"].EndTimestamp.Should().Be(BatchDay.AddHours(2));
+        rows["pr-x"].SupersededById.Should().BeNull();
+        rows["pr-c"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_BackfillBehindASuccessor_LeavesAnEndItDidNotSet()
+    {
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 5, "pr-b"));
+        var successorId = (await LiveRowsAsync())["pr-b"].Id;
+        var stalePointer = SpanEntity(
+            _context.TenantId, StateSpanCategory.Profile, "Active", BatchDay.AddHours(1), BatchDay.AddHours(2));
+        stalePointer.OriginalId = "pr-x";
+        stalePointer.SupersededById = successorId;
+        _context.StateSpans.Add(stalePointer);
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 3, "pr-c"));
+
+        var rows = await LiveRowsAsync();
+        rows["pr-x"].EndTimestamp.Should().Be(BatchDay.AddHours(2));
+        rows["pr-x"].SupersededById.Should().Be(successorId);
+    }
+
+    [Fact]
+    public async Task BulkUpsertAsync_StoredSuccessorMovedByTheBatch_IsReadAtItsNewStart()
+    {
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 5, "pr-moved"));
+
+        await _repository.BulkUpsertAsync(
+        [
+            Span(StateSpanCategory.Profile, "Active", 8, "pr-moved"),
+            Span(StateSpanCategory.Profile, "Active", 3, "pr-backfilled"),
+        ]);
+
+        var rows = await LiveRowsAsync();
+        rows["pr-backfilled"].EndTimestamp.Should().Be(BatchDay.AddHours(8));
+        rows["pr-backfilled"].SupersededById.Should().Be(rows["pr-moved"].Id);
+    }
+
+    [Fact]
+    public async Task BulkUpsertAsync_BackfillBehindASuccessor_LeavesATombstoneItClosed()
+    {
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 1, "pr-x"));
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 5, "pr-b"));
+        (await _repository.DeleteStateSpanAsync("pr-x")).Should().BeTrue();
+
+        await _repository.BulkUpsertAsync(
+        [
+            Span(StateSpanCategory.Profile, "Active", 1, "pr-x"),
+            Span(StateSpanCategory.Profile, "Active", 3, "pr-c"),
+        ]);
+
+        var tombstone = (await RowsForAsync("pr-x")).Should().ContainSingle().Subject;
+        tombstone.DeletedAt.Should().NotBeNull();
+        tombstone.EndTimestamp.Should().Be(BatchDay.AddHours(5));
+        (await LiveRowsAsync())["pr-c"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
+    }
+
+    [Fact]
+    public async Task BulkUpsertAsync_BackfillAtTheStartOfAClosedSpan_LeavesThatSpanItsLength()
+    {
+        await _repository.BulkUpsertAsync(
+        [
+            Span(StateSpanCategory.Profile, "Active", 1, "pr-x"),
+            Span(StateSpanCategory.Profile, "Active", 5, "pr-b"),
+            Span(StateSpanCategory.Profile, "Active", 1, "pr-c"),
+        ]);
+
+        var rows = await LiveRowsAsync();
+        rows["pr-x"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
+        rows["pr-x"].SupersededById.Should().Be(rows["pr-b"].Id);
+        rows["pr-c"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
+    }
+
+    [Fact]
+    public async Task BulkUpsertAsync_TwoOpenSpansAtOneInstant_LeavesBothOpen()
+    {
+        await _repository.BulkUpsertAsync(
+        [
+            Span(StateSpanCategory.Override, "Custom", 9, "ov-a"),
+            Span(StateSpanCategory.Override, "Custom", 9, "ov-b"),
+        ]);
+
+        var rows = await LiveRowsAsync();
+        rows["ov-a"].EndTimestamp.Should().BeNull();
+        rows["ov-a"].SupersededById.Should().BeNull();
+        rows["ov-b"].EndTimestamp.Should().BeNull();
     }
 
     [Fact]
