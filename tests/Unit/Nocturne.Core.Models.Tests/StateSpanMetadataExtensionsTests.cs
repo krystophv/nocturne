@@ -162,7 +162,10 @@ public class StateSpanMetadataExtensionsTests
 
     private static Dictionary<string, object> Treatment(string? reason, double? factor = 0.8)
     {
-        var metadata = new Dictionary<string, object> { ["utcOffset"] = 0 };
+        var metadata = new Dictionary<string, object>
+        {
+            [StateSpanMetadataExtensions.CollectionKey] = StateSpanMetadataExtensions.TreatmentsCollection,
+        };
         if (reason is not null) metadata["reason"] = reason;
         if (factor is not null) metadata["insulinNeedsScaleFactor"] = factor.Value;
         return metadata;
@@ -170,10 +173,23 @@ public class StateSpanMetadataExtensionsTests
 
     private static Dictionary<string, object> Snapshot(string? name, double? multiplier = 0.8)
     {
-        var metadata = new Dictionary<string, object>();
+        var metadata = new Dictionary<string, object>
+        {
+            [StateSpanMetadataExtensions.CollectionKey] = StateSpanMetadataExtensions.DeviceStatusCollection,
+        };
         if (name is not null) metadata["name"] = name;
         if (multiplier is not null) metadata["multiplier"] = multiplier.Value;
         return metadata;
+    }
+
+    [Fact]
+    public void IsSameOverrideAs_does_not_match_a_record_without_a_collection()
+    {
+        var unmarked = Treatment("N Night");
+        unmarked.Remove(StateSpanMetadataExtensions.CollectionKey);
+
+        unmarked.IsSameOverrideAs(Snapshot("Night")).Should().BeFalse();
+        Snapshot("Night").IsSameOverrideAs(unmarked).Should().BeFalse();
     }
 
     [Theory]

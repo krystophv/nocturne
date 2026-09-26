@@ -17,6 +17,18 @@ namespace Nocturne.Core.Models;
 public static class StateSpanMetadataExtensions
 {
     /// <summary>
+    /// Metadata key naming the Nightscout collection an <see cref="StateSpanCategory.Override"/>
+    /// span was decomposed from: <see cref="TreatmentsCollection"/> or <see cref="DeviceStatusCollection"/>.
+    /// </summary>
+    public const string CollectionKey = "collection";
+
+    /// <summary>A "Temporary Override" treatment.</summary>
+    public const string TreatmentsCollection = "treatments";
+
+    /// <summary>A devicestatus <c>override</c>.</summary>
+    public const string DeviceStatusCollection = "devicestatus";
+
+    /// <summary>
     /// Reads <paramref name="key"/> as a <see cref="decimal"/>; returns <see langword="null"/>
     /// if missing, non-finite, or unparseable. Numeric strings are parsed with
     /// <see cref="CultureInfo.InvariantCulture"/>.
@@ -48,12 +60,13 @@ public static class StateSpanMetadataExtensions
     /// <summary>
     /// Whether two <see cref="StateSpanCategory.Override"/> spans are Loop's two records of one
     /// override, a "Temporary Override" treatment and a devicestatus snapshot, so neither ends the
-    /// other: by name when either has one, else by scale factor. Two records of one kind never match.
+    /// other: by name when either has one, else by scale factor. Two records of one collection never
+    /// match, nor does a record without <see cref="CollectionKey"/>.
     /// </summary>
     public static bool IsSameOverrideAs(
         this IDictionary<string, object>? metadata, IDictionary<string, object>? other)
     {
-        if (metadata is null || other is null || IsTreatmentOverride(metadata) == IsTreatmentOverride(other))
+        if (metadata is null || other is null || !AreTreatmentAndDeviceStatus(metadata, other))
             return false;
 
         var names = OverrideNames(metadata);
@@ -70,12 +83,10 @@ public static class StateSpanMetadataExtensions
     private static decimal OverrideScaleFactor(this IDictionary<string, object> metadata) =>
         metadata.TryReadDecimal("multiplier") ?? metadata.TryReadDecimal("insulinNeedsScaleFactor") ?? 1m;
 
-    /// <summary>
-    /// Whether the metadata is a treatment span's rather than a devicestatus span's. The treatment
-    /// decomposer always writes <c>utcOffset</c>; the devicestatus decomposer never does.
-    /// </summary>
-    private static bool IsTreatmentOverride(IDictionary<string, object> metadata) =>
-        metadata.ContainsKey("utcOffset");
+    private static bool AreTreatmentAndDeviceStatus(
+        IDictionary<string, object> metadata, IDictionary<string, object> other) =>
+        (metadata.TryReadString(CollectionKey), other.TryReadString(CollectionKey)) is
+            (TreatmentsCollection, DeviceStatusCollection) or (DeviceStatusCollection, TreatmentsCollection);
 
     private static HashSet<string> OverrideNames(IDictionary<string, object> metadata)
     {
