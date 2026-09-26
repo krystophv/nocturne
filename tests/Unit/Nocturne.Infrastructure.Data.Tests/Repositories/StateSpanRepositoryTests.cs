@@ -664,6 +664,24 @@ public class StateSpanRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByCategories_OpenSpansBeforeTheWindowWithTheSameStart_CarryInTheHigherId()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var (state, id) in new[] { ("Higher", 2), ("Lower", 1) })
+        {
+            var span = SpanEntity(TestTenantId, StateSpanCategory.Profile, state, from.AddDays(-1), end: null);
+            span.Id = Guid.Parse($"00000000-0000-0000-0000-{id:D12}");
+            _context.StateSpans.Add(span);
+        }
+        await _context.SaveChangesAsync();
+
+        var profiles = (await _repository.GetByCategories(
+            [StateSpanCategory.Profile], from, from.AddDays(1)))[StateSpanCategory.Profile];
+
+        profiles.Select(s => s.State).Should().Equal("Higher");
+    }
+
+    [Fact]
     public async Task GetByCategories_OpenOverridesBeforeTheWindow_CarryInTheNewestPerSource()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -699,7 +717,7 @@ public class StateSpanRepositoryTests : IDisposable
             .And.NotContain(s => s.StartTimestamp == from.AddHours(-11));
         _logger.Verify(
             l => l.Log(
-                LogLevel.Information,
+                LogLevel.Debug,
                 It.IsAny<EventId>(),
                 It.IsAny<It.IsAnyType>(),
                 It.IsAny<Exception?>(),

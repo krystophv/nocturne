@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Nocturne.Core.Contracts.Audit;
@@ -48,7 +49,7 @@ public class StateSpanRepository : IStateSpanRepository
     /// <summary>
     /// Exclusive categories whose open spans exclude each other only within a partition.
     /// </summary>
-    private static readonly Dictionary<string, System.Linq.Expressions.Expression<Func<StateSpanEntity, string?>>>
+    private static readonly Dictionary<string, Expression<Func<StateSpanEntity, string?>>>
         CarryInPartitions = new(StringComparer.OrdinalIgnoreCase)
         {
             [nameof(StateSpanCategory.PumpMode)] = s => s.State,
@@ -598,7 +599,7 @@ public class StateSpanRepository : IStateSpanRepository
                     if (open.Count > OpenCarryInLimit)
                     {
                         open.RemoveAt(OpenCarryInLimit);
-                        _logger.LogInformation(
+                        _logger.LogDebug(
                             "More than {Limit} open {Category} spans started before {From}; returning only the newest",
                             OpenCarryInLimit, category, from.Value);
                     }

@@ -190,7 +190,6 @@ internal sealed class DataFetchStage(
             ct: cancellationToken
         );
 
-        // Fetch all state spans in a single batched query
         var stateSpanCategories = new[]
         {
             StateSpanCategory.PumpMode,
