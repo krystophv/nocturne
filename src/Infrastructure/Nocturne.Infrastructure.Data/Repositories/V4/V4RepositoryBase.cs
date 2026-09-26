@@ -256,13 +256,13 @@ public abstract class V4RepositoryBase<TModel, TEntity>
     /// </summary>
     /// <exception cref="RecreationBlockedException">
     /// The LegacyId is held by a stored row, per
-    /// <see cref="SoftDeleteDedupExtensions.GetBlockingLegacyIdsAsync{TEntity}"/>.
+    /// <see cref="SoftDeleteDedupExtensions.GetBlockingLegacyIdsAsync{TEntity}(NocturneDbContext, IEnumerable{TEntity}, CancellationToken)"/>.
     /// </exception>
     protected async Task<TModel> InsertAsync(
         NocturneDbContext ctx, TEntity entity, WriteOrigin origin, CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(entity.LegacyId)
-            && (await ctx.GetBlockingLegacyIdsAsync<TEntity>([entity.LegacyId], ct)).Held.Count > 0)
+            && (await ctx.GetBlockingLegacyIdsAsync<TEntity>([entity], ct)).Held.Count > 0)
         {
             throw new RecreationBlockedException(typeof(TModel).Name, $"legacy id '{entity.LegacyId}'");
         }
@@ -365,8 +365,7 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         var skippedDeleted = 0;
         if (inserted.Count > 0)
         {
-            var blocked = await ctx.GetBlockingLegacyIdsAsync<TEntity>(
-                inserted.Select(i => i.LegacyId).ToHashSet(StringComparer.Ordinal), ct);
+            var blocked = await ctx.GetBlockingLegacyIdsAsync(inserted.Select(i => i.Entity), ct);
             skippedDeleted = inserted.Count(i => blocked.DeletedByUser.Contains(i.LegacyId));
             inserted.RemoveAll(i => blocked.Held.Contains(i.LegacyId));
             ctx.Set<TEntity>().AddRange(inserted.Select(i => i.Entity));
@@ -571,11 +570,10 @@ public abstract class V4RepositoryBase<TModel, TEntity>
 
             // Batch-level LegacyId dedup
             toInsert = toInsert.GroupBy(e => e.LegacyId ?? e.Id.ToString()).Select(g => g.First()).ToList();
-            var legacyIds = toInsert.Where(e => !string.IsNullOrEmpty(e.LegacyId)).Select(e => e.LegacyId!).ToHashSet();
             var skippedDeleted = split.SkippedDeleted;
-            if (legacyIds.Count > 0)
+            if (toInsert.Any(e => !string.IsNullOrEmpty(e.LegacyId)))
             {
-                var blocked = await ctx.GetBlockingLegacyIdsAsync<TEntity>(legacyIds, ct);
+                var blocked = await ctx.GetBlockingLegacyIdsAsync(toInsert, ct);
                 skippedDeleted += toInsert.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
                 toInsert = toInsert.Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId)).ToList();
             }

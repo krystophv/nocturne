@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Nocturne.Core.Models;
 
 /// <summary>
@@ -9,18 +11,56 @@ namespace Nocturne.Core.Models;
 /// Legacy Nightscout keeps <c>id</c> as a plain, non-unique field, and so must we: it is never an
 /// identity (<see cref="Treatment.Id"/>). Trio stamps every carb equivalent of one fat/protein entry
 /// with the same <c>id</c>, so keying the upsert on it would collapse them into one record.
+/// It does tell client records apart where the identity cannot: see <see cref="IsDifferentRecord"/>.
 /// </remarks>
 public static class TreatmentClientId
 {
     public const string Field = "id";
 
     public static Dictionary<string, object?>? ToRecord(Treatment treatment) =>
-        treatment.AdditionalProperties?.TryGetValue(Field, out var id) == true
+        Present(treatment.AdditionalProperties?.GetValueOrDefault(Field)) is { } id
             ? new() { [Field] = id }
             : null;
 
     public static Dictionary<string, object>? ToTreatment(IReadOnlyDictionary<string, object?>? record) =>
-        record?.TryGetValue(Field, out var id) == true && id is not null
+        Present(record?.GetValueOrDefault(Field)) is { } id
             ? new() { [Field] = id }
             : null;
+
+    /// <summary>
+    /// Gives <paramref name="update"/> the client id <paramref name="stored"/> holds when the update
+    /// names none, so a replace that omits the field does not strand the record from its client.
+    /// </summary>
+    public static void KeepStored(Treatment update, Treatment stored)
+    {
+        if (ToRecord(update) is null && ToTreatment(ToRecord(stored)) is { } kept)
+            (update.AdditionalProperties ??= new())[Field] = kept[Field];
+    }
+
+    /// <summary>The client id inside a serialized additional-properties object, or null.</summary>
+    public static string? Of(string? additionalPropertiesJson)
+    {
+        if (string.IsNullOrEmpty(additionalPropertiesJson))
+            return null;
+
+        using var doc = JsonDocument.Parse(additionalPropertiesJson);
+        return doc.RootElement.ValueKind == JsonValueKind.Object
+            && doc.RootElement.TryGetProperty(Field, out var id)
+            && Present(id) is not null
+                ? id.ValueKind == JsonValueKind.String ? id.GetString() : id.GetRawText()
+                : null;
+    }
+
+    /// <summary>
+    /// Whether two records that share an identity are nonetheless different client records. Only a
+    /// client id on both sides can say so: a Trio edit re-uploads under a fresh <c>id</c> with the
+    /// deleted entry's time and often its values, so its synthetic identity repeats, and a user
+    /// tombstone must not swallow it. A side without an id (a pre-upgrade row, an uploader that sends
+    /// none) is taken to be the same record.
+    /// </summary>
+    public static bool IsDifferentRecord(string? incoming, string? stored) =>
+        incoming is not null && stored is not null && !string.Equals(incoming, stored, StringComparison.Ordinal);
+
+    private static object? Present(object? id) =>
+        id is null or JsonElement { ValueKind: JsonValueKind.Null or JsonValueKind.Undefined } ? null : id;
 }
