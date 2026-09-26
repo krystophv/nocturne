@@ -1540,14 +1540,40 @@ public class DataOverviewServiceTests : IDisposable
         _cacheService.Invocations.Should().BeEmpty();
     }
 
-    [Fact]
+    [Theory]
     [Trait("Category", "Unit")]
-    public async Task GetEHbA1cTimelineAsync_SourceQueryFails_ResponseNotCached()
+    [InlineData(nameof(SensorGlucoseEntity))]
+    [InlineData(nameof(MeterGlucoseEntity))]
+    public async Task GetEHbA1cTimelineAsync_SourceQueryFails_ReturnsSurvivingSourceUncached(string failingEntity)
     {
-        _interceptors = [new SensorGlucoseQueryFailure()];
+        // An interceptor gives the context its own InMemory store, so seed through one that shares it.
+        _interceptors = [new EntityQueryFailure(failingEntity)];
+        await using var seed = TestDbContextFactory.CreateInMemoryContext(_dbName, _interceptors);
+        seed.TenantId = TenantId;
+        var start = new DateTime(2025, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+        for (var i = 0; i < 30; i++)
+        {
+            seed.SensorGlucose.Add(new SensorGlucoseEntity
+            {
+                Id = Guid.NewGuid(),
+                Timestamp = start.AddHours(i),
+                Mgdl = failingEntity == nameof(SensorGlucoseEntity) ? 400.0 : 154.0,
+                DataSource = "dexcom"
+            });
+            seed.MeterGlucose.Add(new MeterGlucoseEntity
+            {
+                Id = Guid.NewGuid(),
+                Timestamp = start.AddHours(i),
+                Mgdl = failingEntity == nameof(MeterGlucoseEntity) ? 400.0 : 154.0,
+                DataSource = "meter"
+            });
+        }
+        await seed.SaveChangesAsync();
 
-        await _service.GetEHbA1cTimelineAsync(2025);
+        var result = await _service.GetEHbA1cTimelineAsync(2025);
 
+        result.Points.Should().NotBeEmpty()
+            .And.OnlyContain(p => p.WeightedAverageGlucoseMgdl == 154.0 && p.ReadingCount == 30);
         _cacheService.Verify(
             c => c.SetAsync(
                 It.IsAny<string>(),
@@ -1576,11 +1602,11 @@ public class DataOverviewServiceTests : IDisposable
             Times.Never);
     }
 
-    private sealed class SensorGlucoseQueryFailure : IQueryExpressionInterceptor
+    private sealed class EntityQueryFailure(string entityName) : IQueryExpressionInterceptor
     {
         public Expression QueryCompilationStarting(
             Expression queryExpression, QueryExpressionEventData eventData) =>
-            new ExpressionPrinter().PrintExpression(queryExpression).Contains(nameof(SensorGlucoseEntity))
+            new ExpressionPrinter().PrintExpression(queryExpression).Contains(entityName)
                 ? throw new TimeoutException("simulated query timeout")
                 : queryExpression;
     }
