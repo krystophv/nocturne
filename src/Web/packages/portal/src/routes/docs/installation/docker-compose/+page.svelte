@@ -109,7 +109,14 @@
     <p class="text-muted-foreground mb-4">
         Watchtower checks for image updates daily. To update manually:
     </p>
-    <CodeBlock code="docker compose pull && docker compose up -d" class="mb-8" />
+    <CodeBlock code="docker compose pull && docker compose up -d" class="mb-4" />
+    <p class="text-muted-foreground mb-8">
+        Watchtower updates images, not the compose file. If you installed before the
+        restart policy and log rotation below were added, download the new bundle and
+        run <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker compose up -d</code>
+        to pick them up. That first run recreates the containers, which clears their
+        old logs; your database data is kept.
+    </p>
 
     <h2 class="text-2xl font-bold mt-8 mb-4">Restarts and logs</h2>
     <p class="text-muted-foreground mb-4">
