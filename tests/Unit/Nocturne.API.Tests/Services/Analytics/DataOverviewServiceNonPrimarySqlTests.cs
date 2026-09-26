@@ -1,6 +1,11 @@
 using System.Data.Common;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Query;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using Microsoft.EntityFrameworkCore.Sqlite.Query.Internal;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nocturne.API.Services.Analytics;
@@ -17,7 +22,6 @@ using Nocturne.Tests.Shared.Infrastructure;
 
 namespace Nocturne.API.Tests.Services.Analytics;
 
-// SQLite cannot translate double.IsNaN, so the glucose value reads throw, get logged and skipped, and go unchecked.
 [Trait("Category", "Unit")]
 public class DataOverviewServiceNonPrimarySqlTests : IDisposable
 {
@@ -35,7 +39,10 @@ public class DataOverviewServiceNonPrimarySqlTests : IDisposable
 
     public DataOverviewServiceNonPrimarySqlTests()
     {
-        _db = TestDbContextFactory.CreateSqliteWithTenant(TenantId, "test", _statements);
+        _db = TestDbContextFactory.CreateSqliteWithTenant(
+            TenantId,
+            o => o.ReplaceService<IMethodCallTranslatorProvider, IsNaNTranslatingProvider>(),
+            _statements);
         _context = _db.CreateContext();
 
         var therapySettings = new Mock<ITherapySettingsResolver>();
@@ -74,6 +81,7 @@ public class DataOverviewServiceNonPrimarySqlTests : IDisposable
         day.TotalBolusUnits.Should().Be(4.0);
         day.TotalBasalUnits.Should().Be(1.0);
         day.TotalCarbs.Should().Be(30.0);
+        day.AverageGlucoseMgdl.Should().Be(100.0);
         day.Counts["Glucose"].Should().Be(1);
         AssertExclusionIsCorrelated();
     }
@@ -81,9 +89,25 @@ public class DataOverviewServiceNonPrimarySqlTests : IDisposable
     [Fact]
     public async Task GetGriTimelineAsync_ExcludesNonPrimaryThroughNotExists()
     {
+        SeedPrimaryAndDuplicate(primaryGlucoseReadings: 72);
+
+        var result = await _service.GetGriTimelineAsync(2025);
+
+        var month = result.Periods.Should().ContainSingle().Subject;
+        month.ReadingCount.Should().Be(72);
+        month.AverageGlucoseMgdl.Should().Be(100.0);
+        // (4 U bolus + 1 U basal) and 30 g carbs over November's 30 days.
+        month.TotalDailyDose.Should().Be(0.17);
+        month.AverageDailyCarbs.Should().Be(1.0);
+        AssertExclusionIsCorrelated();
+    }
+
+    [Fact]
+    public async Task GetEHbA1cTimelineAsync_ExcludesNonPrimaryThroughNotExists()
+    {
         SeedPrimaryAndDuplicate();
 
-        await _service.GetGriTimelineAsync(2025);
+        await _service.GetEHbA1cTimelineAsync(2025);
 
         AssertExclusionIsCorrelated();
     }
@@ -94,24 +118,25 @@ public class DataOverviewServiceNonPrimarySqlTests : IDisposable
             .Where(s => s.Contains("\"linked_records\"", StringComparison.Ordinal))
             .ToList();
 
-        linked.Should().NotBeEmpty();
+        linked.Should().Contain(s => s.Contains("\"mgdl\"", StringComparison.Ordinal));
         linked.Should().OnlyContain(s => s.Contains("NOT EXISTS", StringComparison.OrdinalIgnoreCase));
         linked.Should().NotContain(s => InSubqueryOverLinkedRecords.IsMatch(s));
     }
 
-    private void SeedPrimaryAndDuplicate()
+    private void SeedPrimaryAndDuplicate(int primaryGlucoseReadings = 1)
     {
         var sensorDuplicate = Guid.NewGuid();
         var bolusDuplicate = Guid.NewGuid();
         var tempBasalDuplicate = Guid.NewGuid();
         var carbDuplicate = Guid.NewGuid();
 
-        _context.SensorGlucose.AddRange(
-            new SensorGlucoseEntity
+        _context.SensorGlucose.AddRange(Enumerable.Range(0, primaryGlucoseReadings)
+            .Select(i => new SensorGlucoseEntity
             {
-                Id = Guid.NewGuid(), TenantId = TenantId, Timestamp = Nov10_2025_Noon,
+                Id = Guid.NewGuid(), TenantId = TenantId, Timestamp = Nov10_2025_Noon.AddMinutes(5 * i),
                 Mgdl = 100.0, DataSource = "dexcom",
-            },
+            }));
+        _context.SensorGlucose.Add(
             new SensorGlucoseEntity
             {
                 Id = sensorDuplicate, TenantId = TenantId, Timestamp = Nov10_2025_Noon,
@@ -173,6 +198,29 @@ public class DataOverviewServiceNonPrimarySqlTests : IDisposable
             DataSource = "glooko",
             IsPrimary = false,
         });
+
+    /// <summary>
+    /// SQLite has no translation for <see cref="double.IsNaN(double)"/>, so without this the
+    /// glucose value reads throw and are skipped. SQLite stores NaN as NULL, hence IS NULL.
+    /// </summary>
+#pragma warning disable EF1001
+    private sealed class IsNaNTranslatingProvider : SqliteMethodCallTranslatorProvider
+    {
+        public IsNaNTranslatingProvider(RelationalMethodCallTranslatorProviderDependencies dependencies)
+            : base(dependencies) =>
+            AddTranslators([new IsNaNTranslator(dependencies.SqlExpressionFactory)]);
+    }
+#pragma warning restore EF1001
+
+    private sealed class IsNaNTranslator(ISqlExpressionFactory sql) : IMethodCallTranslator
+    {
+        private static readonly MethodInfo IsNaN = typeof(double).GetMethod(nameof(double.IsNaN))!;
+
+        public SqlExpression? Translate(
+            SqlExpression? instance, MethodInfo method, IReadOnlyList<SqlExpression> arguments,
+            IDiagnosticsLogger<DbLoggerCategory.Query> logger) =>
+            method == IsNaN ? sql.IsNull(arguments[0]) : null;
+    }
 
     private sealed class StatementRecorder : DbCommandInterceptor
     {
