@@ -2,8 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nocturne.Core.Contracts.Infrastructure;
+using Nocturne.Core.Models;
 using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Infrastructure.Data.Entities.V4;
+using Nocturne.Infrastructure.Data.Mappers;
 using Nocturne.Infrastructure.Data.Services;
 using Nocturne.Tests.Shared.Infrastructure;
 
@@ -151,6 +153,91 @@ public class DeduplicationReconcileTests : IDisposable
         links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
         links.Count(l => l.IsPrimary).Should().Be(1);
         links.Single(l => l.IsPrimary).RecordId.Should().Be(mylife); // earliest, non-deleted
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("manual")]
+    [InlineData("nightscout-connector")]
+    public async Task MergeDuplicateGroupsAsync_OneSourceSecondsApart_StaysTwoGroups(string source)
+    {
+        var t = DateTime.UtcNow;
+        var first = await AddCarb(t, source, 20);
+        var second = await AddCarb(t.AddSeconds(20), source, 20);
+        AddPrimaryLink(RecordType.CarbIntake, first, ToMills(t), source);
+        AddPrimaryLink(RecordType.CarbIntake, second, ToMills(t.AddSeconds(20)), source);
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task StateSpansFromOneUploader_SecondsApart_StillGroup()
+    {
+        var t = DateTime.UtcNow;
+        var inputs = new[] { t, t.AddSeconds(5) }.Select(start =>
+        {
+            var span = new StateSpanEntity
+            {
+                Id = Guid.CreateVersion7(),
+                TenantId = TestTenantId,
+                Category = nameof(StateSpanCategory.PumpMode),
+                State = "Suspended",
+                StartTimestamp = start,
+                Source = "openaps://phone",
+            };
+            _context.StateSpans.Add(span);
+            return span;
+        }).ToList();
+        await _context.SaveChangesAsync();
+
+        foreach (var span in inputs)
+        {
+            await _service.DeduplicateBatchAsync(RecordType.StateSpan,
+                [new DeduplicationInput(span.Id, ToMills(span.StartTimestamp), span.Source!, MatchCriteriaMapper.From(span))]);
+        }
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.StateSpan, null, CancellationToken.None);
+
+        merged.Should().Be(0);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "statespan").ToListAsync();
+        links.Should().HaveCount(2);
+        links.Select(l => l.CanonicalId).Distinct().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_TidepoolTwins_Merge()
+    {
+        var t = DateTime.UtcNow;
+        var first = await AddCarb(t, "tidepool-connector", 20);
+        var twin = await AddCarb(t, "tidepool-connector", 20);
+        AddPrimaryLink(RecordType.CarbIntake, first, ToMills(t), "tidepool-connector");
+        AddPrimaryLink(RecordType.CarbIntake, twin, ToMills(t), "tidepool-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_ChainThroughAConnectorCopy_KeepsTwoUnknownRecordsApart()
+    {
+        var t = DateTime.UtcNow;
+        var first = await AddCarb(t, "unknown", 20);
+        var copy = await AddCarb(t.AddSeconds(10), "tidepool-connector", 20);
+        var second = await AddCarb(t.AddSeconds(20), "unknown", 20);
+        AddPrimaryLink(RecordType.CarbIntake, first, ToMills(t), "unknown");
+        AddPrimaryLink(RecordType.CarbIntake, copy, ToMills(t.AddSeconds(10)), "tidepool-connector");
+        AddPrimaryLink(RecordType.CarbIntake, second, ToMills(t.AddSeconds(20)), "unknown");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Single(l => l.RecordId == first).CanonicalId.Should().NotBe(links.Single(l => l.RecordId == second).CanonicalId);
     }
 
     [Fact]

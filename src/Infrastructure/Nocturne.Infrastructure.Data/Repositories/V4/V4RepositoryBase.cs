@@ -251,8 +251,10 @@ public abstract class V4RepositoryBase<TModel, TEntity>
 
     /// <summary>
     /// The insert tail both single-create paths share: the LegacyId guard
-    /// <see cref="BulkCreateAsync"/> applies to its insert set, the insert itself, and the create
-    /// broadcast.
+    /// <see cref="BulkCreateAsync"/> applies to its insert set, the insert itself, dedup linking,
+    /// and the create broadcast. An unlinked row is invisible to every later match, so another
+    /// source's copy of it is never recognised as a duplicate. Legacy treatment creates arrive here
+    /// one record at a time.
     /// </summary>
     /// <exception cref="RecreationBlockedException">
     /// The LegacyId is held by a stored row, per
@@ -269,6 +271,7 @@ public abstract class V4RepositoryBase<TModel, TEntity>
 
         ctx.Set<TEntity>().Add(entity);
         await ctx.SaveChangesAsync(ct);
+        await PostCommitDedupAsync(ctx, [entity], origin, ct);
         var created = ToDomain(entity);
         await RaiseBroadcastAsync([created], [], [], origin, ct);
         return created;
