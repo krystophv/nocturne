@@ -44,6 +44,7 @@ public static class TempBasalToTreatmentMapper
                 TempBasalOrigin.Manual => false,
                 _ => null,
             },
+            AdditionalProperties = TreatmentClientId.ToTreatment(tempBasal.AdditionalProperties),
         };
 
         // TreatmentDecomposer reads basalOrigin back when an edit re-decomposes;
