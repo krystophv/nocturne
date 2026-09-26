@@ -478,14 +478,17 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     private static StateSpan BuildOverrideSpan(DeviceStatus ds, string? legacyId)
     {
         var timestamp = ResolveTimestamp(ds);
+        DateTime? end = ds.Override!.Duration is > 0
+            ? (ParseTimestampToDateTime(ds.Override.Timestamp) ?? timestamp)
+                .AddSeconds(ds.Override.Duration.Value)
+            : null;
         return new StateSpan
         {
             Category = StateSpanCategory.Override,
             State = OverrideState.Custom.ToString(),
             StartTimestamp = timestamp,
-            EndTimestamp = ds.Override!.Duration is > 0
-                ? timestamp.AddMinutes(ds.Override.Duration.Value)
-                : null,
+            // The span starts at the status time, so an end already past it cannot be stored as-is.
+            EndTimestamp = end > timestamp ? end : null,
             Source = ds.Device,
             OriginalId = legacyId,
             Metadata = BuildOverrideMetadata(ds.Override),
@@ -864,33 +867,33 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     /// <summary>
     /// Resolves the best available timestamp for a device status record.
     /// Priority: Mills (already normalized from date) > OpenAPS IOB time >
-    /// OpenAPS enacted/suggested timestamp > Loop predicted start date > Pump clock > CreatedAt > now.
+    /// OpenAPS enacted/suggested timestamp > Loop timestamp > Pump clock > CreatedAt >
+    /// Loop predicted start date > now.
     /// </summary>
     internal static DateTime ResolveTimestamp(DeviceStatus ds)
     {
         if (ds.Mills > 0)
             return DateTimeOffset.FromUnixTimeMilliseconds(ds.Mills).UtcDateTime;
 
-        // Try OpenAPS IOB time
         if (ParseTimestampToDateTime(ds.OpenAps?.Iob?.Time) is { } iobTime)
             return iobTime;
 
-        // Try OpenAPS enacted/suggested timestamp
         var command = ds.OpenAps?.Enacted ?? ds.OpenAps?.Suggested;
         if (ParseTimestampToDateTime(command?.Timestamp) is { } commandTime)
             return commandTime;
 
-        // Try Loop predicted start date
-        if (ParseTimestampToDateTime(ds.Loop?.Predicted?.StartDate) is { } loopTime)
+        if (ParseTimestampToDateTime(ds.Loop?.Timestamp) is { } loopTime)
             return loopTime;
 
-        // Try pump clock
         if (ParseTimestampToDateTime(ds.Pump?.Clock) is { } pumpTime)
             return pumpTime;
 
-        // Try CreatedAt
         if (ParseTimestampToDateTime(ds.CreatedAt) is { } createdTime)
             return createdTime;
+
+        // predicted.startDate is the latest reading's time, not the cycle's
+        if (ParseTimestampToDateTime(ds.Loop?.Predicted?.StartDate) is { } predictedTime)
+            return predictedTime;
 
         return DateTime.UtcNow;
     }

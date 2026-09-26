@@ -173,9 +173,34 @@ public class TempBasalRepository : ITempBasalRepository
         var entity = TempBasalMapper.ToEntity(model);
         ctx.TempBasals.Add(entity);
         await ctx.SaveChangesAsync(ct);
+        await LinkInsertedAsync([entity], ct);
         var created = TempBasalMapper.ToDomainModel(entity);
         await RaiseBroadcastAsync([created], [], [], origin, ct);
         return created;
+    }
+
+    /// <summary>
+    /// Links committed inserts into canonical groups, best-effort: a failure is logged rather than
+    /// failing a committed write. Only the full dedup job links a row missed here; the reconcile
+    /// pass reads links, so it never sees one.
+    /// </summary>
+    private async Task LinkInsertedAsync(IReadOnlyList<TempBasalEntity> inserted, CancellationToken ct)
+    {
+        try
+        {
+            var dedupInputs = inserted.Select(e => new DeduplicationInput(
+                RecordId: e.Id,
+                Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+                DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
+                Criteria: MatchCriteriaMapper.From(e)
+            )).ToList();
+
+            await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", inserted.Count);
+        }
     }
 
     /// <summary>
@@ -344,63 +369,22 @@ public class TempBasalRepository : ITempBasalRepository
                 return new BulkWrite<TempBasal>([], 0);
             }
 
-            // Batch-level dedup: keep first occurrence per LegacyId
-            entities = entities
-                .GroupBy(e => e.LegacyId ?? e.Id.ToString())
-                .Select(g => g.First())
-                .ToList();
+            var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
+                entities,
+                e => e.LegacyId,
+                (legacyIds, token) => ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, token),
+                ct);
 
-            // DB-level dedup: filter out records whose LegacyId already exists
-            var legacyIds = entities
-                .Where(e => !string.IsNullOrEmpty(e.LegacyId))
-                .Select(e => e.LegacyId!)
-                .ToHashSet();
-
-            var skippedDeleted = 0;
-            if (legacyIds.Count > 0)
-            {
-                var blocked = await ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, ct);
-
-                skippedDeleted = entities.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
-                entities = entities
-                    .Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId))
-                    .ToList();
-            }
-
-            if (entities.Count == 0)
+            if (toInsert.Count == 0)
             {
                 await tx.CommitAsync(ct);
                 return new BulkWrite<TempBasal>([], skippedDeleted);
             }
 
-            const int batchSize = 500;
-            foreach (var batch in entities.Chunk(batchSize))
-            {
-                ctx.TempBasals.AddRange(batch);
-                await ctx.SaveChangesAsync(ct);
-                ctx.ChangeTracker.Clear();
-            }
-
             await tx.CommitAsync(ct);
+            await LinkInsertedAsync(toInsert, ct);
 
-            // Cross-connector deduplication: link saved records to canonical groups
-            try
-            {
-                var dedupInputs = entities.Select(e => new DeduplicationInput(
-                    RecordId: e.Id,
-                    Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
-                    DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
-                    Criteria: MatchCriteriaMapper.From(e)
-                )).ToList();
-
-                await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", entities.Count);
-            }
-
-            var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
+            var created = toInsert.Select(TempBasalMapper.ToDomainModel).ToList();
             await RaiseBroadcastAsync(created, [], [], origin, ct);
             return new BulkWrite<TempBasal>(created, skippedDeleted);
         });

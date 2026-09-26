@@ -222,6 +222,7 @@ public class ClientDeviceService : IClientDeviceService
             .AsNoTracking()
             .Include(e => e.AlertRule)
                 .ThenInclude(r => r!.Channels)
+            .Include(e => e.Instances)
             .Where(e => (e.EndedAt == null || e.EndedAt > now)
                 && e.AlertRule!.IsEnabled
                 && e.AlertRule.Channels.Any(c =>
@@ -251,9 +252,11 @@ public class ClientDeviceService : IClientDeviceService
 
             // A mute is the owner's own acknowledgement, so their devices read it as one.
             var acknowledged = e.AcknowledgedAt is not null || mutedByOwner.Contains(e.Id);
+            var snoozed = e.Instances.Any(i => i.ResolvedAt == null && AlertSnooze.IsSnoozed(i.SnoozedUntil, now));
+
             intents.Add(new DeviceActionIntent
             {
-                Intent = acknowledged ? "acknowledged" : "opened",
+                Intent = acknowledged ? "acknowledged" : snoozed ? "snoozed" : "opened",
                 ExcursionId = e.Id,
                 RuleName = e.AlertRule.Name,
                 Severity = e.AlertRule.Severity,
