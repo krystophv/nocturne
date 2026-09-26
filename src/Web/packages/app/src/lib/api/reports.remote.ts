@@ -186,12 +186,13 @@ export const getReportsAnalysis = query(
     const { apiClient } = locals;
     const { startDate, endDate } = await resolveReportRange(input);
 
-    const { analysis, averagedStats, personalRange, contributingDevices } =
+    const { analysis, averagedStats, hourlyBandThresholds, personalRange, contributingDevices } =
       await apiClient.statistics.getRangeAnalytics(startDate, endDate);
 
     return {
       analysis,
       averagedStats,
+      hourlyBandThresholds,
       personalRange,
       contributingDevices,
       dateRange: {
@@ -238,7 +239,8 @@ export const getDataQualityReport = query(
   async (input) => {
     const { locals } = getRequestEvent();
     const { apiClient } = locals;
-    const { startDate, endDate } = await resolveReportRange(input);
+    const { startDate, endDate, timeZone, days } =
+      await resolveReportRange(input);
 
     const [entries, integrity] = await Promise.all([
       fetchAllGlucose(apiClient, startDate, endDate),
@@ -257,6 +259,8 @@ export const getDataQualityReport = query(
     return {
       entries,
       integrity,
+      timeZone,
+      days,
       dateRange: {
         from: startDate,
         to: endDate,
@@ -349,5 +353,15 @@ export const getWeekdayAverages = query(
     const { locals } = getRequestEvent();
     const { startDate, endDate } = await resolveReportRange(input);
     return locals.apiClient.statistics.getWeekdayAverages(startDate, endDate);
+  }
+);
+
+/** Per-hour figures and the ranked best and worst hours for the hourly-patterns report. */
+export const getHourlyPatterns = query(
+  DateRangeSchema.optional(),
+  async (input) => {
+    const { locals } = getRequestEvent();
+    const { startDate, endDate } = await resolveReportRange(input);
+    return locals.apiClient.statistics.getHourlyPatterns(startDate, endDate);
   }
 );

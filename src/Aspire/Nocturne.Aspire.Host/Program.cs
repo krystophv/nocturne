@@ -9,7 +9,6 @@ using Microsoft.Extensions.Hosting;
 using Nocturne.Aspire.Host;
 using Nocturne.Aspire.Host.Publishing;
 using Nocturne.Aspire.Hosting;
-using Nocturne.Aspire.Scalar;
 using Nocturne.Core.Constants;
 using Yarp.ReverseProxy.Transforms;
 
@@ -46,6 +45,22 @@ class Program
         {
             compose.WithDashboard(enabled: false);
         }
+
+        // ------------------------------------------------------------------
+        // Published compose defaults: restart policy and log rotation.
+        // ------------------------------------------------------------------
+        compose.ConfigureComposeFile(file =>
+        {
+            foreach (var service in file.Services.Values)
+            {
+                service.Restart ??= "unless-stopped";
+                service.Logging ??= new()
+                {
+                    Driver = "json-file",
+                    Options = { ["max-size"] = "10m", ["max-file"] = "3" },
+                };
+            }
+        });
 
         // ------------------------------------------------------------------
         // PostgreSQL: managed local container vs external/remote DB.
@@ -539,7 +554,6 @@ class Program
 
         // API needs WEB_URL to POST chat bot alert dispatches to the SvelteKit app
         api.WithEnvironment("WEB_URL", web.GetEndpoint("http"));
-        api.WithEnvironment("SCALAR_CUSTOM_CSS", NocturneScalarTheme.Build(solutionRoot));
 
         var webEndpoints = (IResourceBuilder<IResourceWithEndpoints>)web;
 

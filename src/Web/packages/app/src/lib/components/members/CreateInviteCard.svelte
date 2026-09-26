@@ -14,10 +14,11 @@
     Loader2,
   } from "lucide-svelte";
   import PermissionCategorySelector from "$lib/components/rbac/PermissionCategorySelector.svelte";
+  import CopyInvitationMessageButton from "$lib/components/members/CopyInvitationMessageButton.svelte";
   import { coachmark } from "@nocturne/coach";
   import { createInvite } from "$api/generated/memberInvites.generated.remote";
   import type { TenantRoleDto } from "$lib/api/generated/nocturne-api-client";
-  import { copyToClipboard } from "$lib/utils";
+  import { createCopyFeedback } from "$lib/hooks/copy-feedback.svelte";
   import { describeSubmitError } from "$lib/forms";
 
   interface Props {
@@ -53,7 +54,8 @@
   let allowMultipleUses = $state(false);
   let limitTo24Hours = $state(false);
   let createdInviteUrl = $state<string | null>(null);
-  let copiedInvite = $state(false);
+  let createdByName = $state<string | undefined>(undefined);
+  const copy = createCopyFeedback();
   let isCreatingInvite = $state(false);
   let errorMessage = $state<string | null>(null);
 
@@ -67,12 +69,9 @@
 
   async function copyInviteUrl() {
     if (createdInviteUrl) {
-      if (!(await copyToClipboard(createdInviteUrl))) {
-        errorMessage = "Couldn't copy the link to the clipboard. Copy it manually instead.";
-        return;
+      if (await copy.copy(createdInviteUrl)) {
+        errorMessage = null;
       }
-      copiedInvite = true;
-      setTimeout(() => (copiedInvite = false), 2000);
     }
   }
 
@@ -92,6 +91,7 @@
         limitTo24Hours,
       });
       if (result.inviteUrl) {
+        createdByName = result.createdByName;
         createdInviteUrl = result.inviteUrl.startsWith("http")
           ? result.inviteUrl
           : `${window.location.origin}${result.inviteUrl}`;
@@ -123,6 +123,7 @@
     allowMultipleUses = false;
     limitTo24Hours = false;
     createdInviteUrl = null;
+    createdByName = undefined;
     errorMessage = null;
   }
 </script>
@@ -161,13 +162,25 @@
             class="font-mono"
           />
           <Button variant="outline" size="icon" onclick={copyInviteUrl}>
-            {#if copiedInvite}
+            {#if copy.isCopied()}
               <Check class="h-4 w-4 text-success" />
             {:else}
               <Copy class="h-4 w-4" />
             {/if}
           </Button>
         </div>
+
+        <CopyInvitationMessageButton
+          url={createdInviteUrl}
+          inviterName={createdByName}
+          onCopied={() => (errorMessage = null)}
+          onCopyFailed={() =>
+            (errorMessage = "Couldn't copy the message to the clipboard. Copy the link manually instead.")}
+        />
+
+        {#if errorMessage}
+          <p class="text-sm text-destructive">{errorMessage}</p>
+        {/if}
 
         <Button variant="outline" class="w-full" onclick={handleDone}>
           Done

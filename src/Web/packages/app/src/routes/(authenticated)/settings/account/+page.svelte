@@ -10,7 +10,6 @@
     User,
     ShieldAlert,
     RefreshCw,
-    Copy,
     Check,
     AlertTriangle,
     Loader2,
@@ -43,6 +42,7 @@
   import UserProfileCard from "$lib/components/account/UserProfileCard.svelte";
   import SecurityCredentialCard from "$lib/components/account/SecurityCredentialCard.svelte";
   import TotpSetupDialog from "$lib/components/account/TotpSetupDialog.svelte";
+  import RecoveryCodes from "$lib/components/auth/RecoveryCodes.svelte";
   import {
     describePasskeyError,
     parseCeremonyOptions,
@@ -53,7 +53,6 @@
     describeTotpSetupStartError,
   } from "$lib/components/account/totp-errors";
   import { page } from "$app/state";
-  import { copyToClipboard } from "$lib/utils";
 
   const { data }: { data: PageData } = $props();
 
@@ -88,7 +87,6 @@
   let isRegenerating = $state(false);
   let showNewCodesDialog = $state(false);
   let newRecoveryCodes = $state<string[]>([]);
-  let copiedCodes = $state(false);
 
   // ============================================================================
   // TOTP Authenticator State
@@ -251,16 +249,6 @@
     } finally {
       isRegenerating = false;
     }
-  }
-
-  async function copyRecoveryCodes() {
-    const text = newRecoveryCodes.join("\n");
-    if (!(await copyToClipboard(text))) {
-      errorMessage = "Couldn't copy the codes to the clipboard. Copy them manually instead.";
-      return;
-    }
-    copiedCodes = true;
-    setTimeout(() => (copiedCodes = false), 2000);
   }
 
   // ============================================================================
@@ -471,6 +459,9 @@
                   {#if remainingRecoveryCodes > 0}
                     {remainingRecoveryCodes} of {recoveryStatus.totalCodes} recovery
                     codes remaining
+                  {:else if recoveryStatus.codesReset}
+                    Your old recovery codes stopped working after a Nocturne
+                    update. Generate new codes to keep a backup way to sign in.
                   {:else if recoveryStatus.hasCodes}
                     Every recovery code has been used
                   {:else}
@@ -663,41 +654,23 @@
 
 <!-- New Recovery Codes Dialog -->
 <Dialog.Root bind:open={showNewCodesDialog}>
-  <Dialog.Content class="max-w-md">
+  <Dialog.Content
+    class="max-w-md"
+    showClose={false}
+    escapeKeydownBehavior="ignore"
+    interactOutsideBehavior="ignore"
+  >
     <Dialog.Header>
       <Dialog.Title>New recovery codes</Dialog.Title>
-      <Dialog.Description>
-        Save these codes in a safe place. Each code can only be used once. This
-        is the only time they will be shown.
-      </Dialog.Description>
     </Dialog.Header>
-    <div class="space-y-4 py-4">
-      <div class="grid grid-cols-2 gap-2 rounded-md border bg-muted/30 p-4">
-        {#each newRecoveryCodes as code, i (i)}
-          <p class="font-mono text-sm text-center">{code}</p>
-        {/each}
-      </div>
-      <Button variant="outline" class="w-full" onclick={copyRecoveryCodes}>
-        {#if copiedCodes}
-          <Check class="mr-1.5 h-4 w-4 text-success" />
-          Copied
-        {:else}
-          <Copy class="mr-1.5 h-4 w-4" />
-          Copy all codes
-        {/if}
-      </Button>
-    </div>
-    <Dialog.Footer>
-      <Button
-        onclick={() => {
-          showNewCodesDialog = false;
-          newRecoveryCodes = [];
-          copiedCodes = false;
-        }}
-      >
-        Done
-      </Button>
-    </Dialog.Footer>
+    <RecoveryCodes
+      codes={newRecoveryCodes}
+      onContinue={() => {
+        showNewCodesDialog = false;
+        newRecoveryCodes = [];
+      }}
+      continueLabel="Done"
+    />
   </Dialog.Content>
 </Dialog.Root>
 
