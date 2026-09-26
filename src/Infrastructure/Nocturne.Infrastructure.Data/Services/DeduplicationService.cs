@@ -321,16 +321,16 @@ public class DeduplicationService : IDeduplicationService
 
     /// <summary>
     /// Whether the tight path refuses to put a record from <paramref name="source"/> into a group
-    /// already holding <paramref name="groupSources"/>. Two same-amount records from one uploader,
-    /// or entered by hand, seconds apart are two doses; the tight window's tolerances cannot tell
-    /// them from one, so a group takes at most one record per non-connector source. A connector is
-    /// exempt because some report one event twice under two ids, and those twins must still merge.
+    /// already holding <paramref name="groupSources"/>. Two same-amount records from one source
+    /// seconds apart are two doses, and the tight window's tolerances cannot tell them from one, so
+    /// a group takes at most one record per source. The exception is a source that
+    /// <see cref="DataSources.EmitsDuplicateEvents"/>, whose twins must still merge.
     /// <see cref="DeduplicationInput.UnknownDataSource"/> counts as one source like any other.
     /// Only dose-like record types are guarded; see <see cref="TracksTightSources"/>.
     /// </summary>
     internal static bool RefusesTightJoin(RecordType recordType, string source, IReadOnlySet<string>? groupSources) =>
         TracksTightSources(recordType)
-        && !DataSources.IsConnector(source)
+        && !DataSources.EmitsDuplicateEvents(source)
         && groupSources is not null
         && groupSources.Contains(source);
 

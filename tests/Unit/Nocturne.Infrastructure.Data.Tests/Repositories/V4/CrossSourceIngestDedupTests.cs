@@ -229,7 +229,7 @@ public class CrossSourceIngestDedupTests : IDisposable
     [Theory]
     [InlineData(null)]
     [InlineData(Manual)]
-    public async Task SameAmountFromOneNonConnectorSource_SecondsApart_StaysTwoDoses(string? source)
+    public async Task SameAmountFromOneUploaderOrByHand_SecondsApart_StaysTwoDoses(string? source)
     {
         await _boluses.CreateAsync(Bolus(0.5, EventTime, source, "syn-dose-1"), WriteOrigin.Live);
         await _boluses.CreateAsync(Bolus(0.5, EventTime.AddSeconds(20), source, "syn-dose-2"), WriteOrigin.Live);
@@ -251,7 +251,18 @@ public class CrossSourceIngestDedupTests : IDisposable
     }
 
     [Fact]
-    public async Task ConnectorTwins_StillMerge()
+    public async Task SameSizeDosesRelayedByTheNightscoutConnector_SecondsApart_StayTwoDoses()
+    {
+        await _boluses.CreateAsync(
+            Bolus(0.5, EventTime, "nightscout-connector", "5f0c1a2b3c4d5e6f70819301"), WriteOrigin.Live);
+        await _boluses.CreateAsync(
+            Bolus(0.5, EventTime.AddSeconds(20), "nightscout-connector", "5f0c1a2b3c4d5e6f70819302"), WriteOrigin.Live);
+
+        (await VisibleBolusesAsync()).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task TidepoolTwins_StillMerge()
     {
         await _carbs.BulkCreateAsync([Carb(30, EventTime, Connector)], WriteOrigin.Live);
         await _carbs.BulkCreateAsync([Carb(30, EventTime, Connector)], WriteOrigin.Live);

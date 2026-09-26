@@ -158,7 +158,8 @@ public class DeduplicationReconcileTests : IDisposable
     [Theory]
     [InlineData("unknown")]
     [InlineData("manual")]
-    public async Task MergeDuplicateGroupsAsync_OneNonConnectorSourceSecondsApart_StaysTwoGroups(string source)
+    [InlineData("nightscout-connector")]
+    public async Task MergeDuplicateGroupsAsync_OneSourceSecondsApart_StaysTwoGroups(string source)
     {
         var t = DateTime.UtcNow;
         var first = await AddCarb(t, source, 20);
@@ -206,7 +207,7 @@ public class DeduplicationReconcileTests : IDisposable
     }
 
     [Fact]
-    public async Task MergeDuplicateGroupsAsync_ConnectorTwins_Merge()
+    public async Task MergeDuplicateGroupsAsync_TidepoolTwins_Merge()
     {
         var t = DateTime.UtcNow;
         var first = await AddCarb(t, "tidepool-connector", 20);

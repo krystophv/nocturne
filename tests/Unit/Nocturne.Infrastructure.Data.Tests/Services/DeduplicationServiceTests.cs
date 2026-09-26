@@ -815,14 +815,16 @@ public class DeduplicationServiceTests : IDisposable
     public async Task DeduplicateBatchAsync_PinsTightWindowEdge(long offsetMillis, bool laterFirst, int expectedGroups)
     {
         // Both records carry the same source, so the wide window can never rescue the just-past
-        // case: only the tight window's inclusive bound decides the outcome. Separate batches so
-        // the second record matches through the persisted link rather than intra-batch state.
-        // laterFirst flips which end of the window the second record has to reach across.
+        // case: only the tight window's inclusive bound decides the outcome. That source is Tidepool
+        // because it is the one source whose same-source pairs may tight-merge at all
+        // (DataSources.EmitsDuplicateEvents). Separate batches so the second record matches through
+        // the persisted link rather than intra-batch state. laterFirst flips which end of the
+        // window the second record has to reach across.
         await using var context = NewContext();
         var service = CreateService(context);
 
-        var earlier = CreateBolus(WideBase, 2.0, "mylife-connector");
-        var later = CreateBolus(WideBase + offsetMillis, 2.0, "mylife-connector");
+        var earlier = CreateBolus(WideBase, 2.0, "tidepool-connector");
+        var later = CreateBolus(WideBase + offsetMillis, 2.0, "tidepool-connector");
         context.Boluses.AddRange(earlier, later);
         await context.SaveChangesAsync();
 

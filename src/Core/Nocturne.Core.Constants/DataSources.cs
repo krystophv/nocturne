@@ -226,9 +226,10 @@ public static class DataSources
     }
 
     /// <summary>
-    /// True for a connector's source identifier. Every connector source ends in <c>-connector</c>;
-    /// uploader, manual and import sources do not.
+    /// True for a source known to report one event twice under two ids, whose same-source
+    /// duplicates deduplication must still merge. Tidepool imports some carb events as two data
+    /// records.
     /// </summary>
-    public static bool IsConnector(string? dataSource) =>
-        dataSource is not null && dataSource.EndsWith("-connector", StringComparison.OrdinalIgnoreCase);
+    public static bool EmitsDuplicateEvents(string? dataSource) =>
+        string.Equals(dataSource, TidepoolConnector, StringComparison.OrdinalIgnoreCase);
 }
