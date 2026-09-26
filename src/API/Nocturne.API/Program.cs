@@ -409,7 +409,7 @@ app.MapHub<OverviewHub>("/hubs/overview");
 // Serve OpenAPI specs at /openapi/{documentName}.json
 app.MapOpenApi().RequireRateLimiting(ServiceRegistrationExtensions.DocsRateLimitPolicy);
 
-var scalarCss = app.Configuration["SCALAR_CUSTOM_CSS"];
+var scalarCss = NocturneScalarTheme.Build();
 
 // Scalar interactive API docs at /scalar/{documentName}
 app.MapScalarApiReference((options, httpContext) =>

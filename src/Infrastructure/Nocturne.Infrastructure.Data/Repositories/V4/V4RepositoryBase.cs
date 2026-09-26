@@ -566,30 +566,20 @@ public abstract class V4RepositoryBase<TModel, TEntity>
             var entities = records.Select(ToEntity).ToList();
 
             var split = await SplitUpsertsAsync(ctx, entities, ct);
-            var toInsert = split.ToInsert;
 
-            // Batch-level LegacyId dedup
-            toInsert = toInsert.GroupBy(e => e.LegacyId ?? e.Id.ToString()).Select(g => g.First()).ToList();
-            var skippedDeleted = split.SkippedDeleted;
-            if (toInsert.Any(e => !string.IsNullOrEmpty(e.LegacyId)))
-            {
-                var blocked = await ctx.GetBlockingLegacyIdsAsync(toInsert, ct);
-                skippedDeleted += toInsert.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
-                toInsert = toInsert.Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId)).ToList();
-            }
+            // The entity overload, not the key set: each legacy id's first candidate is both the one
+            // InsertUnblockedAsync keeps and the one whose client id the tombstone exemption reads.
+            var (toInsert, blockedSkipped) = await ctx.InsertUnblockedAsync(
+                split.ToInsert,
+                e => e.LegacyId,
+                (_, token) => ctx.GetBlockingLegacyIdsAsync(split.ToInsert, token),
+                ct);
+            var skippedDeleted = split.SkippedDeleted + blockedSkipped;
 
             if (toInsert.Count == 0 && split.UpdatedInPlace.Count == 0)
             {
                 await tx.CommitAsync(ct);
                 return new BulkWrite<TModel>([], skippedDeleted);
-            }
-
-            const int batchSize = 500;
-            foreach (var batch in toInsert.Chunk(batchSize))
-            {
-                ctx.Set<TEntity>().AddRange(batch);
-                await ctx.SaveChangesAsync(ct);
-                ctx.ChangeTracker.Clear();
             }
 
             await tx.CommitAsync(ct);

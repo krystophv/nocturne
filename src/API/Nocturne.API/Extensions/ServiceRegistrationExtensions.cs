@@ -985,6 +985,7 @@ public static class ServiceRegistrationExtensions
         services.AddScoped<IAlertOrchestrator, AlertOrchestrator>();
         services.AddScoped<IAlertDeliveryService, AlertDeliveryService>();
         services.AddScoped<IAlertAcknowledgementService, AlertAcknowledgementService>();
+        services.AddScoped<IAlertSnoozeService, AlertSnoozeService>();
         services.AddScoped<IExcursionResolutionHandler, ExcursionResolutionHandler>();
         services.AddScoped<IAlertReferenceService, AlertReferenceService>();
         services.AddScoped<IAlertReplayService, AlertReplayService>();
@@ -1039,6 +1040,9 @@ public static class ServiceRegistrationExtensions
         services.AddScoped<PlatformSettingsService>();
         services.AddScoped<IConnectorSyncService, ConnectorSyncService>();
         services.AddScoped<IConnectorCursorResetService, ConnectorCursorResetService>();
+        // One process-wide gate shared by every connector caller, so a manual sync and the
+        // scheduled poller agree on which (tenant, connector) keys are in flight.
+        services.TryAddSingleton<TenantRunGuard>();
         // Singleton: holds the in-memory job registry so a reset started by one request can be
         // polled by later requests. Creates its own DI scopes for the scoped reset engine.
         services.AddSingleton<IConnectorCursorResetJobService, ConnectorCursorResetJobService>();
@@ -1234,6 +1238,8 @@ public static class ServiceRegistrationExtensions
     /// </summary>
     public static IServiceCollection AddMigrationServices(this IServiceCollection services)
     {
+        // Shared with the connector gate so both are the one instance the process holds.
+        services.TryAddSingleton<TenantRunGuard>();
         services.AddSingleton<
             Nocturne.API.Services.Migration.IMigrationJobService,
             Nocturne.API.Services.Migration.MigrationJobService

@@ -19018,9 +19018,8 @@ msgstr "Don't have Prelude installed?"
 msgid "<0/> Download Prelude"
 msgstr "<0/> Download Prelude"
 
-#: src/lib/components/dashboard/glucose-chart/chart-context.svelte.ts
-msgid "GlucoseChartContext"
-msgstr "GlucoseChartContext"
+#~ msgid "GlucoseChartContext"
+#~ msgstr "GlucoseChartContext"
 
 #~ msgid "Glucose dial"
 #~ msgstr "Glucose dial"

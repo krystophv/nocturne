@@ -103,6 +103,8 @@ public class TimezoneTimelineController : ControllerBase, IWriteScopedController
     [HttpPost("recorrect")]
     [RequireDeclaredWriteScope]
     [RemoteCommand]
+    [ProducesResponseType(typeof(RecorrectResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<RecorrectResult>> Recorrect(
         [FromBody] RecorrectRequest request,
         CancellationToken cancellationToken)
@@ -118,6 +120,10 @@ public class TimezoneTimelineController : ControllerBase, IWriteScopedController
             "Timezone re-correction requested: re-syncing Glooko from {From} to now", request.From?.ToString("o") ?? "default");
 
         var result = await _syncService.TriggerSyncAsync(GlookoConnectorId, syncRequest, cancellationToken);
+
+        if (result.AlreadyRunning)
+            return Problem(detail: result.Message, statusCode: 409, title: "Conflict");
+
         return Ok(new RecorrectResult(result.Success, result.Message));
     }
 }
