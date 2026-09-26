@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Nocturne.Core.Constants;
 using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Contracts.Multitenancy;
 using Nocturne.Core.Models;
@@ -318,6 +319,25 @@ public class DeduplicationService : IDeduplicationService
     private static bool CanEstablishCrossSource(HashSet<string> sources) =>
         sources.Count > 0 && !sources.Contains(DeduplicationInput.UnknownDataSource);
 
+    /// <summary>
+    /// Whether the tight path refuses to put a record from <paramref name="source"/> into a group
+    /// already holding <paramref name="groupSources"/>. Two same-amount records from one uploader,
+    /// or entered by hand, seconds apart are two doses; the tight window's tolerances cannot tell
+    /// them from one, so a group takes at most one record per non-connector source. A connector is
+    /// exempt because some report one event twice under two ids, and those twins must still merge.
+    /// <see cref="DeduplicationInput.UnknownDataSource"/> counts as one source like any other.
+    /// Sensor glucose is exempt too: it is a continuous stream, not a dose, and the batch
+    /// duplicate probe upstream is what stops an uploader re-sending a reading.
+    /// </summary>
+    internal static bool RefusesTightJoin(RecordType recordType, string source, IReadOnlySet<string>? groupSources) =>
+        recordType != RecordType.SensorGlucose
+        && !DataSources.IsConnector(source)
+        && groupSources is not null
+        && groupSources.Contains(source);
+
+    /// <summary>Whether <see cref="RefusesTightJoin"/> can ever refuse for this record type.</summary>
+    private static bool TracksTightSources(RecordType recordType) => recordType != RecordType.SensorGlucose;
+
     /// <inheritdoc />
     public async Task<DeduplicationBatchResult> DeduplicateBatchAsync(
         RecordType recordType,
@@ -399,15 +419,19 @@ public class DeduplicationService : IDeduplicationService
             && !candidate.IsDeleted
             && CriteriaMatch(recordType, candidate.Criteria, criteria);
 
-        // 3b. The data sources behind each candidate group, needed only by the wide pass.
-        //     Mutated as this chunk assigns records, so a second record of the same source sees
-        //     the group its predecessor just joined.
+        // 3b. The data sources behind each candidate group, read by the tight source guard and the
+        //     wide pass. Mutated as this chunk assigns records, so a second record of the same
+        //     source sees the group its predecessor just joined.
+        var trackSources = wideEligible || TracksTightSources(recordType);
         Dictionary<Guid, HashSet<string>> groupSources = new();
-        if (wideEligible)
+        if (trackSources)
         {
             groupSources = await LoadGroupSourcesAsync(
                 recordTypeStr, allPotentialMatches.Select(m => m.CanonicalId).Distinct().ToList(), ct);
         }
+
+        bool Refused(Guid canonical, string source) =>
+            RefusesTightJoin(recordType, source, groupSources.GetValueOrDefault(canonical));
 
         // 4. One query: which input records are already linked?
         var inputIds = records.Select(r => r.RecordId).ToList();
@@ -471,7 +495,7 @@ public class DeduplicationService : IDeduplicationService
             for (int i = lo; i < hi; i++)
             {
                 var m = allPotentialMatches[i];
-                if (Matches(m.RecordId, record.Criteria))
+                if (Matches(m.RecordId, record.Criteria) && !Refused(m.CanonicalId, record.DataSource))
                 {
                     canonicalId = m.CanonicalId;
                     duplicateGroups++;
@@ -489,7 +513,8 @@ public class DeduplicationService : IDeduplicationService
                 foreach (var (priorMills, priorCanonical, priorCriteria, priorSource) in newCanonicalReps)
                 {
                     if (Math.Abs(priorMills - record.Mills) <= MatchingWindowMillis
-                        && CriteriaMatch(recordType, priorCriteria, record.Criteria))
+                        && CriteriaMatch(recordType, priorCriteria, record.Criteria)
+                        && !Refused(priorCanonical, record.DataSource))
                     {
                         canonicalId = priorCanonical;
                         duplicateGroups++;
@@ -587,8 +612,8 @@ public class DeduplicationService : IDeduplicationService
             chunkAssignments.Add((record.Mills, canonicalId.Value, record.Criteria, record.DataSource));
 
             // Keep the group's source set current within this chunk so a later same-source record
-            // sees the group it just joined and refuses to wide-match it.
-            if (wideEligible)
+            // sees the group it just joined and refuses to join it.
+            if (trackSources)
             {
                 if (!groupSources.TryGetValue(canonicalId.Value, out var assignedSources))
                 {
@@ -809,6 +834,43 @@ public class DeduplicationService : IDeduplicationService
         foreach (var p in primaries)
             parent[p.CanonicalId] = p.CanonicalId;
 
+        // The tight pass applies RefusesTightJoin to whole roots, so a chain through a connector
+        // copy cannot carry two records of one uploader into one group. Keyed by root and merged on
+        // each union.
+        Dictionary<Guid, HashSet<string>>? tightRootSources = null;
+        if (TracksTightSources(recordType))
+        {
+            tightRootSources = await LoadGroupSourcesAsync(
+                recordTypeStr, primaries.Select(p => p.CanonicalId).Distinct().ToList(), ct);
+        }
+
+        bool TightUnionRefused(Guid a, Guid b)
+        {
+            if (tightRootSources is null)
+                return false;
+            var sourcesA = tightRootSources.GetValueOrDefault(Find(a));
+            var sourcesB = tightRootSources.GetValueOrDefault(Find(b));
+            if (sourcesA is null || sourcesB is null)
+                return false;
+            return sourcesA.Any(source => RefusesTightJoin(recordType, source, sourcesB));
+        }
+
+        void TightUnion(Guid a, Guid b)
+        {
+            var ra = Find(a);
+            var rb = Find(b);
+            if (ra.Equals(rb) || TightUnionRefused(ra, rb))
+                return;
+            Union(ra, rb);
+            if (tightRootSources is not null && tightRootSources.Remove(ra, out var moved))
+            {
+                if (tightRootSources.TryGetValue(rb, out var kept))
+                    kept.UnionWith(moved);
+                else
+                    tightRootSources[rb] = moved;
+            }
+        }
+
         for (int i = 0; i < primaries.Count; i++)
         {
             if (!info.TryGetValue(primaries[i].RecordId, out var infoI))
@@ -819,7 +881,7 @@ public class DeduplicationService : IDeduplicationService
                 if (!info.TryGetValue(primaries[j].RecordId, out var infoJ))
                     continue;
                 if (CriteriaMatch(recordType, infoI.Criteria, infoJ.Criteria))
-                    Union(primaries[i].CanonicalId, primaries[j].CanonicalId);
+                    TightUnion(primaries[i].CanonicalId, primaries[j].CanonicalId);
             }
         }
 
@@ -1197,7 +1259,7 @@ public class DeduplicationService : IDeduplicationService
             RecordType.CarbIntake => await LoadAsync<CarbIntakeEntity>(MatchCriteriaMapper.From, ids, ct),
             RecordType.BGCheck => await LoadAsync<BGCheckEntity>(MatchCriteriaMapper.From, ids, ct),
             RecordType.DeviceEvent => await LoadAsync<DeviceEventEntity>(MatchCriteriaMapper.From, ids, ct),
-            RecordType.Note => await LoadAsync<NoteEntity>(_ => MatchCriteriaMapper.ForNote(), ids, ct),
+            RecordType.Note => await LoadAsync<NoteEntity>(MatchCriteriaMapper.From, ids, ct),
             RecordType.BolusCalculation => await LoadAsync<BolusCalculationEntity>(MatchCriteriaMapper.From, ids, ct),
             RecordType.TempBasal => await LoadAsync<TempBasalEntity>(MatchCriteriaMapper.From, ids, ct),
             RecordType.StateSpan => await LoadStateSpanInfoAsync(ids, ct),
@@ -1292,10 +1354,12 @@ public class DeduplicationService : IDeduplicationService
         return recordType switch
         {
             // An open-ended temp basal carries no duration, and null == null would quietly reduce
-            // the exact comparison to rate alone; both intervals must be known.
+            // the exact comparison to rate alone; both intervals must be known. The tight path
+            // still never pairs an open-ended temp with a timed one: a legacy cancel maps to an
+            // open-ended 0 U/h, which a real timed 0 U/h temp beside it would otherwise absorb.
             RecordType.TempBasal => a.Rate.HasValue && b.Rate.HasValue
                 && Math.Abs(a.Rate.Value - b.Rate.Value) <= Tolerance(a.RateTolerance, b.RateTolerance)
-                && (!exact || DurationsAgree(a.Duration, b.Duration)),
+                && (exact ? DurationsAgree(a.Duration, b.Duration) : a.Duration.HasValue == b.Duration.HasValue),
             RecordType.SensorGlucose or RecordType.BGCheck => a.GlucoseValue.HasValue && b.GlucoseValue.HasValue
                 && Math.Abs(a.GlucoseValue.Value - b.GlucoseValue.Value) <= Tolerance(a.GlucoseTolerance, b.GlucoseTolerance),
             RecordType.Bolus => a.Insulin.HasValue && b.Insulin.HasValue
@@ -1315,7 +1379,7 @@ public class DeduplicationService : IDeduplicationService
             // report both occurrences, which puts two candidates in range and refuses the match.
             RecordType.DeviceEvent => !string.IsNullOrEmpty(a.EventType)
                 && string.Equals(a.EventType, b.EventType, StringComparison.OrdinalIgnoreCase),
-            RecordType.Note => true,
+            RecordType.Note => a.Text is not null && string.Equals(a.Text, b.Text, StringComparison.Ordinal),
             // An unparseable category maps to null, so null == null would collapse every state span
             // whose category the mapper could not read into one group. The states must agree
             // outright: treating an absent one as a wildcard makes the result depend on which span
@@ -1513,7 +1577,7 @@ public class DeduplicationService : IDeduplicationService
             static d => d.Id, static d => d.DataSource, MatchCriteriaMapper.From),
         Phase(RecordType.Note, "Notes",
             static c => c.Notes, static n => n.Timestamp,
-            static n => n.Id, static n => n.DataSource, static _ => MatchCriteriaMapper.ForNote()),
+            static n => n.Id, static n => n.DataSource, MatchCriteriaMapper.From),
         Phase(RecordType.BolusCalculation, "BolusCalculations",
             static c => c.BolusCalculations, static bc => bc.Timestamp,
             static bc => bc.Id, static bc => bc.DataSource, MatchCriteriaMapper.From),

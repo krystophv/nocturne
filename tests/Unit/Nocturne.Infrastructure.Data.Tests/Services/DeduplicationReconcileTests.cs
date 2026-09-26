@@ -153,6 +153,57 @@ public class DeduplicationReconcileTests : IDisposable
         links.Single(l => l.IsPrimary).RecordId.Should().Be(mylife); // earliest, non-deleted
     }
 
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("manual")]
+    public async Task MergeDuplicateGroupsAsync_OneNonConnectorSourceSecondsApart_StaysTwoGroups(string source)
+    {
+        var t = DateTime.UtcNow;
+        var first = await AddCarb(t, source, 20);
+        var second = await AddCarb(t.AddSeconds(20), source, 20);
+        AddPrimaryLink(RecordType.CarbIntake, first, ToMills(t), source);
+        AddPrimaryLink(RecordType.CarbIntake, second, ToMills(t.AddSeconds(20)), source);
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_ConnectorTwins_Merge()
+    {
+        var t = DateTime.UtcNow;
+        var first = await AddCarb(t, "tidepool-connector", 20);
+        var twin = await AddCarb(t, "tidepool-connector", 20);
+        AddPrimaryLink(RecordType.CarbIntake, first, ToMills(t), "tidepool-connector");
+        AddPrimaryLink(RecordType.CarbIntake, twin, ToMills(t), "tidepool-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_ChainThroughAConnectorCopy_KeepsTwoUnknownRecordsApart()
+    {
+        var t = DateTime.UtcNow;
+        var first = await AddCarb(t, "unknown", 20);
+        var copy = await AddCarb(t.AddSeconds(10), "tidepool-connector", 20);
+        var second = await AddCarb(t.AddSeconds(20), "unknown", 20);
+        AddPrimaryLink(RecordType.CarbIntake, first, ToMills(t), "unknown");
+        AddPrimaryLink(RecordType.CarbIntake, copy, ToMills(t.AddSeconds(10)), "tidepool-connector");
+        AddPrimaryLink(RecordType.CarbIntake, second, ToMills(t.AddSeconds(20)), "unknown");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Single(l => l.RecordId == first).CanonicalId.Should().NotBe(links.Single(l => l.RecordId == second).CanonicalId);
+    }
+
     [Fact]
     public async Task MergeDuplicateGroupsAsync_DoesNotMergeDifferentValues()
     {

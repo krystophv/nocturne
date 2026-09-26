@@ -1312,8 +1312,7 @@ public class DeduplicationServiceTests : IDisposable
     [Fact]
     public async Task DeduplicateBatchAsync_Note_DoesNotMatchASoftDeletedNote()
     {
-        // Notes match on the time window alone, so nothing about the note's own content can keep a
-        // deleted one out of range — only the deleted check can.
+        // Same text inside the window, so only the deleted check can keep them apart.
         await using var context = NewContext();
         var service = CreateService(context);
 
@@ -1323,7 +1322,7 @@ public class DeduplicationServiceTests : IDisposable
             Id = Guid.CreateVersion7(),
             TenantId = TestTenantId,
             Timestamp = timestamp,
-            Text = "removed",
+            Text = "same note",
             DataSource = "mylife-connector",
             DeletedAt = DateTime.UtcNow
         };
@@ -1332,7 +1331,7 @@ public class DeduplicationServiceTests : IDisposable
             Id = Guid.CreateVersion7(),
             TenantId = TestTenantId,
             Timestamp = timestamp.AddSeconds(10),
-            Text = "kept",
+            Text = "same note",
             DataSource = "glooko-connector"
         };
         context.Notes.AddRange(deleted, fresh);
@@ -1687,7 +1686,7 @@ public class DeduplicationServiceTests : IDisposable
 
     private static DeduplicationInput ToInput(NoteEntity e, string? dataSource = null) =>
         new(e.Id, ToMills(e.Timestamp), dataSource ?? e.DataSource ?? DeduplicationInput.UnknownDataSource,
-            MatchCriteriaMapper.ForNote());
+            MatchCriteriaMapper.From(e));
 
     private static StateSpan CreateTestStateSpan(
         StateSpanCategory category,

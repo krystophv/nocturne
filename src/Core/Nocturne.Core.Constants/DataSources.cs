@@ -224,4 +224,11 @@ public static class DataSources
     {
         return dataSource is DemoService or Testing;
     }
+
+    /// <summary>
+    /// True for a connector's source identifier. Every connector source ends in <c>-connector</c>;
+    /// uploader, manual and import sources do not.
+    /// </summary>
+    public static bool IsConnector(string? dataSource) =>
+        dataSource is not null && dataSource.EndsWith("-connector", StringComparison.OrdinalIgnoreCase);
 }

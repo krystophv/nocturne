@@ -34,6 +34,7 @@ public class CrossSourceIngestDedupTests : IDisposable
     private readonly CarbIntakeRepository _carbs;
     private readonly SensorGlucoseRepository _glucose;
     private readonly TempBasalRepository _tempBasals;
+    private readonly NoteRepository _notes;
 
     public CrossSourceIngestDedupTests()
     {
@@ -52,6 +53,7 @@ public class CrossSourceIngestDedupTests : IDisposable
         _carbs = new CarbIntakeRepository(factory, _dedup, audit, NullLogger<CarbIntakeRepository>.Instance);
         _glucose = new SensorGlucoseRepository(factory, _dedup, audit, NullLogger<SensorGlucoseRepository>.Instance);
         _tempBasals = new TempBasalRepository(factory, _dedup, audit, NullLogger<TempBasalRepository>.Instance);
+        _notes = new NoteRepository(factory, _dedup, audit, NullLogger<NoteRepository>.Instance);
     }
 
     public void Dispose()
@@ -222,5 +224,86 @@ public class CrossSourceIngestDedupTests : IDisposable
 
         var link = await _context.LinkedRecords.AsNoTracking().SingleAsync(lr => lr.RecordId == created.Id);
         link.IsPrimary.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(Manual)]
+    public async Task SameAmountFromOneNonConnectorSource_SecondsApart_StaysTwoDoses(string? source)
+    {
+        await _boluses.CreateAsync(Bolus(0.5, EventTime, source, "syn-dose-1"), WriteOrigin.Live);
+        await _boluses.CreateAsync(Bolus(0.5, EventTime.AddSeconds(20), source, "syn-dose-2"), WriteOrigin.Live);
+        await _carbs.CreateAsync(Carb(15, EventTime, source, "syn-carb-1"), WriteOrigin.Live);
+        await _carbs.CreateAsync(Carb(15, EventTime.AddSeconds(20), source, "syn-carb-2"), WriteOrigin.Live);
+
+        (await VisibleBolusesAsync()).Should().HaveCount(2);
+        (await VisibleCarbsAsync()).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task SameAmountFromOneSource_InOneBatch_StaysTwoDoses()
+    {
+        await _boluses.BulkCreateAsync(
+            [Bolus(0.5, EventTime, null, "syn-b-1"), Bolus(0.5, EventTime.AddSeconds(20), null, "syn-b-2")],
+            WriteOrigin.Live);
+
+        (await VisibleBolusesAsync()).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ConnectorTwins_StillMerge()
+    {
+        await _carbs.BulkCreateAsync([Carb(30, EventTime, Connector)], WriteOrigin.Live);
+        await _carbs.BulkCreateAsync([Carb(30, EventTime, Connector)], WriteOrigin.Live);
+
+        (await VisibleCarbsAsync()).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task SecondDoseFromTheUploader_BesideAMergedCopy_StaysVisible()
+    {
+        await _boluses.CreateAsync(Bolus(1, EventTime, null, "syn-first"), WriteOrigin.Live);
+        await _boluses.BulkCreateAsync([Bolus(1, EventTime.AddSeconds(10), Connector)], WriteOrigin.Live);
+        await _boluses.CreateAsync(Bolus(1, EventTime.AddSeconds(20), null, "syn-second"), WriteOrigin.Live);
+
+        (await VisibleBolusesAsync()).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task NotesWithDifferentText_SecondsApart_StayTwoNotes()
+    {
+        await _notes.BulkCreateAsync(
+        [
+            new Note { Timestamp = EventTime, Text = "Walked to the shops", DataSource = Connector },
+            new Note { Timestamp = EventTime.AddSeconds(10), Text = "Sensor changed", DataSource = "glooko-connector" },
+        ], WriteOrigin.Live);
+
+        (await _notes.GetAsync(EventTime.AddHours(-1), EventTime.AddHours(1), null, null)).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task NotesWithTheSameTextReflowed_Merge()
+    {
+        await _notes.CreateAsync(new Note { Timestamp = EventTime, Text = "Pizza  for\ndinner" }, WriteOrigin.Live);
+        await _notes.BulkCreateAsync(
+            [new Note { Timestamp = EventTime.AddSeconds(5), Text = " Pizza for dinner ", DataSource = Connector }],
+            WriteOrigin.Live);
+
+        (await _notes.GetAsync(EventTime.AddHours(-1), EventTime.AddHours(1), null, null)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task OpenEndedCancel_BesideATimedZeroTemp_StaysTwoTempBasals()
+    {
+        await _tempBasals.CreateAsync(new TempBasal
+        {
+            StartTimestamp = EventTime, Rate = 0, LegacyId = "syn-cancel",
+        }, WriteOrigin.Live);
+        await _tempBasals.BulkCreateAsync([new TempBasal
+        {
+            StartTimestamp = EventTime.AddSeconds(10), EndTimestamp = EventTime.AddMinutes(30), Rate = 0, DataSource = Connector,
+        }], WriteOrigin.Live);
+
+        (await _tempBasals.GetAsync(EventTime.AddHours(-1), EventTime.AddHours(1), null, null)).Should().HaveCount(2);
     }
 }
