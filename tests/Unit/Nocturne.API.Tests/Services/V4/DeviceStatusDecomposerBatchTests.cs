@@ -299,7 +299,7 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
                 {
                     Active = true,
                     Name = "Exercise",
-                    Duration = 60.0,
+                    Duration = 3600,
                     Multiplier = 1.5,
                 }
             }

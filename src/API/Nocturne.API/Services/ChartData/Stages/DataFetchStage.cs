@@ -33,8 +33,9 @@ namespace Nocturne.API.Services.ChartData.Stages;
 /// (in <see cref="IobCobComputeStage"/>) walks them forward in time.
 /// </para>
 /// <para>
-/// All <see cref="StateSpanCategory"/> variants are fetched in a single batched query via
-/// <c>IStateSpanRepository.GetByCategories</c> to avoid N+1 round trips.
+/// All <see cref="StateSpanCategory"/> variants are fetched in one call to
+/// <c>IStateSpanRepository.GetByCategories</c>, which runs one query for the window and one per
+/// category for open spans that started before it.
 /// </para>
 /// </remarks>
 /// <seealso cref="IChartDataStage"/>

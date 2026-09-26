@@ -40,6 +40,22 @@ public class StateSpanRepository : IStateSpanRepository
         ActivityStateSpanMapper.ActivityCategories.Select(c => c.ToString()).ToList();
 
     /// <summary>
+    /// Open spans per non-exclusive category that <see cref="GetByCategories"/> returns from
+    /// before its window.
+    /// </summary>
+    private const int OpenCarryInLimit = 10;
+
+    /// <summary>
+    /// Exclusive categories whose open spans exclude each other only within a partition.
+    /// </summary>
+    private static readonly Dictionary<string, System.Linq.Expressions.Expression<Func<StateSpanEntity, string?>>>
+        CarryInPartitions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            [nameof(StateSpanCategory.PumpMode)] = s => s.State,
+            [nameof(StateSpanCategory.Override)] = s => s.Source,
+        };
+
+    /// <summary>
     /// Initializes a new instance of the StateSpanRepository class
     /// </summary>
     /// <param name="context">The database context</param>
@@ -89,11 +105,29 @@ public class StateSpanRepository : IStateSpanRepository
         var query = BuildFilteredQuery(category, state, from, to, source, active);
 
         var ordered = descending
-            ? query.OrderByDescending(s => s.StartTimestamp)
-            : query.OrderBy(s => s.StartTimestamp);
+            ? query.OrderByDescending(s => s.StartTimestamp).ThenByDescending(s => s.Id)
+            : query.OrderBy(s => s.StartTimestamp).ThenBy(s => s.Id);
 
         var entities = await ordered
             .Skip(skip)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(StateSpanMapper.ToDomainModel);
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<StateSpan>> GetStateSpansStartingFromAsync(
+        StateSpanCategory category,
+        string? source,
+        DateTime from,
+        int count,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var entities = await BuildFilteredQuery(category, null, null, null, source, null)
+            .Where(s => s.StartTimestamp >= from)
+            .OrderBy(s => s.StartTimestamp)
             .Take(count)
             .ToListAsync(cancellationToken);
 
@@ -240,7 +274,8 @@ public class StateSpanRepository : IStateSpanRepository
 
             var entity = StateSpanMapper.ToEntity(stateSpan);
             _context.StateSpans.Add(entity);
-            SupersedeOpenSpans(entity, loaded);
+            SupersedeOpenSpans(entity, stateSpan.Metadata, loaded);
+            await EndAtSuccessorAsync(entity, stateSpan.Metadata, loaded, cancellationToken);
             loaded.Add(entity);
             inserted.Add(entity);
             written.Add(entity);
@@ -333,7 +368,8 @@ public class StateSpanRepository : IStateSpanRepository
     /// For an exclusive category, closes every open span in <paramref name="candidates"/> that
     /// <paramref name="entity"/> supersedes.
     /// </summary>
-    private void SupersedeOpenSpans(StateSpanEntity entity, IEnumerable<StateSpanEntity> candidates)
+    private void SupersedeOpenSpans(
+        StateSpanEntity entity, IDictionary<string, object>? metadata, IEnumerable<StateSpanEntity> candidates)
     {
         if (!ExclusiveCategories.Contains(entity.Category))
             return;
@@ -357,7 +393,8 @@ public class StateSpanRepository : IStateSpanRepository
                 || open.EndTimestamp != null
                 || open.StartTimestamp > entity.StartTimestamp
                 || !string.Equals(open.Category, entity.Category, StringComparison.Ordinal)
-                || (sameStateOnly && !string.Equals(open.State, entity.State, StringComparison.Ordinal)))
+                || (sameStateOnly && !string.Equals(open.State, entity.State, StringComparison.Ordinal))
+                || !Supersedes(entity, metadata, open))
                 continue;
 
             open.EndTimestamp = entity.StartTimestamp;
@@ -371,6 +408,83 @@ public class StateSpanRepository : IStateSpanRepository
                 "Superseded {Count} open {Category} span(s) with new span {NewSpanId}",
                 superseded, entity.Category, entity.Id);
     }
+
+    /// <summary>
+    /// Ends an open span inserted behind a later, conflicting span at that span's start.
+    /// </summary>
+    /// <param name="batch">
+    /// Rows this batch loaded or added, whose changes the store does not hold until the save. Stored
+    /// rows a stored successor closed join it, so the save writes them and the batch detaches them.
+    /// </param>
+    private async Task EndAtSuccessorAsync(
+        StateSpanEntity entity, IDictionary<string, object>? metadata,
+        HashSet<StateSpanEntity> batch, CancellationToken cancellationToken)
+    {
+        if (entity.EndTimestamp != null || !ExclusiveCategories.Contains(entity.Category))
+            return;
+
+        var sameStateOnly = string.Equals(
+            entity.Category, nameof(StateSpanCategory.PumpMode), StringComparison.OrdinalIgnoreCase);
+        bool Follows(StateSpanEntity s) =>
+            s.DeletedAt == null
+            && string.Equals(s.Category, entity.Category, StringComparison.Ordinal)
+            && s.StartTimestamp > entity.StartTimestamp
+            && (!sameStateOnly || string.Equals(s.State, entity.State, StringComparison.Ordinal))
+            && Supersedes(entity, metadata, s);
+
+        var successor = batch.Where(Follows).MinBy(s => s.StartTimestamp);
+
+        var stored = _context.StateSpans.AsNoTracking()
+            .Where(s => s.Category == entity.Category && s.StartTimestamp > entity.StartTimestamp);
+        if (sameStateOnly)
+            stored = stored.Where(s => s.State == entity.State);
+        if (successor != null)
+            stored = stored.Where(s => s.StartTimestamp < successor.StartTimestamp);
+
+        await foreach (var later in stored.OrderBy(s => s.StartTimestamp).AsAsyncEnumerable()
+                           .WithCancellation(cancellationToken))
+        {
+            if (!Follows(later)) continue;
+            successor = later;
+            break;
+        }
+
+        if (successor == null)
+            return;
+
+        entity.EndTimestamp = successor.StartTimestamp;
+        entity.SupersededById = successor.Id;
+
+        if (_context.Entry(successor).State != EntityState.Added)
+            batch.UnionWith(await _context.StateSpans
+                .Where(s => s.SupersededById == successor.Id && s.StartTimestamp < entity.StartTimestamp)
+                .ToListAsync(cancellationToken));
+
+        // A span the successor closed that started before this one now ends where this one starts.
+        foreach (var earlier in batch)
+        {
+            if (earlier.SupersededById != successor.Id
+                || earlier.StartTimestamp > entity.StartTimestamp
+                || (sameStateOnly && !string.Equals(earlier.State, entity.State, StringComparison.Ordinal))
+                || !Supersedes(entity, metadata, earlier))
+                continue;
+
+            earlier.EndTimestamp = entity.StartTimestamp;
+            earlier.SupersededById = entity.Id;
+            earlier.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="entity"/> ends <paramref name="other"/> in an exclusive category.
+    /// The same override from another source does not, since Loop uploads it as both a treatment
+    /// and devicestatus snapshots; within one source even the same preset does.
+    /// </summary>
+    private static bool Supersedes(
+        StateSpanEntity entity, IDictionary<string, object>? metadata, StateSpanEntity other) =>
+        !string.Equals(entity.Category, nameof(StateSpanCategory.Override), StringComparison.OrdinalIgnoreCase)
+        || other.Source == entity.Source
+        || !metadata.IsSameOverrideAs(MapperHelpers.DeserializeJson<Dictionary<string, object>>(other.MetadataJson));
 
     /// <summary>
     /// Update an existing state span
@@ -519,7 +633,8 @@ public class StateSpanRepository : IStateSpanRepository
     }
 
     /// <summary>
-    /// Get state spans for multiple categories in a single query (batch fetch)
+    /// Get state spans for multiple categories. With <paramref name="from"/> set, runs one query
+    /// for the window and one per category for open spans that started before it.
     /// </summary>
     /// <param name="categories">The collection of categories to filter by.</param>
     /// <param name="from">Optional start date filter.</param>
@@ -537,15 +652,67 @@ public class StateSpanRepository : IStateSpanRepository
 
         var query = _context.StateSpans.AsNoTracking().Where(s => categoryStrings.Contains(s.Category));
 
-        if (from.HasValue)
-            query = query.Where(s => s.EndTimestamp == null || s.EndTimestamp >= from.Value);
-
         if (to.HasValue)
             query = query.Where(s => s.StartTimestamp <= to.Value);
 
-        var entities = await query
-            .OrderByDescending(s => s.StartTimestamp)
-            .ToListAsync(cancellationToken);
+        List<StateSpanEntity> entities;
+        if (from.HasValue)
+        {
+            entities = await query
+                .Where(s => s.EndTimestamp >= from.Value
+                            || (s.EndTimestamp == null && s.StartTimestamp >= from.Value))
+                .ToListAsync(cancellationToken);
+
+            // A store with never-closed spans can hold any number of open spans from before the window.
+            foreach (var category in categoryStrings)
+            {
+                var carried = query.Where(s => s.Category == category
+                                               && s.EndTimestamp == null
+                                               && s.StartTimestamp < from.Value);
+
+                if (CarryInPartitions.TryGetValue(category, out var partition))
+                {
+                    entities.AddRange(await carried
+                        .GroupBy(partition)
+                        .Select(g => g.OrderByDescending(s => s.StartTimestamp).ThenByDescending(s => s.Id).First())
+                        .ToListAsync(cancellationToken));
+                }
+                else if (ExclusiveCategories.Contains(category))
+                {
+                    entities.AddRange(await carried
+                        .OrderByDescending(s => s.StartTimestamp)
+                        .ThenByDescending(s => s.Id)
+                        .Take(1)
+                        .ToListAsync(cancellationToken));
+                }
+                else
+                {
+                    var open = await carried
+                        .OrderByDescending(s => s.StartTimestamp)
+                        .ThenByDescending(s => s.Id)
+                        .Take(OpenCarryInLimit + 1)
+                        .ToListAsync(cancellationToken);
+
+                    if (open.Count > OpenCarryInLimit)
+                    {
+                        open.RemoveAt(OpenCarryInLimit);
+                        _logger.LogInformation(
+                            "More than {Limit} open {Category} spans started before {From}; returning only the newest",
+                            OpenCarryInLimit, category, from.Value);
+                    }
+
+                    entities.AddRange(open);
+                }
+            }
+
+            entities = entities.OrderByDescending(s => s.StartTimestamp).ToList();
+        }
+        else
+        {
+            entities = await query
+                .OrderByDescending(s => s.StartTimestamp)
+                .ToListAsync(cancellationToken);
+        }
 
         // Group results by category
         var result = categories.ToDictionary(c => c, c => new List<StateSpan>());

@@ -154,6 +154,25 @@ public class EntryDecomposerTests : IDisposable
         sg.Mgdl.Should().Be(110.0, "should fall back to Mgdl when Sgv is null");
     }
 
+    [Fact]
+    public async Task DecomposeAsync_SgvEntryWithDirectionNone_TakesDirectionFromTrend()
+    {
+        var entry = new Entry
+        {
+            Id = "sgv-direction-none",
+            Type = "sgv",
+            Mills = 1760000000000,
+            Sgv = 115.0,
+            Direction = "NONE",
+            Trend = 4
+        };
+
+        var result = await _decomposer.DecomposeAsync(entry, WriteOrigin.Live);
+
+        var sg = result.CreatedRecords[0].Should().BeOfType<SensorGlucose>().Subject;
+        sg.Direction.Should().Be(GlucoseDirection.Flat);
+    }
+
     #endregion
 
     #region MBG Decomposition
@@ -891,6 +910,20 @@ public class EntryDecomposerTests : IDisposable
     public void MapDirection_UnknownValue_ReturnsNull()
     {
         EntryDecomposer.MapDirection("INVALID_DIRECTION").Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("NONE", 4, GlucoseDirection.Flat)]
+    [InlineData(null, 6, GlucoseDirection.SingleDown)]
+    [InlineData("TripleUp", 1, GlucoseDirection.DoubleUp)]
+    [InlineData("SingleUp", 4, GlucoseDirection.SingleUp)]
+    [InlineData("NONE", 0, GlucoseDirection.None)]
+    [InlineData("NONE", null, GlucoseDirection.None)]
+    public void ResolveDirection_NoModelledDirection_FallsBackToTrend(
+        string? direction, int? trend, GlucoseDirection? expected)
+    {
+        EntryDecomposer.ResolveDirection(new Entry { Direction = direction, Trend = trend })
+            .Should().Be(expected);
     }
 
     #endregion

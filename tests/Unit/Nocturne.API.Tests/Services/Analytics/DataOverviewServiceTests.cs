@@ -1,3 +1,6 @@
+using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -25,6 +28,7 @@ public class DataOverviewServiceTests : IDisposable
     private readonly DataOverviewService _service;
     private readonly Mock<ICacheService> _cacheService = new();
     private readonly CategoryReadContext _categoryReadContext = new();
+    private IInterceptor[] _interceptors = [];
     private readonly string _dbName = $"data_overview_{Guid.NewGuid()}";
     private static readonly Guid TenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
@@ -54,7 +58,7 @@ public class DataOverviewServiceTests : IDisposable
         mockFactory.Setup(f => f.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() =>
             {
-                var ctx = TestDbContextFactory.CreateInMemoryContext(_dbName);
+                var ctx = TestDbContextFactory.CreateInMemoryContext(_dbName, _interceptors);
                 ctx.TenantId = TenantId;
                 return ctx;
             });
@@ -1534,6 +1538,51 @@ public class DataOverviewServiceTests : IDisposable
         await _service.GetEHbA1cTimelineAsync(2024);
 
         _cacheService.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetEHbA1cTimelineAsync_SourceQueryFails_ResponseNotCached()
+    {
+        _interceptors = [new SensorGlucoseQueryFailure()];
+
+        await _service.GetEHbA1cTimelineAsync(2025);
+
+        _cacheService.Verify(
+            c => c.SetAsync(
+                It.IsAny<string>(),
+                It.IsAny<EHbA1cTimelineResponse>(),
+                It.IsAny<DateTimeOffset>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetEHbA1cTimelineAsync_RequestCancelled_ThrowsAndCachesNothing()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var cancelled = () => _service.GetEHbA1cTimelineAsync(2025, cancellationToken: cts.Token);
+
+        await cancelled.Should().ThrowAsync<OperationCanceledException>();
+        _cacheService.Verify(
+            c => c.SetAsync(
+                It.IsAny<string>(),
+                It.IsAny<EHbA1cTimelineResponse>(),
+                It.IsAny<DateTimeOffset>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private sealed class SensorGlucoseQueryFailure : IQueryExpressionInterceptor
+    {
+        public Expression QueryCompilationStarting(
+            Expression queryExpression, QueryExpressionEventData eventData) =>
+            new ExpressionPrinter().PrintExpression(queryExpression).Contains(nameof(SensorGlucoseEntity))
+                ? throw new TimeoutException("simulated query timeout")
+                : queryExpression;
     }
 
     #endregion

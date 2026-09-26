@@ -281,7 +281,7 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
             LegacyId = entry.Id,
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(entry.Mills).UtcDateTime,
             Mgdl = entry.Sgv ?? entry.Mgdl,
-            Direction = MapDirection(entry.Direction),
+            Direction = ResolveDirection(entry),
             TrendRate = entry.TrendRate,
             Noise = entry.Noise,
             Device = entry.Device,
@@ -332,19 +332,6 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
         };
     }
 
-    private static bool TryGetString(Dictionary<string, object> props, string key, out string value)
-    {
-        value = default!;
-        if (!props.TryGetValue(key, out var obj))
-            return false;
-
-        if (obj is string s) { value = s; return true; }
-        if (obj is System.Text.Json.JsonElement el && el.ValueKind == System.Text.Json.JsonValueKind.String)
-        { value = el.GetString()!; return true; }
-
-        return false;
-    }
-
     private static bool TryGetDouble(Dictionary<string, object> props, string key, out double value)
     {
         value = default;
@@ -367,5 +354,19 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
     /// <returns>The corresponding <see cref="GlucoseDirection"/> value, or <see langword="null"/> if unrecognised.</returns>
     internal static GlucoseDirection? MapDirection(string? direction) =>
         DirectionExtensions.TryParse(direction, out var parsed) ? parsed.ToGlucoseDirection() : null;
+
+    /// <summary>
+    /// Falls back to <see cref="Entry.Trend"/> when <see cref="MapDirection"/> returns
+    /// <see langword="null"/> or <see cref="GlucoseDirection.None"/>: the direction is missing,
+    /// <c>NONE</c>, unrecognised, or a legacy value V4 does not model (triple arrows, CGM error).
+    /// Nightscout itself never derives direction from trend.
+    /// </summary>
+    internal static GlucoseDirection? ResolveDirection(Entry entry)
+    {
+        var direction = MapDirection(entry.Direction);
+        return direction is null or GlucoseDirection.None && entry.Trend is >= 1 and <= 9
+            ? (GlucoseDirection)entry.Trend.Value
+            : direction;
+    }
 
 }

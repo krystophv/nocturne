@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Nocturne.Core.Contracts.Audit;
 using Nocturne.Core.Contracts.Infrastructure;
@@ -25,6 +25,7 @@ public class StateSpanRepositoryTests : IDisposable
     private readonly NocturneDbContext _context;
     private readonly Mock<IDeduplicationService> _mockDedup;
     private readonly StateSpanRepository _repository;
+    private readonly Mock<ILogger<StateSpanRepository>> _logger = new();
     private readonly SaveCounter _saves = new();
 
     /// <summary>
@@ -51,8 +52,9 @@ public class StateSpanRepositoryTests : IDisposable
         _context = _db.CreateContext();
         _context.AuditContext = _auditContext;
         _mockDedup = new Mock<IDeduplicationService>();
+        _logger.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
         _repository = new StateSpanRepository(
-            _context, _mockDedup.Object, _auditContext, NullLogger<StateSpanRepository>.Instance);
+            _context, _mockDedup.Object, _auditContext, _logger.Object);
     }
 
     private sealed class StubAuditContext : IAuditContext
@@ -630,6 +632,81 @@ public class StateSpanRepositoryTests : IDisposable
         result.Should().BeNull();
     }
 
+    // --- GetByCategories carry-in ---
+
+    [Fact]
+    public async Task GetByCategories_OpenSpansBeforeTheWindow_ExclusiveCategoriesCarryInOnlyTheOneInEffect()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        for (var i = 1; i <= 50; i++)
+            _context.StateSpans.Add(SpanEntity(
+                TestTenantId, StateSpanCategory.Override, "Custom", from.AddHours(-i), end: null));
+        _context.StateSpans.Add(SpanEntity(
+            TestTenantId, StateSpanCategory.Override, "Custom", from.AddHours(1), end: null));
+        foreach (var (state, days) in new[] { ("Automatic", 30), ("Automatic", 20), ("Suspended", 40), ("Suspended", 2) })
+            _context.StateSpans.Add(SpanEntity(
+                TestTenantId, StateSpanCategory.PumpMode, state, from.AddDays(-days), end: null));
+        foreach (var (state, days) in new[] { ("Default", 5), ("Weekend", 3) })
+            _context.StateSpans.Add(SpanEntity(
+                TestTenantId, StateSpanCategory.Profile, state, from.AddDays(-days), end: null));
+        await _context.SaveChangesAsync();
+
+        var result = await _repository.GetByCategories(
+            [StateSpanCategory.Override, StateSpanCategory.PumpMode, StateSpanCategory.Profile],
+            from, from.AddDays(1));
+
+        result[StateSpanCategory.Override].Select(s => s.StartTimestamp)
+            .Should().BeEquivalentTo([from.AddHours(1), from.AddHours(-1)]);
+        result[StateSpanCategory.PumpMode].Select(s => (s.State, s.StartTimestamp))
+            .Should().BeEquivalentTo([("Automatic", from.AddDays(-20)), ("Suspended", from.AddDays(-2))]);
+        result[StateSpanCategory.Profile].Select(s => (s.State, s.StartTimestamp))
+            .Should().BeEquivalentTo([("Weekend", from.AddDays(-3))]);
+    }
+
+    [Fact]
+    public async Task GetByCategories_OpenOverridesBeforeTheWindow_CarryInTheNewestPerSource()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var (source, days) in new[] { ("Loop", 4), ("Loop", 3), ("loop://iPhone", 2) })
+        {
+            var span = SpanEntity(TestTenantId, StateSpanCategory.Override, "Custom", from.AddDays(-days), end: null);
+            span.Source = source;
+            _context.StateSpans.Add(span);
+        }
+        await _context.SaveChangesAsync();
+
+        var overrides = (await _repository.GetByCategories(
+            [StateSpanCategory.Override], from, from.AddDays(1)))[StateSpanCategory.Override];
+
+        overrides.Select(s => (s.Source, s.StartTimestamp)).Should().BeEquivalentTo(
+            [("Loop", from.AddDays(-3)), ("loop://iPhone", from.AddDays(-2))]);
+    }
+
+    [Fact]
+    public async Task GetByCategories_OpenSpansBeforeTheWindow_OverlappingCategoriesCarryInUpToTheCap()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        for (var i = 1; i <= 15; i++)
+            _context.StateSpans.Add(SpanEntity(
+                TestTenantId, StateSpanCategory.Exercise, "Active", from.AddHours(-i), end: null));
+        await _context.SaveChangesAsync();
+
+        var exercise = (await _repository.GetByCategories(
+            [StateSpanCategory.Exercise], from, from.AddDays(1)))[StateSpanCategory.Exercise];
+
+        exercise.Should().HaveCount(10);
+        exercise.Should().Contain(s => s.StartTimestamp == from.AddHours(-1))
+            .And.NotContain(s => s.StartTimestamp == from.AddHours(-11));
+        _logger.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
     // --- Soft-delete re-creation guard ---
 
     private static StateSpan ConnectorSpan() => new()
@@ -716,6 +793,112 @@ public class StateSpanRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task UpsertStateSpanAsync_OpenSpanInsertedBehindALaterSpan_EndsAtTheLaterStart()
+    {
+        var laterStart = new DateTime(2026, 1, 1, 11, 0, 0, DateTimeKind.Utc);
+        await _repository.UpsertStateSpanAsync(new StateSpan
+        {
+            Category = StateSpanCategory.Override,
+            State = OverrideState.Custom.ToString(),
+            StartTimestamp = laterStart,
+            Source = "loop://iPhone",
+            OriginalId = "later",
+        });
+
+        await _repository.UpsertStateSpanAsync(new StateSpan
+        {
+            Category = StateSpanCategory.Override,
+            State = OverrideState.Custom.ToString(),
+            StartTimestamp = new DateTime(2025, 12, 1, 10, 0, 0, DateTimeKind.Utc),
+            Source = "nightscout",
+            OriginalId = "backfilled",
+        });
+
+        var spans = (await _repository.GetStateSpansAsync(category: StateSpanCategory.Override)).ToList();
+        spans.Single(s => s.OriginalId == "backfilled").EndTimestamp.Should().Be(laterStart);
+        spans.Single(s => s.OriginalId == "later").IsActive.Should().BeTrue();
+    }
+
+    private static StateSpan LoopOverride(string originalId, DateTime start, string source, Dictionary<string, object> metadata) => new()
+    {
+        Category = StateSpanCategory.Override,
+        State = OverrideState.Custom.ToString(),
+        StartTimestamp = start,
+        Source = source,
+        OriginalId = originalId,
+        Metadata = metadata,
+    };
+
+    private static Dictionary<string, object> TreatmentMetadata(string reason, double factor) =>
+        new() { ["reason"] = reason, ["insulinNeedsScaleFactor"] = factor, ["enteredBy"] = "Loop" };
+
+    private static Dictionary<string, object> DeviceStatusMetadata(string name, double multiplier) =>
+        new() { ["name"] = name, ["multiplier"] = multiplier, ["currentCorrectionRange.minValue"] = 100 };
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpsertStateSpanAsync_TheSameOverrideFromAnotherSource_SupersedesNeither(bool treatmentFirst)
+    {
+        var treatment = LoopOverride(
+            "treatment", new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc), "Loop", TreatmentMetadata("N Night", 0.9));
+        var snapshot = LoopOverride(
+            "snapshot", new DateTime(2026, 1, 3, 8, 0, 0, DateTimeKind.Utc), "loop://iPhone", DeviceStatusMetadata("Night", 0.9));
+
+        foreach (var span in treatmentFirst ? new[] { treatment, snapshot } : [snapshot, treatment])
+            await _repository.UpsertStateSpanAsync(span);
+
+        (await _repository.GetStateSpansAsync(category: StateSpanCategory.Override))
+            .Should().HaveCount(2).And.OnlyContain(s => s.IsActive);
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_TheSamePresetFromTheSameSource_SupersedesTheOpenOne()
+    {
+        var laterStart = new DateTime(2026, 1, 3, 8, 0, 0, DateTimeKind.Utc);
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "first", new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc), "Loop", TreatmentMetadata("N Night", 0.9)));
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "second", laterStart, "Loop", TreatmentMetadata("N Night", 0.9)));
+
+        var spans = (await _repository.GetStateSpansAsync(category: StateSpanCategory.Override)).ToList();
+        spans.Single(s => s.OriginalId == "first").EndTimestamp.Should().Be(laterStart);
+        spans.Single(s => s.OriginalId == "second").IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_ADifferentOverrideFromAnotherSource_SupersedesTheOpenOne()
+    {
+        var laterStart = new DateTime(2026, 1, 3, 8, 0, 0, DateTimeKind.Utc);
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "treatment", new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc), "Loop", TreatmentMetadata("P Party", 0.9)));
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "snapshot", laterStart, "loop://iPhone", DeviceStatusMetadata("Night", 0.9)));
+
+        var spans = (await _repository.GetStateSpansAsync(category: StateSpanCategory.Override)).ToList();
+        spans.Single(s => s.OriginalId == "treatment").EndTimestamp.Should().Be(laterStart);
+        spans.Single(s => s.OriginalId == "snapshot").IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_OpenSpanBehindTheSameOverride_EndsAtTheFirstDifferentOne()
+    {
+        var sameStart = new DateTime(2026, 1, 2, 8, 0, 0, DateTimeKind.Utc);
+        var differentStart = new DateTime(2026, 1, 3, 8, 0, 0, DateTimeKind.Utc);
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "different", differentStart, "Loop", TreatmentMetadata("X Exercise", 0.5)));
+        var same = LoopOverride("same", sameStart, "loop://iPhone", DeviceStatusMetadata("Night", 0.9));
+        same.EndTimestamp = differentStart;
+        await _repository.UpsertStateSpanAsync(same);
+
+        await _repository.UpsertStateSpanAsync(LoopOverride(
+            "backfilled", new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc), "Loop", TreatmentMetadata("N Night", 0.9)));
+
+        (await _repository.GetStateSpansAsync(category: StateSpanCategory.Override))
+            .Single(s => s.OriginalId == "backfilled").EndTimestamp.Should().Be(differentStart);
+    }
+
+    [Fact]
     public async Task DeletedSpan_IsHiddenFromReadsAndCounts()
     {
         await _repository.UpsertStateSpanAsync(ConnectorSpan());
@@ -799,7 +982,7 @@ public class StateSpanRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task BulkUpsertAsync_OutOfOrderBatch_SupersedesInInputOrderNotStartOrder()
+    public async Task BulkUpsertAsync_OutOfOrderBatch_EndsEachSpanAtTheNextStart()
     {
         await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 3, "pr-stored"));
 
@@ -810,10 +993,26 @@ public class StateSpanRepositoryTests : IDisposable
         ]);
 
         var rows = await LiveRowsAsync();
-        rows["pr-stored"].EndTimestamp.Should().Be(BatchDay.AddHours(10));
-        rows["pr-stored"].SupersededById.Should().Be(rows["pr-late"].Id);
+        rows["pr-stored"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
+        rows["pr-stored"].SupersededById.Should().Be(rows["pr-early"].Id);
+        rows["pr-early"].EndTimestamp.Should().Be(BatchDay.AddHours(10));
+        rows["pr-early"].SupersededById.Should().Be(rows["pr-late"].Id);
         rows["pr-late"].EndTimestamp.Should().BeNull("a span starting before it cannot supersede it");
-        rows["pr-early"].EndTimestamp.Should().BeNull("the stored span was already closed when it arrived");
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_OutOfOrderAcrossCalls_EndsEachSpanAtTheNextStart()
+    {
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 1, "pr-x"));
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 5, "pr-b"));
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Profile, "Active", 3, "pr-c"));
+
+        var rows = await LiveRowsAsync();
+        rows["pr-x"].EndTimestamp.Should().Be(BatchDay.AddHours(3));
+        rows["pr-x"].SupersededById.Should().Be(rows["pr-c"].Id);
+        rows["pr-c"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
+        rows["pr-c"].SupersededById.Should().Be(rows["pr-b"].Id);
+        rows["pr-b"].EndTimestamp.Should().BeNull();
     }
 
     [Fact]
