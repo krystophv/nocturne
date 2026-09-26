@@ -8,6 +8,7 @@ using Nocturne.Core.Models;
 using Nocturne.Core.Models.Services;
 using Nocturne.Infrastructure.Cache.Abstractions;
 using Nocturne.Infrastructure.Data;
+using Nocturne.Infrastructure.Data.Extensions;
 using Nocturne.Infrastructure.Data.Services;
 
 namespace Nocturne.API.Services.Analytics;
@@ -167,17 +168,7 @@ public class DataOverviewService : IDataOverviewService
         // Run all queries sequentially — DbContext is not thread-safe
         foreach (var table in DataOverviewTables.All)
         {
-            var nonPrimaryIds = table.DedupRecordType is { } recordType
-                ? NonPrimaryRecordIds(context, recordType)
-                : null;
-
-            var timestamps = table.TimestampsInRange(
-                context,
-                startUtc,
-                endUtc,
-                dataSources,
-                nonPrimaryIds
-            );
+            var timestamps = table.TimestampsInRange(context, startUtc, endUtc, dataSources);
             if (timestamps is null)
                 continue;
 
@@ -269,12 +260,6 @@ public class DataOverviewService : IDataOverviewService
 
         var (startUtc, endUtc) = LocalYearBoundsUtc(year, tz);
 
-        // Hoist LinkedRecord subqueries — IQueryable construction is free
-        var npSensorGlucoseIds = NonPrimaryRecordIds(context, RecordType.SensorGlucose);
-        var nonPrimaryBolusIds = NonPrimaryRecordIds(context, RecordType.Bolus);
-        var nonPrimaryTempBasalIds = NonPrimaryRecordIds(context, RecordType.TempBasal);
-        var nonPrimaryCarbIds = NonPrimaryRecordIds(context, RecordType.CarbIntake);
-
         // --- Collect glucose readings by month (CGM + meter) ---
         // Each source is queried independently so one failure doesn't prevent the others.
         var allGlucoseByMonth = new Dictionary<int, List<double>>();
@@ -285,7 +270,7 @@ public class DataOverviewService : IDataOverviewService
                 .Where(e => e.Timestamp >= startUtc && e.Timestamp < endUtc)
                 .Where(e => e.Mgdl > 0 && !double.IsNaN(e.Mgdl))
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !npSensorGlucoseIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.SensorGlucose)
                 .Select(e => new { e.Timestamp, e.Mgdl }),
             r => r.Timestamp, r => r.Mgdl, allGlucoseByMonth, tz,
             "Failed to collect SensorGlucose for GRI year {Year}", year, cancellationToken);
@@ -308,7 +293,7 @@ public class DataOverviewService : IDataOverviewService
                 .Where(e => e.Timestamp >= startUtc && e.Timestamp < endUtc && e.Insulin > 0)
                 .Where(e => e.BolusKind != "Algorithm")
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryBolusIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.Bolus)
                 .Select(e => new { e.Timestamp, e.Insulin }),
             r => r.Timestamp, r => r.Insulin, manualBolusByMonth, tz,
             "Failed to collect manual bolus totals for GRI year {Year}", year, cancellationToken);
@@ -320,7 +305,7 @@ public class DataOverviewService : IDataOverviewService
                 .Where(e => e.Timestamp >= startUtc && e.Timestamp < endUtc && e.Insulin > 0)
                 .Where(e => e.BolusKind == "Algorithm")
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryBolusIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.Bolus)
                 .Select(e => new { e.Timestamp, e.Insulin }),
             r => r.Timestamp, r => r.Insulin, algorithmBolusByMonth, tz,
             "Failed to collect algorithm bolus totals for GRI year {Year}", year, cancellationToken);
@@ -331,7 +316,7 @@ public class DataOverviewService : IDataOverviewService
             context.TempBasals
                 .Where(e => e.StartTimestamp >= startUtc && e.StartTimestamp < endUtc && e.Rate > 0)
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryTempBasalIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.TempBasal)
                 .Select(e => new { e.StartTimestamp, e.Rate, e.EndTimestamp }),
             r => r.StartTimestamp,
             r => r.Rate * (r.EndTimestamp.HasValue
@@ -346,7 +331,7 @@ public class DataOverviewService : IDataOverviewService
             context.CarbIntakes
                 .Where(e => e.Timestamp >= startUtc && e.Timestamp < endUtc && e.Carbs > 0)
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryCarbIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.CarbIntake)
                 .Select(e => new { e.Timestamp, e.Carbs }),
             r => r.Timestamp, r => r.Carbs, carbsByMonth, tz,
             "Failed to collect carb totals for GRI year {Year}", year, cancellationToken);
@@ -425,7 +410,6 @@ public class DataOverviewService : IDataOverviewService
         var lookbackStartUtc = TimeZoneInfo.ConvertTimeToUtc(localRangeStart, tz);
         var yearEndUtc = TimeZoneInfo.ConvertTimeToUtc(localYearEnd, tz);
 
-        var npSensorGlucoseIds = NonPrimaryRecordIds(context, RecordType.SensorGlucose);
         var allReadings = new List<(DateTime Timestamp, double Mgdl)>();
 
         // Each source is queried independently so one failure doesn't prevent the other.
@@ -436,7 +420,7 @@ public class DataOverviewService : IDataOverviewService
                 .SensorGlucose.Where(e => e.Timestamp >= lookbackStartUtc && e.Timestamp < yearEndUtc)
                 .Where(e => e.Mgdl > 0 && !double.IsNaN(e.Mgdl))
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !npSensorGlucoseIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.SensorGlucose)
                 .Select(e => new { e.Timestamp, e.Mgdl })
                 .ToListAsync(cancellationToken);
             allReadings.AddRange(sensorReadings.Select(r => (r.Timestamp, r.Mgdl)));
@@ -798,20 +782,6 @@ public class DataOverviewService : IDataOverviewService
     }
 
     /// <summary>
-    /// The ids of records deduplication resolved to a non-primary member of a canonical group.
-    /// </summary>
-    private static IQueryable<Guid> NonPrimaryRecordIds(
-        NocturneDbContext context,
-        RecordType recordType
-    )
-    {
-        var key = RecordTypeKeys.Key(recordType);
-        return context
-            .LinkedRecords.Where(lr => lr.RecordType == key && !lr.IsPrimary)
-            .Select(lr => lr.RecordId);
-    }
-
-    /// <summary>
     /// Gets min and max from an IQueryable of nullable DateTimes (V4 entities), converting to mills.
     /// </summary>
     private async Task<(long? Min, long? Max)> GetMinMaxTimestamp(
@@ -883,13 +853,11 @@ public class DataOverviewService : IDataOverviewService
         // SensorGlucose (CGM) - V4 entity uses Timestamp
         try
         {
-            var npSensorGlucoseIds = NonPrimaryRecordIds(context, RecordType.SensorGlucose);
-
             var sensorReadings = await context
                 .SensorGlucose.Where(e => e.Timestamp >= startUtc && e.Timestamp < endUtc)
                 .Where(e => e.Mgdl > 0 && !double.IsNaN(e.Mgdl))
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !npSensorGlucoseIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.SensorGlucose)
                 .Select(e => new { e.Timestamp, e.Mgdl })
                 .ToListAsync(cancellationToken);
 
@@ -973,8 +941,6 @@ public class DataOverviewService : IDataOverviewService
         CancellationToken cancellationToken
     )
     {
-        var nonPrimaryBolusIds = NonPrimaryRecordIds(context, RecordType.Bolus);
-
         // Manual bolus records — only user-initiated boluses count as bolus insulin
         try
         {
@@ -984,7 +950,7 @@ public class DataOverviewService : IDataOverviewService
                 )
                 .Where(e => e.BolusKind != "Algorithm")
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryBolusIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.Bolus)
                 .Select(e => new { e.Timestamp, e.Insulin })
                 .ToListAsync(cancellationToken);
 
@@ -1021,7 +987,7 @@ public class DataOverviewService : IDataOverviewService
                 )
                 .Where(e => e.BolusKind == "Algorithm")
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryBolusIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.Bolus)
                 .Select(e => new { e.Timestamp, e.Insulin })
                 .ToListAsync(cancellationToken);
 
@@ -1054,14 +1020,12 @@ public class DataOverviewService : IDataOverviewService
         // TempBasal records (pump basal delivery with rate x duration)
         try
         {
-            var nonPrimaryTempBasalIds = NonPrimaryRecordIds(context, RecordType.TempBasal);
-
             var tempBasalRecords = await context
                 .TempBasals.Where(e =>
                     e.StartTimestamp >= startUtc && e.StartTimestamp < endUtc && e.Rate > 0
                 )
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryTempBasalIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.TempBasal)
                 .Select(e => new
                 {
                     e.StartTimestamp,
@@ -1130,14 +1094,12 @@ public class DataOverviewService : IDataOverviewService
     {
         try
         {
-            var nonPrimaryCarbIds = NonPrimaryRecordIds(context, RecordType.CarbIntake);
-
             var carbRecords = await context
                 .CarbIntakes.Where(e =>
                     e.Timestamp >= startUtc && e.Timestamp < endUtc && e.Carbs > 0
                 )
                 .Where(e => !hasFilter || dataSources!.Contains(e.DataSource!))
-                .Where(e => !nonPrimaryCarbIds.Contains(e.Id))
+                .ExcludeNonPrimary(context, RecordType.CarbIntake)
                 .Select(e => new { e.Timestamp, e.Carbs })
                 .ToListAsync(cancellationToken);
 
