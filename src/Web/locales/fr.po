@@ -19021,9 +19021,8 @@ msgstr ""
 msgid "<0/> Download Prelude"
 msgstr ""
 
-#: src/lib/components/dashboard/glucose-chart/chart-context.svelte.ts
-msgid "GlucoseChartContext"
-msgstr ""
+#~ msgid "GlucoseChartContext"
+#~ msgstr ""
 
 #~ msgid "Glucose dial"
 #~ msgstr ""
