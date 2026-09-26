@@ -11886,6 +11886,8 @@ msgstr "Basierend auf durchschnittlicher Glukose"
 #~ msgstr ""
 
 #. 0: Math.round(toIfccMmolMol(percent))
+#. 0: Math.round(value)
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
 #: src/routes/(authenticated)/reports/ehba1c/+page.svelte
 msgid "{0} mmol/mol"
 msgstr "{0} mmol/mol"
