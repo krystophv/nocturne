@@ -323,6 +323,13 @@ jobs:
             --logger "trx;LogFileName=integration-db.trx" \
             -p:GenerateNSwagClient=false \
             || exit 1
+      - name: Integration tests (API unit project, real Postgres)
+        run: |
+          dotnet test tests/Unit/Nocturne.API.Tests/Nocturne.API.Tests.csproj \
+            --filter "Category=Integration" \
+            --logger "trx;LogFileName=integration-api.trx" \
+            -p:GenerateNSwagClient=false \
+            || exit 1
       - uses: actions/upload-artifact@v6
         if: failure()
         with:
