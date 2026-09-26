@@ -355,9 +355,10 @@ public class StateSpanRepository : IStateSpanRepository
             // superseded by it. Without this bound, a span inserted out of order (historical backfill
             // of a pump that reports newest-first) closes a later-starting open span at its own
             // earlier start, inverting it (end < start) and clearing a genuinely active suspension.
+            // One starting at the same instant would end at its own start, so it stays open too.
             if (open.DeletedAt != null
                 || open.EndTimestamp != null
-                || open.StartTimestamp > entity.StartTimestamp
+                || open.StartTimestamp >= entity.StartTimestamp
                 || !string.Equals(open.Category, entity.Category, StringComparison.Ordinal)
                 || (sameStateOnly && !string.Equals(open.State, entity.State, StringComparison.Ordinal))
                 || !Supersedes(entity, metadata, open))
@@ -400,8 +401,11 @@ public class StateSpanRepository : IStateSpanRepository
 
         var successor = batch.Where(Follows).MinBy(s => s.StartTimestamp);
 
+        var batchIds = batch.Select(s => s.Id).ToList();
         var stored = _context.StateSpans.AsNoTracking()
-            .Where(s => s.Category == entity.Category && s.StartTimestamp > entity.StartTimestamp);
+            .Where(s => s.Category == entity.Category
+                && s.StartTimestamp > entity.StartTimestamp
+                && !batchIds.Contains(s.Id));
         if (sameStateOnly)
             stored = stored.Where(s => s.State == entity.State);
         if (successor != null)
@@ -423,14 +427,18 @@ public class StateSpanRepository : IStateSpanRepository
 
         if (_context.Entry(successor).State != EntityState.Added)
             batch.UnionWith(await _context.StateSpans
-                .Where(s => s.SupersededById == successor.Id && s.StartTimestamp < entity.StartTimestamp)
+                .Where(s => s.SupersededById == successor.Id
+                    && s.EndTimestamp == successor.StartTimestamp
+                    && s.StartTimestamp < entity.StartTimestamp)
                 .ToListAsync(cancellationToken));
 
-        // A span the successor closed that started before this one now ends where this one starts.
         foreach (var earlier in batch)
         {
-            if (earlier.SupersededById != successor.Id
-                || earlier.StartTimestamp > entity.StartTimestamp
+            // Only an end the successor set moves; an uploaded end stays where the upload put it.
+            if (earlier.DeletedAt != null
+                || earlier.SupersededById != successor.Id
+                || earlier.EndTimestamp != successor.StartTimestamp
+                || earlier.StartTimestamp >= entity.StartTimestamp
                 || (sameStateOnly && !string.Equals(earlier.State, entity.State, StringComparison.Ordinal))
                 || !Supersedes(entity, metadata, earlier))
                 continue;
@@ -443,13 +451,13 @@ public class StateSpanRepository : IStateSpanRepository
 
     /// <summary>
     /// Whether <paramref name="entity"/> ends <paramref name="other"/> in an exclusive category.
-    /// The same override from another source does not, since Loop uploads it as both a treatment
-    /// and devicestatus snapshots; within one source even the same preset does.
+    /// Loop uploads one override as a treatment and as devicestatus snapshots, so a treatment span
+    /// and a devicestatus span of the same override do not end each other. Two spans of one kind
+    /// do, even of the same preset and whatever their sources.
     /// </summary>
     private static bool Supersedes(
         StateSpanEntity entity, IDictionary<string, object>? metadata, StateSpanEntity other) =>
         !string.Equals(entity.Category, nameof(StateSpanCategory.Override), StringComparison.OrdinalIgnoreCase)
-        || other.Source == entity.Source
         || !metadata.IsSameOverrideAs(MapperHelpers.DeserializeJson<Dictionary<string, object>>(other.MetadataJson));
 
     /// <summary>

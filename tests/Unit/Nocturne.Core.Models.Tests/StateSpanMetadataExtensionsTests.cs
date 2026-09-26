@@ -160,10 +160,13 @@ public class StateSpanMetadataExtensionsTests
         metadata.TryReadString("missing").Should().BeNull();
     }
 
-    // ----- IsSameOverrideAs -----
-
-    private static Dictionary<string, object> Treatment(string reason, double factor = 0.8) =>
-        new() { ["reason"] = reason, ["insulinNeedsScaleFactor"] = factor };
+    private static Dictionary<string, object> Treatment(string? reason, double? factor = 0.8)
+    {
+        var metadata = new Dictionary<string, object> { ["utcOffset"] = 0 };
+        if (reason is not null) metadata["reason"] = reason;
+        if (factor is not null) metadata["insulinNeedsScaleFactor"] = factor.Value;
+        return metadata;
+    }
 
     private static Dictionary<string, object> Snapshot(string? name, double? multiplier = 0.8)
     {
@@ -188,7 +191,20 @@ public class StateSpanMetadataExtensionsTests
     public void IsSameOverrideAs_ignores_the_scale_factor_of_a_named_override()
     {
         Treatment("N Night", 0.9).IsSameOverrideAs(Snapshot("Night", 0.6)).Should().BeTrue();
-        Snapshot("Night", 0.9).IsSameOverrideAs(Snapshot("Night", null)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsSameOverrideAs_does_not_match_two_snapshots()
+    {
+        Snapshot("Night").IsSameOverrideAs(Snapshot("Night")).Should().BeFalse();
+        Snapshot(null).IsSameOverrideAs(Snapshot(null)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsSameOverrideAs_does_not_match_two_treatments()
+    {
+        Treatment("N Night").IsSameOverrideAs(Treatment("N Night")).Should().BeFalse();
+        Treatment(null).IsSameOverrideAs(Treatment(null)).Should().BeFalse();
     }
 
     [Theory]
@@ -209,12 +225,16 @@ public class StateSpanMetadataExtensionsTests
         Treatment(symbol + " Long Ride").IsSameOverrideAs(Snapshot("Ride")).Should().BeFalse();
     }
 
-    [Fact]
-    public void IsSameOverrideAs_matches_unnamed_snapshots_by_scale_factor()
+    [Theory]
+    [InlineData(0.8, 0.8, true)]
+    [InlineData(0.8, 0.6, false)]
+    [InlineData(null, 1.0, true)]
+    [InlineData(1.0, null, true)]
+    public void IsSameOverrideAs_matches_an_unnamed_treatment_and_snapshot_by_scale_factor(
+        double? factor, double? multiplier, bool expected)
     {
-        Snapshot(null, 0.8).IsSameOverrideAs(Snapshot(null, 0.8)).Should().BeTrue();
-        Snapshot(null, 0.8).IsSameOverrideAs(Snapshot(null, 0.6)).Should().BeFalse();
-        Snapshot(null, null).IsSameOverrideAs(Snapshot(null, 1.0)).Should().BeTrue();
+        Treatment(null, factor).IsSameOverrideAs(Snapshot(null, multiplier)).Should().Be(expected);
+        Snapshot(null, multiplier).IsSameOverrideAs(Treatment(null, factor)).Should().Be(expected);
     }
 
     [Fact]
