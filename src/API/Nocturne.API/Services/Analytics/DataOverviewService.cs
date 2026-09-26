@@ -429,6 +429,7 @@ public class DataOverviewService : IDataOverviewService
         var allReadings = new List<(DateTime Timestamp, double Mgdl)>();
 
         // Each source is queried independently so one failure doesn't prevent the other.
+        var allSourcesRead = true;
         try
         {
             var sensorReadings = await context
@@ -440,8 +441,9 @@ public class DataOverviewService : IDataOverviewService
                 .ToListAsync(cancellationToken);
             allReadings.AddRange(sensorReadings.Select(r => (r.Timestamp, r.Mgdl)));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (IsSourceFailure(ex, cancellationToken))
         {
+            allSourcesRead = false;
             _logger.LogWarning(ex, "Failed to collect SensorGlucose for eHbA1c timeline {Year}", year);
         }
 
@@ -455,8 +457,9 @@ public class DataOverviewService : IDataOverviewService
                 .ToListAsync(cancellationToken);
             allReadings.AddRange(meterReadings.Select(r => (r.Timestamp, r.Mgdl)));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (IsSourceFailure(ex, cancellationToken))
         {
+            allSourcesRead = false;
             _logger.LogWarning(ex, "Failed to collect MeterGlucose for eHbA1c timeline {Year}", year);
         }
 
@@ -481,6 +484,10 @@ public class DataOverviewService : IDataOverviewService
         var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
         var points = BuildEHbA1cPoints(dailySum, dailyCount, localRangeStart, EHbA1cWindowDays, year, localNow.Date);
         var response = new EHbA1cTimelineResponse { Year = year, Points = points };
+
+        // Caching a partial timeline would blank the missing source for the whole expiry below.
+        if (!allSourcesRead)
+            return response;
 
         var isCurrentYear = year == localNow.Year;
         // Completed years don't change (barring rare backfills), so cache them for a long time; the
@@ -587,6 +594,13 @@ public class DataOverviewService : IDataOverviewService
     /// data-source name cannot forge additional log lines (CWE-117 log injection).
     /// </summary>
     private static string SanitizeForLog(string value) => value.Replace("\r", "").Replace("\n", "");
+
+    /// <summary>
+    /// True for anything but the caller's own cancellation, which must propagate; a cancellation
+    /// raised while the request is still live (e.g. a command timeout) is a failed source.
+    /// </summary>
+    private static bool IsSourceFailure(Exception ex, CancellationToken cancellationToken) =>
+        ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested;
 
     /// <summary>
     /// The half-open UTC interval covering <paramref name="year"/> in <paramref name="tz"/>, so a
