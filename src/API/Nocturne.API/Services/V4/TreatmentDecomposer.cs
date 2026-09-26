@@ -1110,7 +1110,10 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
     private static Dictionary<string, object>? BuildOverrideMetadata(Treatment treatment)
     {
-        var metadata = new Dictionary<string, object>();
+        var metadata = new Dictionary<string, object>
+        {
+            [StateSpanMetadataExtensions.CollectionKey] = StateSpanMetadataExtensions.TreatmentsCollection,
+        };
 
         if (!string.IsNullOrEmpty(treatment.Reason))
             metadata["reason"] = treatment.Reason;
