@@ -326,17 +326,22 @@ public class DeduplicationService : IDeduplicationService
     /// them from one, so a group takes at most one record per non-connector source. A connector is
     /// exempt because some report one event twice under two ids, and those twins must still merge.
     /// <see cref="DeduplicationInput.UnknownDataSource"/> counts as one source like any other.
-    /// Sensor glucose is exempt too: it is a continuous stream, not a dose, and the batch
-    /// duplicate probe upstream is what stops an uploader re-sending a reading.
+    /// Only dose-like record types are guarded; see <see cref="TracksTightSources"/>.
     /// </summary>
     internal static bool RefusesTightJoin(RecordType recordType, string source, IReadOnlySet<string>? groupSources) =>
-        recordType != RecordType.SensorGlucose
+        TracksTightSources(recordType)
         && !DataSources.IsConnector(source)
         && groupSources is not null
         && groupSources.Contains(source);
 
-    /// <summary>Whether <see cref="RefusesTightJoin"/> can ever refuse for this record type.</summary>
-    private static bool TracksTightSources(RecordType recordType) => recordType != RecordType.SensorGlucose;
+    /// <summary>
+    /// Whether <see cref="RefusesTightJoin"/> applies to this record type. Sensor glucose and state
+    /// spans are exempt: neither is a discrete dose, and one uploader routinely reports the same
+    /// reading or the same span twice seconds apart (a repeated device status re-opens the same pump
+    /// mode), which must still collapse to one.
+    /// </summary>
+    private static bool TracksTightSources(RecordType recordType) =>
+        recordType is not (RecordType.SensorGlucose or RecordType.StateSpan);
 
     /// <inheritdoc />
     public async Task<DeduplicationBatchResult> DeduplicateBatchAsync(

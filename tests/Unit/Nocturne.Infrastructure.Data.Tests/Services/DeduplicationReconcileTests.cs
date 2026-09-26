@@ -2,8 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nocturne.Core.Contracts.Infrastructure;
+using Nocturne.Core.Models;
 using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Infrastructure.Data.Entities.V4;
+using Nocturne.Infrastructure.Data.Mappers;
 using Nocturne.Infrastructure.Data.Services;
 using Nocturne.Tests.Shared.Infrastructure;
 
@@ -168,6 +170,39 @@ public class DeduplicationReconcileTests : IDisposable
         var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
 
         merged.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task StateSpansFromOneUploader_SecondsApart_StillGroup()
+    {
+        var t = DateTime.UtcNow;
+        var inputs = new[] { t, t.AddSeconds(5) }.Select(start =>
+        {
+            var span = new StateSpanEntity
+            {
+                Id = Guid.CreateVersion7(),
+                TenantId = TestTenantId,
+                Category = nameof(StateSpanCategory.PumpMode),
+                State = "Suspended",
+                StartTimestamp = start,
+                Source = "openaps://phone",
+            };
+            _context.StateSpans.Add(span);
+            return span;
+        }).ToList();
+        await _context.SaveChangesAsync();
+
+        foreach (var span in inputs)
+        {
+            await _service.DeduplicateBatchAsync(RecordType.StateSpan,
+                [new DeduplicationInput(span.Id, ToMills(span.StartTimestamp), span.Source!, MatchCriteriaMapper.From(span))]);
+        }
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.StateSpan, null, CancellationToken.None);
+
+        merged.Should().Be(0);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "statespan").ToListAsync();
+        links.Should().HaveCount(2);
+        links.Select(l => l.CanonicalId).Distinct().Should().ContainSingle();
     }
 
     [Fact]
