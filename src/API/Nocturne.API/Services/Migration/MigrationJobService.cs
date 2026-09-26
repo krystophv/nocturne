@@ -953,11 +953,7 @@ internal class MigrationJob
         return $"{counts}. " + string.Join(" ", detail);
     }
 
-    /// <summary>
-    /// Reads one URL from the source, classifying every failure by what the user has to fix. The
-    /// single place a migration read decides whether a response is usable, so that no page loop can
-    /// mistake a rejection for the end of the data.
-    /// </summary>
+    /// <summary>Reads one URL from the source and returns the body as a string.</summary>
     /// <param name="read">
     ///     What this read is, for the wording a failure gets. Collections are the ordinary case and
     ///     the default; the connection test names itself, because a 404 means something else there.
@@ -967,7 +963,7 @@ internal class MigrationJob
         NightscoutRead read = NightscoutRead.ImportCollection) =>
         await ReadBodyFromSourceAsync(httpClient, url, label, read, (content, token) => content.ReadAsStringAsync(token), ct);
 
-    /// <summary>Decodes as UTF-8 whatever charset the response declares.</summary>
+    /// <summary>Reads the body as UTF-8, regardless of the declared charset.</summary>
     internal static async Task<T[]> ReadPageFromSourceAsync<T>(
         HttpClient httpClient, string url, string label, CancellationToken ct) =>
         await ReadBodyFromSourceAsync(httpClient, url, label, NightscoutRead.ImportCollection, async (content, token) =>
@@ -976,6 +972,11 @@ internal class MigrationJob
             return await System.Text.Json.JsonSerializer.DeserializeAsync<T[]>(stream, cancellationToken: token) ?? [];
         }, ct);
 
+    /// <summary>
+    /// Reads one URL from the source, classifying every failure by what the user has to fix. The
+    /// single place a migration read decides whether a response is usable, so that no page loop can
+    /// mistake a rejection for the end of the data.
+    /// </summary>
     private static async Task<T> ReadBodyFromSourceAsync<T>(
         HttpClient httpClient, string url, string label, NightscoutRead read,
         Func<HttpContent, CancellationToken, Task<T>> readBody, CancellationToken ct)
