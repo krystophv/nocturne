@@ -867,33 +867,33 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     /// <summary>
     /// Resolves the best available timestamp for a device status record.
     /// Priority: Mills (already normalized from date) > OpenAPS IOB time >
-    /// OpenAPS enacted/suggested timestamp > Loop predicted start date > Pump clock > CreatedAt > now.
+    /// OpenAPS enacted/suggested timestamp > Loop timestamp > Pump clock > CreatedAt >
+    /// Loop predicted start date > now.
     /// </summary>
     internal static DateTime ResolveTimestamp(DeviceStatus ds)
     {
         if (ds.Mills > 0)
             return DateTimeOffset.FromUnixTimeMilliseconds(ds.Mills).UtcDateTime;
 
-        // Try OpenAPS IOB time
         if (ParseTimestampToDateTime(ds.OpenAps?.Iob?.Time) is { } iobTime)
             return iobTime;
 
-        // Try OpenAPS enacted/suggested timestamp
         var command = ds.OpenAps?.Enacted ?? ds.OpenAps?.Suggested;
         if (ParseTimestampToDateTime(command?.Timestamp) is { } commandTime)
             return commandTime;
 
-        // Try Loop predicted start date
-        if (ParseTimestampToDateTime(ds.Loop?.Predicted?.StartDate) is { } loopTime)
+        if (ParseTimestampToDateTime(ds.Loop?.Timestamp) is { } loopTime)
             return loopTime;
 
-        // Try pump clock
         if (ParseTimestampToDateTime(ds.Pump?.Clock) is { } pumpTime)
             return pumpTime;
 
-        // Try CreatedAt
         if (ParseTimestampToDateTime(ds.CreatedAt) is { } createdTime)
             return createdTime;
+
+        // predicted.startDate is the latest reading's time, not the cycle's
+        if (ParseTimestampToDateTime(ds.Loop?.Predicted?.StartDate) is { } predictedTime)
+            return predictedTime;
 
         return DateTime.UtcNow;
     }
