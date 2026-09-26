@@ -63,7 +63,9 @@ public class ConnectorBackgroundServiceTests
             ConnectorPollerNudge? nudge = null,
             TimeSpan? unconfiguredRecheck = null,
             ConnectorSyncMetrics? metrics = null,
-            TenantRunGuard? runGuard = null)
+            TenantRunGuard? runGuard = null,
+            Func<DateTime, DateTime?>? alignedSync = null,
+            TimeSpan? minAlignedSpacing = null)
             : base(serviceProvider, budget ?? new ConnectorSyncBudget(), serviceProvider.GetRequiredService<ActiveTenantSnapshot>(), logger, nudge, metrics, runGuard)
         {
             _syncResult = syncResult;

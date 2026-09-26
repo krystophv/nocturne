@@ -615,6 +615,7 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
             return;
         }
 
+        _alignedSyncByTenant.TryRemove(tenantId, out _);
         _lastSyncByTenant[tenantId] = now;
         _nextCheckByTenant[tenantId] = now + interval;
 
