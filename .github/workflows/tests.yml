@@ -17,19 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 9
       - name: Cache NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
@@ -79,7 +79,7 @@ jobs:
               -p:GenerateNSwagClient=false \
               || exit 1
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: unit-trx
@@ -94,12 +94,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0"
       - name: Cache NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
@@ -117,15 +117,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0"
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -136,15 +136,18 @@ jobs:
           # is mtime-based, so a lockfile-only key lets a source change reuse a stale build.
           key: cargo-${{ runner.os }}-${{ hashFiles('crates/Cargo.lock', 'crates/**/*.rs', 'crates/**/Cargo.toml') }}
       - name: Cache NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
+      # --all-features compiles the uniffi surface Prelude ships; the default-feature clippy
+      # covers the cdylib the backend loads.
       - name: Rust tests, clippy, fmt
         working-directory: crates
         run: |
-          cargo test --workspace
+          cargo test --workspace --all-features
           cargo clippy --workspace --all-targets -- -D warnings
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
           cargo fmt --check
       - name: Build nocturne_alerts cdylib
         working-directory: crates
@@ -158,22 +161,32 @@ jobs:
             --logger "trx;LogFileName=alerts-ffi-parity.trx" \
             -p:GenerateNSwagClient=false \
             || exit 1
-      # Engine-seam tests (IAlertEvaluationEngine): corpus parity for both the managed and
-      # rust-backed seam adapters, cross-engine timer continuity, shadow-mode divergence
-      # logging, and Alerts:Engine flag selection. The rust-backed theories require the
-      # cdylib built above; NOCTURNE_ALERTS_REQUIRE_NATIVE turns silent skips into failures.
-      - name: Engine seam tests (managed + rust adapters, shadow, flag)
+      # Engine-seam tests (IAlertEvaluationEngine) plus every API test class holding a
+      # [NativeFact]/[NativeTheory], which the unit job skips for want of the cdylib. The
+      # classes are found by grep, each in a file named after it, so a new native test
+      # cannot be left out; NOCTURNE_ALERTS_REQUIRE_NATIVE turns silent skips into failures.
+      - name: Engine seam and native-backed API tests
         env:
           NOCTURNE_ALERTS_NATIVE_DIR: ${{ github.workspace }}/crates/target/release
           NOCTURNE_ALERTS_REQUIRE_NATIVE: "1"
           Alerts__Engine: rust
         run: |
+          set -euo pipefail
+          filter="FullyQualifiedName~Services.Alerts.Engines"
+          for file in $(grep -rlE '\[Native(Fact|Theory)' tests/Unit/Nocturne.API.Tests --include='*.cs'); do
+            class=$(basename "$file" .cs)
+            if ! grep -qE "class ${class}\b" "$file"; then
+              echo "::error file=$file::holds native tests but declares no class named $class"
+              exit 1
+            fi
+            filter="$filter|FullyQualifiedName~.${class}."
+          done
+          echo "Filter: $filter"
           dotnet test tests/Unit/Nocturne.API.Tests/Nocturne.API.Tests.csproj \
-            --filter "FullyQualifiedName~Services.Alerts.Engines" \
+            --filter "$filter" \
             --logger "trx;LogFileName=alerts-engine-seam.trx" \
-            -p:GenerateNSwagClient=false \
-            || exit 1
-      - uses: actions/upload-artifact@v4
+            -p:GenerateNSwagClient=false
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: alerts-ffi-parity-trx
@@ -194,13 +207,13 @@ jobs:
       run:
         working-directory: src/Web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
         with:
           # src/Web's lockfile is v11 format, so pnpm 9 (what the unit job pins) cannot read it
           # with --frozen-lockfile. Same pin the image build uses in docker-publish.yml.
           version: "11.5.0"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: pnpm
@@ -236,21 +249,21 @@ jobs:
       run:
         working-directory: src/Web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
         with:
           version: "11.5.0"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: src/Web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0"
       - name: Cache NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
@@ -269,11 +282,11 @@ jobs:
       run:
         working-directory: src/Web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
         with:
           version: "11.5.0"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: pnpm
@@ -293,12 +306,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0"
       - name: Cache NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
@@ -309,7 +322,7 @@ jobs:
             --logger "trx;LogFileName=integration-db.trx" \
             -p:GenerateNSwagClient=false \
             || exit 1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: integration-db-trx

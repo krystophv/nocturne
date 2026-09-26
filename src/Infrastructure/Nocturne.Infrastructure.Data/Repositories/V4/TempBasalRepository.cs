@@ -149,8 +149,6 @@ public class TempBasalRepository : ITempBasalRepository
     /// inserted — making the operation idempotent for uploader retries. Tenant scoping is
     /// implicit via the DbContext's RLS-equivalent query filter. Mirrors SensorGlucoseRepository.
     /// </summary>
-    /// <param name="model">The temporary basal record to create.</param>
-    /// <param name="ct">The cancellation token.</param>
     /// <returns>The created or updated temporary basal record.</returns>
     public async Task<TempBasal> CreateAsync(TempBasal model, WriteOrigin origin, CancellationToken ct = default)
     {
@@ -212,9 +210,6 @@ public class TempBasalRepository : ITempBasalRepository
     /// <summary>
     /// Updates an existing temporary basal record.
     /// </summary>
-    /// <param name="id">The unique identifier of the record to update.</param>
-    /// <param name="model">The updated record data.</param>
-    /// <param name="ct">The cancellation token.</param>
     /// <returns>The updated temporary basal record.</returns>
     public async Task<TempBasal> UpdateAsync(Guid id, TempBasal model, WriteOrigin origin, CancellationToken ct = default)
     {
@@ -232,8 +227,6 @@ public class TempBasalRepository : ITempBasalRepository
     /// <summary>
     /// Deletes a temporary basal record by its unique identifier.
     /// </summary>
-    /// <param name="id">The unique identifier.</param>
-    /// <param name="ct">The cancellation token.</param>
     public async Task DeleteAsync(Guid id, WriteOrigin origin, CancellationToken ct = default)
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
@@ -284,8 +277,6 @@ public class TempBasalRepository : ITempBasalRepository
     /// <summary>
     /// Deletes a temporary basal record by its legacy identifier.
     /// </summary>
-    /// <param name="legacyId">The legacy identifier.</param>
-    /// <param name="ct">The cancellation token.</param>
     /// <returns>The number of deleted records.</returns>
     /// <remarks>
     /// Above <see cref="AuditedBulkDeleteExtensions.BroadcastMaterializationCap"/> the ids are not
@@ -335,8 +326,6 @@ public class TempBasalRepository : ITempBasalRepository
     /// <summary>
     /// Performs a bulk creation of temporary basal records, handling deduplication.
     /// </summary>
-    /// <param name="records">The collection of records to create.</param>
-    /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of created records.</returns>
     public async Task<BulkWrite<TempBasal>> BulkCreateAsync(
         IEnumerable<TempBasal> records,
@@ -355,41 +344,16 @@ public class TempBasalRepository : ITempBasalRepository
                 return new BulkWrite<TempBasal>([], 0);
             }
 
-            // Batch-level dedup: keep first occurrence per LegacyId
-            entities = entities
-                .GroupBy(e => e.LegacyId ?? e.Id.ToString())
-                .Select(g => g.First())
-                .ToList();
+            var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
+                entities,
+                e => e.LegacyId,
+                (legacyIds, token) => ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, token),
+                ct);
 
-            // DB-level dedup: filter out records whose LegacyId already exists
-            var legacyIds = entities
-                .Where(e => !string.IsNullOrEmpty(e.LegacyId))
-                .Select(e => e.LegacyId!)
-                .ToHashSet();
-
-            var skippedDeleted = 0;
-            if (legacyIds.Count > 0)
-            {
-                var blocked = await ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, ct);
-
-                skippedDeleted = entities.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
-                entities = entities
-                    .Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId))
-                    .ToList();
-            }
-
-            if (entities.Count == 0)
+            if (toInsert.Count == 0)
             {
                 await tx.CommitAsync(ct);
                 return new BulkWrite<TempBasal>([], skippedDeleted);
-            }
-
-            const int batchSize = 500;
-            foreach (var batch in entities.Chunk(batchSize))
-            {
-                ctx.TempBasals.AddRange(batch);
-                await ctx.SaveChangesAsync(ct);
-                ctx.ChangeTracker.Clear();
             }
 
             await tx.CommitAsync(ct);
@@ -397,7 +361,7 @@ public class TempBasalRepository : ITempBasalRepository
             // Cross-connector deduplication: link saved records to canonical groups
             try
             {
-                var dedupInputs = entities.Select(e => new DeduplicationInput(
+                var dedupInputs = toInsert.Select(e => new DeduplicationInput(
                     RecordId: e.Id,
                     Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
@@ -408,10 +372,10 @@ public class TempBasalRepository : ITempBasalRepository
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", entities.Count);
+                _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", toInsert.Count);
             }
 
-            var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
+            var created = toInsert.Select(TempBasalMapper.ToDomainModel).ToList();
             await RaiseBroadcastAsync(created, [], [], origin, ct);
             return new BulkWrite<TempBasal>(created, skippedDeleted);
         });
