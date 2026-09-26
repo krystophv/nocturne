@@ -49,13 +49,19 @@ public class MigrationFailureReportingTests
 
     private sealed class DroppedBody : Stream
     {
+        private bool _prefixSent;
         public override bool CanRead => true;
         public override bool CanSeek => false;
         public override bool CanWrite => false;
         public override long Length => throw new NotSupportedException();
         public override long Position { get => 0; set => throw new NotSupportedException(); }
-        public override int Read(byte[] buffer, int offset, int count) =>
-            throw new IOException("Connection reset by peer.");
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_prefixSent)
+                throw new IOException("Connection reset by peer.");
+            _prefixSent = true;
+            return Encoding.UTF8.GetBytes("[{\"date\":1", buffer.AsSpan(offset, count));
+        }
         public override void Flush() { }
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
@@ -397,8 +403,9 @@ public class MigrationFailureReportingTests
             Timeout = TimeSpan.FromMilliseconds(200),
         };
 
+        using var job = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var read = () => MigrationJob.ReadPageFromSourceAsync<Treatment>(
-            client, "/api/v1/treatments.json", "treatments", CancellationToken.None);
+            client, "/api/v1/treatments.json", "treatments", job.Token);
 
         (await read.Should().ThrowAsync<MigrationSourceException>())
             .Which.Cause.Should().Be(MigrationFailureCause.Unreachable);

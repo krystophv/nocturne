@@ -989,15 +989,15 @@ internal class MigrationJob
     /// are the ordinary case and the default; the connection test names itself, because a 404 means
     /// something else there.
     /// </remarks>
-    internal static async Task<string> ReadFromSourceAsync(
+    internal static Task<string> ReadFromSourceAsync(
         HttpClient httpClient, string url, string label, CancellationToken ct,
         NightscoutRead read = NightscoutRead.ImportCollection) =>
-        await ReadBodyFromSourceAsync(httpClient, url, label, read, (content, token) => content.ReadAsStringAsync(token), ct);
+        ReadBodyFromSourceAsync(httpClient, url, label, read, (content, token) => content.ReadAsStringAsync(token), ct);
 
     /// <summary>Reads the body as UTF-8, regardless of the declared charset.</summary>
-    internal static async Task<T[]> ReadPageFromSourceAsync<T>(
+    internal static Task<T[]> ReadPageFromSourceAsync<T>(
         HttpClient httpClient, string url, string label, CancellationToken ct) =>
-        await ReadBodyFromSourceAsync(httpClient, url, label, NightscoutRead.ImportCollection, async (content, token) =>
+        ReadBodyFromSourceAsync(httpClient, url, label, NightscoutRead.ImportCollection, async (content, token) =>
         {
             await using var stream = await content.ReadAsStreamAsync(token);
             return await System.Text.Json.JsonSerializer.DeserializeAsync<T[]>(stream, cancellationToken: token) ?? [];
