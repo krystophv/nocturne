@@ -117,7 +117,7 @@ public static class SoftDeleteDedupExtensions
             .ToListAsync(ct);
 
         return RecreationBlocks<string>.From(blocking
-            .Where(b => b.Live || !TreatmentClientId.IsDifferentRecord(clientIds[b.Key], TreatmentClientId.Of(b.Json)))
+            .Where(b => b.Live || !TreatmentClientId.IsDifferentRecord(b.Key, clientIds[b.Key],TreatmentClientId.Of(b.Json)))
             .Select(b => (b.Key, b.Live)));
     }
 

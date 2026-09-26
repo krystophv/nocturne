@@ -279,6 +279,26 @@ public class TreatmentClientIdRoundTripTests : IDisposable
         return set(ctx).IgnoreQueryFilters().Single().LegacyId!;
     }
 
+    /// <summary>An identity the uploader named is not the content-derived one a Trio edit repeats.</summary>
+    [Theory]
+    [InlineData("_id", "65a1b2c3d4e5f60718293a4b")]
+    [InlineData("syncIdentifier", "uploader-sync-0001")]
+    public async Task NamedIdentity_WithANewClientId_StaysDeleted(string field, string identity)
+    {
+        string Carb(string clientId) => JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            [field] = identity, ["id"] = clientId, ["enteredBy"] = "Trio",
+            ["eventType"] = "Carb Correction", ["carbs"] = 30, ["created_at"] = MealTime,
+        });
+
+        await UploadAsync(Carb(CarbId));
+        (await TrioDeleteAsync(CarbId)).Should().Be(1);
+
+        (await UploadAsync(Carb(EditedCarbId))).SkippedDeleted.Should().Be(1);
+
+        (await CarbsAsync()).Should().BeEmpty();
+    }
+
     [Fact]
     public async Task ResendOfTheDeletedRecord_StaysDeleted()
     {

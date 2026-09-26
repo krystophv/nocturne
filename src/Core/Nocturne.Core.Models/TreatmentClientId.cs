@@ -51,15 +51,22 @@ public static class TreatmentClientId
                 : null;
     }
 
+    /// <summary>Marks a legacy id the decomposer derived from a treatment's content.</summary>
+    public const string SyntheticIdPrefix = "syn-";
+
     /// <summary>
-    /// Whether two records that share an identity are nonetheless different client records. Only a
-    /// client id on both sides can say so: a Trio edit re-uploads under a fresh <c>id</c> with the
-    /// deleted entry's time and often its values, so its synthetic identity repeats, and a user
-    /// tombstone must not swallow it. A side without an id (a pre-upgrade row, an uploader that sends
-    /// none) is taken to be the same record.
+    /// Whether two records that share <paramref name="legacyId"/> are nonetheless different client
+    /// records. A Trio edit re-uploads under a fresh <c>id</c> with the deleted entry's time and often
+    /// its values, so its content-derived identity repeats, and a user tombstone must not swallow it.
+    /// Only a synthetic identity can be shared that way: an <c>_id</c> or <c>syncIdentifier</c> is
+    /// the uploader naming the record, and the user's delete of it stands. A side without a client id
+    /// (a pre-upgrade row, an uploader that sends none) is taken to be the same record.
     /// </summary>
-    public static bool IsDifferentRecord(string? incoming, string? stored) =>
-        incoming is not null && stored is not null && !string.Equals(incoming, stored, StringComparison.Ordinal);
+    public static bool IsDifferentRecord(string legacyId, string? incoming, string? stored) =>
+        legacyId.StartsWith(SyntheticIdPrefix, StringComparison.Ordinal)
+        && incoming is not null
+        && stored is not null
+        && !string.Equals(incoming, stored, StringComparison.Ordinal);
 
     private static object? Present(object? id) =>
         id is null or JsonElement { ValueKind: JsonValueKind.Null or JsonValueKind.Undefined } ? null : id;

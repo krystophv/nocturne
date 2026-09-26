@@ -164,8 +164,8 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
         var hash = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(canonical));
-        // "syn-" marker + 60 hex chars keeps the synthetic id compact (64 chars).
-        return "syn-" + Convert.ToHexStringLower(hash)[..60];
+        // Marker + 60 hex chars keeps the synthetic id compact (64 chars).
+        return TreatmentClientId.SyntheticIdPrefix + Convert.ToHexStringLower(hash)[..60];
 
         static string Fmt(double? value) =>
             value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
