@@ -154,23 +154,38 @@ public class EntryDecomposerTests : IDisposable
         sg.Mgdl.Should().Be(110.0, "should fall back to Mgdl when Sgv is null");
     }
 
-    [Fact]
-    public async Task DecomposeAsync_SgvEntryWithDirectionNone_TakesDirectionFromTrend()
+    [Theory]
+    [InlineData("NONE", 4, GlucoseDirection.None)]
+    [InlineData(null, 4, null)]
+    [InlineData("Sideways", 4, null)]
+    [InlineData("TripleUp", 1, null)]
+    [InlineData("TripleDown", 7, null)]
+    [InlineData("CGM ERROR", 4, null)]
+    [InlineData("SingleUp", 4, GlucoseDirection.SingleUp)]
+    [InlineData("NONE", 0, GlucoseDirection.None)]
+    [InlineData("NONE", 8, GlucoseDirection.None)]
+    [InlineData("NONE", 9, GlucoseDirection.None)]
+    public async Task DecomposeAsync_SgvEntryWithTrend_StoresDirectionAsUploaded(
+        string? direction, int trend, GlucoseDirection? expected)
     {
         var entry = new Entry
         {
-            Id = "sgv-direction-none",
+            Id = "sgv-direction-as-uploaded",
             Type = "sgv",
-            Mills = 1760000000000,
+            Mills = 1790000000000,
             Sgv = 115.0,
-            Direction = "NONE",
-            Trend = 4
+            Direction = direction,
+            Trend = trend
         };
 
         var result = await _decomposer.DecomposeAsync(entry, WriteOrigin.Live);
 
-        var sg = result.CreatedRecords[0].Should().BeOfType<SensorGlucose>().Subject;
-        sg.Direction.Should().Be(GlucoseDirection.Flat);
+        result.UpdatedRecords.Should().BeEmpty();
+        var sg = result.CreatedRecords.Should().ContainSingle().Which
+            .Should().BeOfType<SensorGlucose>().Subject;
+        sg.LegacyId.Should().Be("sgv-direction-as-uploaded");
+        sg.Mgdl.Should().Be(115.0);
+        sg.Direction.Should().Be(expected);
     }
 
     #endregion
@@ -910,31 +925,6 @@ public class EntryDecomposerTests : IDisposable
     public void MapDirection_UnknownValue_ReturnsNull()
     {
         EntryDecomposer.MapDirection("INVALID_DIRECTION").Should().BeNull();
-    }
-
-    [Theory]
-    [InlineData("NONE", 4, GlucoseDirection.Flat)]
-    [InlineData(null, 6, GlucoseDirection.SingleDown)]
-    [InlineData("TripleUp", 1, GlucoseDirection.DoubleUp)]
-    public void ResolveDirection_NoModelledDirection_FallsBackToTrend(
-        string? direction, int? trend, GlucoseDirection? expected)
-    {
-        EntryDecomposer.ResolveDirection(new Entry { Direction = direction, Trend = trend })
-            .Should().Be(expected);
-    }
-
-    [Theory]
-    [InlineData("SingleUp", 4, GlucoseDirection.SingleUp)]
-    [InlineData("NOT COMPUTABLE", 4, GlucoseDirection.NotComputable)]
-    [InlineData("NONE", 0, GlucoseDirection.None)]
-    [InlineData("NONE", null, GlucoseDirection.None)]
-    [InlineData("NONE", 10, GlucoseDirection.None)]
-    [InlineData("NONE", -1, GlucoseDirection.None)]
-    public void ResolveDirection_ModelledDirectionOrNoUsableTrend_DoesNotFallBack(
-        string? direction, int? trend, GlucoseDirection? expected)
-    {
-        EntryDecomposer.ResolveDirection(new Entry { Direction = direction, Trend = trend })
-            .Should().Be(expected);
     }
 
     #endregion
