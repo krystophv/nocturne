@@ -205,10 +205,10 @@ public class StateSpanRepository : IStateSpanRepository
     /// <summary>
     /// Upserts <paramref name="stateSpans"/> by <c>OriginalId</c> with one save, leaving the rows a
     /// save per span in input order would: each span sees every earlier one, so a repeated
-    /// <c>OriginalId</c> updates the row its first occurrence inserted, and supersession runs in input
-    /// order rather than start order. Every row it loaded or added is detached afterwards so a long
-    /// connector sync does not pay change detection over every earlier batch; only those rows, since
-    /// the scoped context may also track entities the caller still holds.
+    /// <c>OriginalId</c> updates the row its first occurrence inserted, and an open span arriving behind
+    /// a later one it conflicts with ends at that one's start. Every row it loaded or added is detached
+    /// afterwards so a long connector sync does not pay change detection over every earlier batch; only
+    /// those rows, since the scoped context may also track entities the caller still holds.
     /// </summary>
     /// <returns>Per input span, the row it wrote or the soft-deleted row that blocked it.</returns>
     private async Task<List<StateSpan>> UpsertBatchAsync(

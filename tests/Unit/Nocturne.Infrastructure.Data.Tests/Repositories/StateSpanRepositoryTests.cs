@@ -956,6 +956,22 @@ public class StateSpanRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task BulkUpsertAsync_OutOfOrderPumpMode_EndsAtTheNextSameStateStart()
+    {
+        await _repository.BulkUpsertAsync(
+        [
+            Span(StateSpanCategory.PumpMode, PumpModeState.Suspended.ToString(), 11, "pm-suspend"),
+            Span(StateSpanCategory.PumpMode, PumpModeState.Automatic.ToString(), 12, "pm-auto-late"),
+            Span(StateSpanCategory.PumpMode, PumpModeState.Automatic.ToString(), 10, "pm-auto-early"),
+        ]);
+
+        var rows = await LiveRowsAsync();
+        rows["pm-auto-early"].EndTimestamp.Should().Be(BatchDay.AddHours(12));
+        rows["pm-auto-early"].SupersededById.Should().Be(rows["pm-auto-late"].Id);
+        rows["pm-suspend"].EndTimestamp.Should().BeNull();
+    }
+
+    [Fact]
     public async Task BulkUpsertAsync_MixedBatch_UpdatesStoredRowsWithoutDuplicating()
     {
         await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Exercise, "Running", 8, "ex-stored"));
