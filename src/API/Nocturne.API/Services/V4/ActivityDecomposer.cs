@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Nocturne.Core.Constants;
 using Nocturne.Core.Contracts.Repositories;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Models;
@@ -67,19 +68,31 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
     /// </summary>
     internal static void NormalizeMills(Activity activity)
     {
-        if (activity.Mills > 0)
+        if (ApplyClientTimestamp(activity))
             return;
+
+        if (DateTimeOffset.TryParse(activity.CreatedAt, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out var createdAt))
+            activity.Mills = createdAt.ToUnixTimeMilliseconds();
+    }
+
+    /// <summary>
+    /// The first three rungs of <see cref="NormalizeMills"/>: mills, <c>timestamp</c>,
+    /// <c>timeStamp</c>. Returns whether Mills is set.
+    /// </summary>
+    internal static bool ApplyClientTimestamp(Activity activity)
+    {
+        if (activity.Mills > 0)
+            return true;
 
         var mills = activity.Timestamp is > 0 ? activity.Timestamp.Value
             : activity.AdditionalProperties is { } props ? GetLongValue(props, "timeStamp") : 0;
-        if (mills > 0)
-        {
-            activity.Mills = mills;
-            activity.UtcOffset ??= 0;
-        }
-        else if (DateTimeOffset.TryParse(activity.CreatedAt, System.Globalization.CultureInfo.InvariantCulture,
-                     System.Globalization.DateTimeStyles.AssumeUniversal, out var createdAt))
-            activity.Mills = createdAt.ToUnixTimeMilliseconds();
+        if (mills <= 0)
+            return false;
+
+        activity.Mills = mills;
+        activity.UtcOffset ??= 0;
+        return true;
     }
 
     /// <summary>
@@ -190,11 +203,11 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
 
         await BulkCreateNewByOriginalIdAsync(
             _dbContext.HeartRates, heartRateList, HeartRateMapper.ToEntity,
-            HeartRateMapper.ToDomainModel, result, ct);
+            HeartRateMapper.UpdateEntity, HeartRateMapper.ToDomainModel, result, ct);
 
         await BulkCreateNewByOriginalIdAsync(
             _dbContext.StepCounts, stepCountList, StepCountMapper.ToEntity,
-            StepCountMapper.ToDomainModel, result, ct);
+            StepCountMapper.UpdateEntity, StepCountMapper.ToDomainModel, result, ct);
 
         if (regularActivities.Count > 0)
         {
@@ -315,7 +328,8 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
     // --- Private decomposition methods ---
 
     /// <summary>
-    /// Create-or-update keyed on the legacy <c>OriginalId</c>. Heart rates and step counts have no
+    /// Create-or-update keyed on the legacy <c>OriginalId</c>, or, for a record with no id, on its
+    /// sync key when <see cref="MapToStepCount"/> gave it one. Heart rates and step counts have no
     /// V4 repository, so unlike its <see cref="DecomposerBase.UpsertByLegacyIdAsync"/> siblings this
     /// writes the entity through the context.
     /// </summary>
@@ -328,12 +342,13 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
         DecompositionResult result,
         CancellationToken ct)
         where TModel : ProcessableDocumentBase
-        where TEntity : class, IOriginalIdentified
+        where TEntity : class, IOriginalIdentified, ISyncDedupable
     {
         var recordType = typeof(TModel).Name;
+        var entity = toEntity(model);
         var existing = model.Id != null
             ? await set.FirstOrDefaultAsync(e => e.OriginalId == model.Id, ct)
-            : null;
+            : await FindBySyncKeyAsync(set, entity.DataSource, entity.SyncIdentifier, ct);
 
         if (existing != null)
         {
@@ -346,26 +361,34 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
             return;
         }
 
-        var entity = toEntity(model);
         await set.AddAsync(entity, ct);
         await _dbContext.SaveChangesAsync(ct);
         result.CreatedRecords.Add(toDomain(entity));
         _logger.LogDebug("Created {RecordType} from legacy activity {LegacyId}", recordType, model.Id);
     }
 
+    private static Task<TEntity?> FindBySyncKeyAsync<TEntity>(
+        DbSet<TEntity> set, string? dataSource, string? syncIdentifier, CancellationToken ct)
+        where TEntity : class, ISyncDedupable =>
+        syncIdentifier is null
+            ? Task.FromResult<TEntity?>(null)
+            : set.FirstOrDefaultAsync(e => e.DataSource == dataSource && e.SyncIdentifier == syncIdentifier, ct);
+
     /// <summary>
     /// Inserts the records whose <c>OriginalId</c> is not already stored, skipping the rest so a
-    /// re-migration cannot duplicate them.
+    /// re-migration cannot duplicate them. A record with a sync key instead updates the stored row
+    /// with that key, and of several in the batch with one key the last wins.
     /// </summary>
     private async Task BulkCreateNewByOriginalIdAsync<TModel, TEntity>(
         DbSet<TEntity> set,
         List<TModel> models,
         Func<TModel, TEntity> toEntity,
+        Action<TEntity, TModel> applyUpdate,
         Func<TEntity, object> toDomain,
         DecompositionResult result,
         CancellationToken ct)
         where TModel : ProcessableDocumentBase
-        where TEntity : class, IOriginalIdentified
+        where TEntity : class, IOriginalIdentified, ISyncDedupable
     {
         if (models.Count == 0)
             return;
@@ -379,13 +402,47 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
                 .ToHashSet()
             : new HashSet<string>();
 
-        var fresh = models.Where(m => m.Id == null || !stored.Contains(m.Id)).ToList();
-        if (fresh.Count > 0)
+        var fresh = models
+            .Where(m => m.Id == null || !stored.Contains(m.Id))
+            .Select(m => (Model: m, Entity: toEntity(m)))
+            .ToList();
+        var toInsert = fresh.Where(p => p.Entity.SyncIdentifier == null).Select(p => p.Entity).ToList();
+        var keyed = fresh
+            .Where(p => p.Entity.SyncIdentifier != null)
+            .GroupBy(p => (p.Entity.DataSource, p.Entity.SyncIdentifier))
+            .Select(g => g.Last())
+            .ToList();
+
+        var updated = new List<TEntity>();
+        if (keyed.Count > 0)
         {
-            var entities = fresh.Select(toEntity).ToList();
-            await set.AddRangeAsync(entities, ct);
+            var syncIds = keyed.Select(p => p.Entity.SyncIdentifier!).ToHashSet();
+            var storedByKey = (await set
+                    .Where(e => e.SyncIdentifier != null && syncIds.Contains(e.SyncIdentifier))
+                    .ToListAsync(ct))
+                .GroupBy(e => (e.DataSource, e.SyncIdentifier))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var (model, entity) in keyed)
+            {
+                if (storedByKey.TryGetValue((entity.DataSource, entity.SyncIdentifier), out var existing))
+                {
+                    applyUpdate(existing, model);
+                    updated.Add(existing);
+                }
+                else
+                {
+                    toInsert.Add(entity);
+                }
+            }
+        }
+
+        if (toInsert.Count > 0 || updated.Count > 0)
+        {
+            await set.AddRangeAsync(toInsert, ct);
             await _dbContext.SaveChangesAsync(ct);
-            result.CreatedRecords.AddRange(entities.Select(toDomain));
+            result.CreatedRecords.AddRange(toInsert.Select(toDomain));
+            result.UpdatedRecords.AddRange(updated.Select(toDomain));
         }
 
         if (stored.Count > 0)
@@ -414,23 +471,40 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
         };
     }
 
+    /// <summary>
+    /// Maps a step-count activity. An xDrip <c>steps-total</c> record gets
+    /// <see cref="StepCount.PossibleRunningTotalFlag"/>. Without an id it also gets a sync key built
+    /// from its time, which xDrip keeps unique per record and resends when the last record's count
+    /// grows, so a resend updates the stored row.
+    /// </summary>
     internal static StepCount MapToStepCount(Activity activity)
     {
         var props = activity.AdditionalProperties ?? new Dictionary<string, object>();
+        var hasMetric = props.ContainsKey("metric");
+        var isXDripSteps = !hasMetric
+            && string.Equals(activity.Type, "steps-total", StringComparison.OrdinalIgnoreCase);
 
-        return new StepCount
+        var stepCount = new StepCount
         {
             Id = activity.Id,
             Mills = activity.Mills,
-            Metric = props.ContainsKey("metric") ? GetIntValue(props, "metric") : GetIntValue(props, "steps"),
+            Metric = hasMetric ? GetIntValue(props, "metric") : GetIntValue(props, "steps"),
             // StepCount.Source is the absolute/delta bitmask, not provenance — that is DataSource.
-            Source = GetIntValue(props, "source"),
+            Source = GetIntValue(props, "source") | (isXDripSteps ? StepCount.PossibleRunningTotalFlag : 0),
             Device = GetStringValue(props, "device") ?? activity.EnteredBy,
             EnteredBy = activity.EnteredBy,
             CreatedAt = activity.CreatedAt,
             UtcOffset = activity.UtcOffset,
             DataSource = activity.DataSource,
         };
+
+        if (isXDripSteps && activity.Id is null && activity.Mills > 0)
+        {
+            stepCount.DataSource ??= DataSources.XDrip;
+            stepCount.SyncIdentifier = $"steps-total:{activity.Mills}";
+        }
+
+        return stepCount;
     }
 
     private static int GetIntValue(Dictionary<string, object> props, string key) =>

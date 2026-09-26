@@ -185,50 +185,48 @@ public class ActivityDecomposerBatchTests : IDisposable
 
     #region NormalizeMills
 
-    [Fact]
-    public void NormalizeMills_OnlyCreatedAt_UsesCreatedAt()
+    /// <summary>
+    /// One case per rung of mills, timestamp, timeStamp, created_at. Each input also carries every
+    /// lower rung with a different time, so a case cannot pass by falling through.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        """{"mills":1780000000001,"timestamp":1780000000002,"timeStamp":1780000000003,"created_at":"2026-05-28T20:26:44Z"}""",
+        1_780_000_000_001, null)]
+    [InlineData(
+        """{"timestamp":1780000000002,"timeStamp":1780000000003,"created_at":"2026-05-28T20:26:44Z"}""",
+        1_780_000_000_002, 0)]
+    [InlineData(
+        """{"timeStamp":1780000000003,"created_at":"2026-05-28T20:26:44Z"}""",
+        1_780_000_000_003, 0)]
+    [InlineData(
+        """{"timeStamp":"1780000000003","created_at":"2026-05-28T20:26:44Z"}""",
+        1_780_000_000_003, 0)]
+    [InlineData(
+        """{"created_at":"2026-05-28T20:26:44Z"}""",
+        1_780_000_004_000, null)]
+    [InlineData(
+        """{"mills":0,"timestamp":0,"timeStamp":1780000000003,"created_at":"2026-05-28T20:26:44Z"}""",
+        1_780_000_000_003, 0)]
+    [InlineData(
+        """{"timestamp":-1,"timeStamp":"soon","created_at":"2026-05-28T20:26:44Z"}""",
+        1_780_000_004_000, null)]
+    [InlineData(
+        """{"timeStamp":null,"created_at":null}""",
+        0, null)]
+    public void NormalizeMills_TakesTheFirstUsableRung(string json, long expectedMills, int? expectedUtcOffset)
     {
-        var activity = new Activity { Type = "exercise", CreatedAt = "2026-05-28T21:00:00Z" };
+        var activity = System.Text.Json.JsonSerializer.Deserialize<Activity>(json)!;
 
         ActivityDecomposer.NormalizeMills(activity);
 
-        activity.Mills.Should().Be(DateTimeOffset.Parse("2026-05-28T21:00:00Z").ToUnixTimeMilliseconds());
-    }
-
-    [Fact]
-    public void NormalizeMills_MillsSet_KeepsMills()
-    {
-        var activity = new Activity { Mills = 1_780_000_000_000, CreatedAt = "2026-05-28T21:00:00Z" };
-
-        ActivityDecomposer.NormalizeMills(activity);
-
-        activity.Mills.Should().Be(1_780_000_000_000);
-    }
-
-    [Fact]
-    public void NormalizeMills_TimestampAndTimeStamp_PrefersTimestamp()
-    {
-        var activity = System.Text.Json.JsonSerializer.Deserialize<Activity>(
-            """{"type":"steps-total","timestamp":1780000000111,"timeStamp":1780000000999,"steps":10}""")!;
-
-        ActivityDecomposer.NormalizeMills(activity);
-
-        activity.Mills.Should().Be(1_780_000_000_111);
-        activity.UtcOffset.Should().Be(0);
-    }
-
-    [Fact]
-    public void NormalizeMills_TimeStampNumericString_UsesTimeStamp()
-    {
-        var activity = System.Text.Json.JsonSerializer.Deserialize<Activity>(
-            """{"type":"steps-total","timeStamp":"1780000000123","created_at":"2026-05-28T20:26:40Z","steps":10}""")!;
-
-        ActivityDecomposer.NormalizeMills(activity);
-
-        activity.Mills.Should().Be(1_780_000_000_123);
+        activity.Mills.Should().Be(expectedMills);
+        activity.UtcOffset.Should().Be(expectedUtcOffset);
     }
 
     #endregion
+
+    #region MapToStepCount
 
     [Fact]
     public void MapToStepCount_NonIntegerJsonNumber_Truncates()
@@ -238,6 +236,137 @@ public class ActivityDecomposerBatchTests : IDisposable
 
         ActivityDecomposer.MapToStepCount(activity).Metric.Should().Be(12);
     }
+
+    [Fact]
+    public void MapToStepCount_XDripStepsWithoutId_FlagsItAndKeysItByTime()
+    {
+        var activity = CreateXDripStepsActivity();
+        activity.Mills = 1_780_000_000_123;
+
+        var stepCount = ActivityDecomposer.MapToStepCount(activity);
+
+        stepCount.Id.Should().BeNull();
+        stepCount.Metric.Should().Be(1000);
+        stepCount.Source.Should().Be(StepCount.PossibleRunningTotalFlag);
+        stepCount.IsPossibleRunningTotal().Should().BeTrue();
+        stepCount.DataSource.Should().Be("xdrip");
+        stepCount.SyncIdentifier.Should().Be("steps-total:1780000000123");
+    }
+
+    [Fact]
+    public void MapToStepCount_XDripStepsWithId_FlagsItButKeepsTheIdAsKey()
+    {
+        var activity = CreateXDripStepsActivity();
+        activity.Id = "steps1";
+        activity.Mills = 1_780_000_000_123;
+
+        var stepCount = ActivityDecomposer.MapToStepCount(activity);
+
+        stepCount.Id.Should().Be("steps1");
+        stepCount.Source.Should().Be(StepCount.PossibleRunningTotalFlag);
+        stepCount.DataSource.Should().BeNull();
+        stepCount.SyncIdentifier.Should().BeNull();
+    }
+
+    [Fact]
+    public void MapToStepCount_XDripStepsFromAConnector_KeepsTheConnectorSource()
+    {
+        var activity = CreateXDripStepsActivity();
+        activity.Mills = 1_780_000_000_123;
+        activity.DataSource = "nightscout-connector";
+
+        var stepCount = ActivityDecomposer.MapToStepCount(activity);
+
+        stepCount.DataSource.Should().Be("nightscout-connector");
+        stepCount.SyncIdentifier.Should().Be("steps-total:1780000000123");
+    }
+
+    [Fact]
+    public void MapToStepCount_XDripStepsWithoutAnyTime_GetsNoKey()
+    {
+        var stepCount = ActivityDecomposer.MapToStepCount(CreateXDripStepsActivity());
+
+        stepCount.Source.Should().Be(StepCount.PossibleRunningTotalFlag);
+        stepCount.DataSource.Should().BeNull();
+        stepCount.SyncIdentifier.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void MapToStepCount_MetricRecord_KeepsItsSourceAndGetsNoKey(int source)
+    {
+        var activity = CreateStepCountActivity("sc", 1500);
+        activity.Id = null;
+        activity.AdditionalProperties!["source"] = source;
+
+        var stepCount = ActivityDecomposer.MapToStepCount(activity);
+
+        stepCount.Metric.Should().Be(1500);
+        stepCount.Source.Should().Be(source);
+        stepCount.IsPossibleRunningTotal().Should().BeFalse();
+        stepCount.DataSource.Should().BeNull();
+        stepCount.SyncIdentifier.Should().BeNull();
+    }
+
+    #endregion
+
+    #region Resent xDrip steps
+
+    [Fact]
+    public async Task DecomposeAsync_XDripStepsResentWithoutId_UpdatesTheStoredRow()
+    {
+        const long at = 1_780_000_000_123;
+        const long nextAt = at + 300_000;
+
+        await _decomposer.DecomposeAsync(CreateXDripUpload(at, 400), WriteOrigin.Live);
+        var resent = await _decomposer.DecomposeAsync(CreateXDripUpload(at, 650), WriteOrigin.Live);
+        await _decomposer.DecomposeAsync(CreateXDripUpload(nextAt, 90), WriteOrigin.Live);
+
+        resent.CreatedRecords.Should().BeEmpty();
+        resent.UpdatedRecords.Should().ContainSingle().Which.As<StepCount>().Metric.Should().Be(650);
+        _context.StepCounts.OrderBy(s => s.Timestamp)
+            .Select(s => new { s.Timestamp, s.Metric, s.Source, s.DataSource, s.SyncIdentifier })
+            .Should().Equal(
+                new
+                {
+                    Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(at).UtcDateTime,
+                    Metric = 650,
+                    Source = StepCount.PossibleRunningTotalFlag,
+                    DataSource = (string?)"xdrip",
+                    SyncIdentifier = (string?)$"steps-total:{at}",
+                },
+                new
+                {
+                    Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(nextAt).UtcDateTime,
+                    Metric = 90,
+                    Source = StepCount.PossibleRunningTotalFlag,
+                    DataSource = (string?)"xdrip",
+                    SyncIdentifier = (string?)$"steps-total:{nextAt}",
+                });
+    }
+
+    [Fact]
+    public async Task DecomposeBatchAsync_XDripStepsWithoutId_UpdatesStoredRowAndKeepsTheLastOfEachTime()
+    {
+        const long at = 1_780_000_000_123;
+        const long nextAt = at + 300_000;
+        await _decomposer.DecomposeAsync(CreateXDripUpload(at, 400), WriteOrigin.Live);
+
+        var result = await _decomposer.DecomposeBatchAsync(
+            [CreateXDripUpload(at, 650), CreateXDripUpload(nextAt, 10), CreateXDripUpload(nextAt, 90)],
+            WriteOrigin.Live);
+
+        result.UpdatedRecords.Should().ContainSingle().Which.As<StepCount>().Metric.Should().Be(650);
+        result.CreatedRecords.Should().ContainSingle().Which.As<StepCount>().Metric.Should().Be(90);
+        _context.StepCounts.OrderBy(s => s.Timestamp)
+            .Select(s => new { s.SyncIdentifier, s.Metric })
+            .Should().Equal(
+                new { SyncIdentifier = (string?)$"steps-total:{at}", Metric = 650 },
+                new { SyncIdentifier = (string?)$"steps-total:{nextAt}", Metric = 90 });
+    }
+
+    #endregion
 
     #region IsStepCount
 
@@ -414,6 +543,13 @@ public class ActivityDecomposerBatchTests : IDisposable
         Type = "steps-total",
         AdditionalProperties = new Dictionary<string, object> { ["steps"] = 1000 },
     };
+
+    private static Activity CreateXDripUpload(long timeStamp, int steps)
+    {
+        var createdAt = DateTimeOffset.FromUnixTimeMilliseconds(timeStamp).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        return System.Text.Json.JsonSerializer.Deserialize<Activity>(
+            $$"""{"type":"steps-total","timeStamp":{{timeStamp}},"created_at":"{{createdAt}}","steps":{{steps}}}""")!;
+    }
 
     private static Activity CreateRegularActivity(string id, string type)
     {
