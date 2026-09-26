@@ -2611,6 +2611,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
             EnforceTenantOwnership(entry, isAdded);
             StripNulCharacters(entry, isAdded, isRelational);
+            ApplyUpstreamFingerprint(entry);
 
             // Update timestamps are stamped on insert and on real modifications only. An
             // unchanged tracked row is left alone rather than rewritten on every save, and a row
@@ -2643,6 +2644,21 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
     }
 
     /// <summary>
+    /// Writes the fingerprint <see cref="UpstreamFingerprintScope"/> names for a tracked row. It goes
+    /// through the change tracker, so a row the write otherwise left unchanged still gets it.
+    /// </summary>
+    private static void ApplyUpstreamFingerprint(EntityEntry entry)
+    {
+        if (entry.State is EntityState.Deleted or EntityState.Detached
+            || entry.Entity is not IUpstreamFingerprinted { LegacyId: { } legacyId } row
+            || !UpstreamFingerprintScope.TryGet(row.DataSource, legacyId, out var fingerprint)
+            || row.UpstreamFingerprint == fingerprint)
+            return;
+
+        entry.Property(nameof(IUpstreamFingerprinted.UpstreamFingerprint)).CurrentValue = fingerprint;
+    }
+
+    /// <summary>
     /// Writes a timestamp through the change tracker, which is how a modified row's stamp reaches
     /// the UPDATE now that <see cref="DetectChangesOnceForSave"/> has turned auto-detection off.
     /// Only the modify path needs it: an added row is inserted from its CLR values whatever the
@@ -2653,14 +2669,17 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
     /// <summary>
     /// True if the entry has a modified property other than the update-timestamp bookkeeping
-    /// columns managed by <see cref="UpdateTimestamps"/>.
+    /// columns managed by <see cref="UpdateTimestamps"/>. An upstream fingerprint is bookkeeping
+    /// too: v3 history clients page on the update stamp, and a fingerprint-only write must not send
+    /// them every row again.
     /// </summary>
     private static bool HasNonTimestampModification(EntityEntry entry)
         => entry.State == EntityState.Modified
             && entry.Properties.Any(p =>
                 p.IsModified
                 && p.Metadata.Name != nameof(ISystemTimestamped.SysUpdatedAt)
-                && p.Metadata.Name != nameof(IEntityTimestamped.UpdatedAt));
+                && p.Metadata.Name != nameof(IEntityTimestamped.UpdatedAt)
+                && p.Metadata.Name != nameof(IUpstreamFingerprinted.UpstreamFingerprint));
 
     /// <summary>
     /// Enforces tenant ownership on a tracked entity: stamps the resolved tenant on new

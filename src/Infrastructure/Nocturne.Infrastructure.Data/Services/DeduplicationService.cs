@@ -614,43 +614,67 @@ public class DeduplicationService : IDeduplicationService
         //    displays would depend on which connector synced first. Scoped to wide joins: the tight
         //    path's sticky primary is long-standing behaviour.
         if (wideJoinedCanonicals.Count > 0)
-        {
-            var joined = wideJoinedCanonicals.ToList();
-            var rows = await _context.LinkedRecords
-                .Where(lr => lr.RecordType == recordTypeStr && joined.Contains(lr.CanonicalId))
-                .ToListAsync(ct);
-
-            var rowInfo = await LoadRecordInfoAsync(recordType, rows.Select(r => r.RecordId).ToHashSet(), ct);
-
-            var repointed = false;
-            foreach (var group in rows.GroupBy(r => r.CanonicalId))
-            {
-                var survivor = PickSurvivor(group, rowInfo);
-
-                // A group with no primary at all renders as nothing, so repair it while the
-                // survivor is already in hand.
-                var currentPrimary = group.FirstOrDefault(r => r.IsPrimary);
-                if (ReferenceEquals(survivor, currentPrimary))
-                    continue;
-
-                if (currentPrimary is not null)
-                    currentPrimary.IsPrimary = false;
-                survivor.IsPrimary = true;
-                repointed = true;
-            }
-
-            if (repointed)
-            {
-                await _context.SaveChangesAsync(ct);
-                _context.ChangeTracker.Clear();
-            }
-        }
+            await RepickPrimariesAsync(recordType, wideJoinedCanonicals.ToArray(), ct);
 
         return new DeduplicationBatchResult(
             Processed: records.Count,
             GroupsCreated: groupsCreated,
             RecordsLinked: newLinks.Count,
             DuplicateGroups: duplicateGroups);
+    }
+
+    /// <inheritdoc />
+    public async Task RepointPrimariesAwayFromAsync(
+        RecordType recordType, IReadOnlyCollection<Guid> recordIds, CancellationToken ct = default)
+    {
+        if (recordIds.Count == 0)
+            return;
+
+        var recordTypeStr = RecordTypeKeys.Key(recordType);
+        var ids = recordIds.ToArray();
+        var canonicals = await _context.LinkedRecords
+            .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary && ids.Contains(lr.RecordId))
+            .Select(lr => lr.CanonicalId)
+            .Distinct()
+            .ToArrayAsync(ct);
+
+        if (canonicals.Length > 0)
+            await RepickPrimariesAsync(recordType, canonicals, ct);
+    }
+
+    /// <summary>
+    /// Moves each group's <see cref="LinkedRecordEntity.IsPrimary"/> onto its
+    /// <see cref="PickSurvivor"/>. A group with no primary at all renders as nothing, so it is
+    /// given one here too.
+    /// </summary>
+    private async Task RepickPrimariesAsync(RecordType recordType, Guid[] canonicalIds, CancellationToken ct)
+    {
+        var recordTypeStr = RecordTypeKeys.Key(recordType);
+        var rows = await _context.LinkedRecords
+            .Where(lr => lr.RecordType == recordTypeStr && canonicalIds.Contains(lr.CanonicalId))
+            .ToListAsync(ct);
+
+        var rowInfo = await LoadRecordInfoAsync(recordType, rows.Select(r => r.RecordId).ToHashSet(), ct);
+
+        var repointed = false;
+        foreach (var group in rows.GroupBy(r => r.CanonicalId))
+        {
+            var survivor = PickSurvivor(group, rowInfo);
+            var currentPrimary = group.FirstOrDefault(r => r.IsPrimary);
+            if (ReferenceEquals(survivor, currentPrimary))
+                continue;
+
+            if (currentPrimary is not null)
+                currentPrimary.IsPrimary = false;
+            survivor.IsPrimary = true;
+            repointed = true;
+        }
+
+        if (repointed)
+        {
+            await _context.SaveChangesAsync(ct);
+            _context.ChangeTracker.Clear();
+        }
     }
 
     /// <summary>
