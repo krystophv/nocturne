@@ -130,6 +130,10 @@
         in your <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">daemon.json</code>.
         To keep yours, set <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">logging</code>
         on the services in a <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker-compose.override.yaml</code>.
+        Compose reads that file only when you pass no <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f</code>
+        (<a href="https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/" class="text-primary hover:underline">Docker docs</a>),
+        so with the bring-your-own-proxy command, also pass
+        <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f docker-compose.override.yaml</code>.
     </p>
 
     <h2 class="text-2xl font-bold mt-8 mb-4">Troubleshooting</h2>
