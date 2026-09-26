@@ -264,8 +264,11 @@
         displayValue: toDisplayUnit(point.estimatedA1cPercent),
       });
     }
-    // Lab-only rows may interpolate the curve only within the glucose estimate coverage.
-    // Keep measured lab values in the standalone marker layer.
+    // A lab-only date gets a synthetic row with the interpolated estimate solely to give the tooltip
+    // a hover target there. `extremes` and `yDomain` read `chartData`, so the summaries never see
+    // these rows, and lab draws stay out of the calculation (see `labChartPoints`). Declaring lab
+    // draws as a second series instead would be wrong: LineChart renders a Spline per visible
+    // series and would join the lab points with a line.
     for (const labPoint of labChartPoints) {
       if (!rows.has(labPoint.date.getTime())) {
         const displayValue = displayValueForChartDate(labPoint.date);
