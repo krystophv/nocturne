@@ -332,6 +332,8 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
     public DbSet<AlertExcursionEntity> AlertExcursions { get; set; }
 
+    public DbSet<AlertExcursionMuteEntity> AlertExcursionMutes { get; set; }
+
     public DbSet<AlertInstanceEntity> AlertInstances { get; set; }
 
     public DbSet<AlertDeliveryEntity> AlertDeliveries { get; set; }
@@ -564,6 +566,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         [
             typeof(AlertCustomSoundEntity),
             typeof(AlertDeliveryEntity),
+            typeof(AlertExcursionMuteEntity),
             typeof(AlertInviteEntity),
             typeof(AlertRuleChannelEntity),
             typeof(AlertRuleEntity),
@@ -2413,6 +2416,24 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
                 .WithMany()
                 .HasForeignKey(e => e.AlertRuleId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AlertExcursionMuteEntity>(entity =>
+        {
+            entity.HasOne(e => e.AlertExcursion)
+                .WithMany()
+                .HasForeignKey(e => e.AlertExcursionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Subject)
+                .WithMany()
+                .HasForeignKey(e => e.SubjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.TenantId, e.SubjectId, e.AlertExcursionId })
+                .IsUnique()
+                .HasDatabaseName("ix_alert_excursion_mutes_tenant_subject_excursion");
+            entity.HasIndex(e => e.AlertExcursionId);
         });
 
         modelBuilder.Entity<AlertInstanceEntity>(entity =>

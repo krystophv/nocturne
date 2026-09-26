@@ -1,5 +1,7 @@
 <script lang="ts">
   import { isoNow } from "$lib/utils/now";
+  import { page } from "$app/state";
+  import { satisfiesScope } from "$lib/authorization/scopes";
   import {
     getActiveAlerts,
     snoozeInstance,
@@ -43,6 +45,11 @@
 
   const activeAlerts = getActiveAlerts();
 
+  // Without alerts.readwrite the server mutes the alert for this member only.
+  const acknowledgesForEveryone = $derived(
+    satisfiesScope(page.data.effectivePermissions ?? [], "alerts.readwrite")
+  );
+
   // The layout drives one shared poll of this query; react to whatever it
   // returns rather than running a second timer at a different cadence.
   $effect(() => {
@@ -50,17 +57,17 @@
     const fresh: ActiveExcursionResponse[] = [];
     for (const a of list) {
       const id = a.id ?? "";
-      if (!id || seen.has(id) || a.acknowledgedAt) continue;
+      if (!id || seen.has(id) || a.acknowledgedAt || a.mutedByCaller) continue;
       seen.add(id);
       fresh.push(a);
     }
     if (fresh.length > 0) queue = [...fresh, ...queue];
-    // Remove toasts that were acknowledged elsewhere (other tab, banner, etc.).
-    // Assign only when a card actually drops: this effect reads `queue`, and
-    // `filter` returns a new array even when nothing matched, so an
-    // unconditional write re-dirties the effect's own dependency and loops.
+    // Remove toasts that were acknowledged or muted elsewhere (other tab,
+    // banner, etc.). Assign only when a card actually drops: this effect reads
+    // `queue`, and `filter` returns a new array even when nothing matched, so
+    // an unconditional write re-dirties the effect's own dependency and loops.
     const ackedIds = new Set(
-      list.filter((a) => a.acknowledgedAt).map((a) => a.id)
+      list.filter((a) => a.acknowledgedAt || a.mutedByCaller).map((a) => a.id)
     );
     if (ackedIds.size > 0) {
       const remaining = queue.filter((a) => !ackedIds.has(a.id));
@@ -105,7 +112,11 @@
       }).updates(
         activeAlerts.withOverride((current) =>
           (current ?? []).map((a) =>
-            a.id === id ? { ...a, acknowledgedAt: isoNow() } : a
+            a.id !== id
+              ? a
+              : acknowledgesForEveryone
+                ? { ...a, acknowledgedAt: isoNow() }
+                : { ...a, mutedByCaller: true }
           )
         )
       )
@@ -193,7 +204,11 @@
                 class="ml-auto"
                 onclick={() => ack(a.id ?? "")}
               >
-                Acknowledge
+                {#if acknowledgesForEveryone}
+                  Acknowledge
+                {:else}
+                  Mute for me
+                {/if}
               </Button>
               {#if a.alertRuleId}
                 <Button
