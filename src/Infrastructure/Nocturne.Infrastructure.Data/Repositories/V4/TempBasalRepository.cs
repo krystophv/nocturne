@@ -333,80 +333,71 @@ public class TempBasalRepository : ITempBasalRepository
     )
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        var written = await strategy.ExecuteAsync(async () =>
-        {
-            await using var tx = await ctx.Database.BeginTransactionAsync(ct);
-            var entities = records.Select(TempBasalMapper.ToEntity).ToList();
-            if (entities.Count == 0)
+        var (entities, skippedDeleted) = await ctx.ExecuteInTransactionAsync(
+            async token =>
             {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TempBasal>([], 0);
-            }
+                var entities = records.Select(TempBasalMapper.ToEntity).ToList();
 
-            // Batch-level dedup: keep first occurrence per LegacyId
-            entities = entities
-                .GroupBy(e => e.LegacyId ?? e.Id.ToString())
-                .Select(g => g.First())
-                .ToList();
-
-            // DB-level dedup: filter out records whose LegacyId already exists
-            var legacyIds = entities
-                .Where(e => !string.IsNullOrEmpty(e.LegacyId))
-                .Select(e => e.LegacyId!)
-                .ToHashSet();
-
-            var skippedDeleted = 0;
-            if (legacyIds.Count > 0)
-            {
-                var blocked = await ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, ct);
-
-                skippedDeleted = entities.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
+                // Batch-level dedup: keep first occurrence per LegacyId
                 entities = entities
-                    .Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId))
+                    .GroupBy(e => e.LegacyId ?? e.Id.ToString())
+                    .Select(g => g.First())
                     .ToList();
-            }
 
-            if (entities.Count == 0)
-            {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TempBasal>([], skippedDeleted);
-            }
+                // DB-level dedup: filter out records whose LegacyId already exists
+                var legacyIds = entities
+                    .Where(e => !string.IsNullOrEmpty(e.LegacyId))
+                    .Select(e => e.LegacyId!)
+                    .ToHashSet();
 
-            const int batchSize = 500;
-            foreach (var batch in entities.Chunk(batchSize))
-            {
-                ctx.TempBasals.AddRange(batch);
-                await ctx.SaveChangesAsync(ct);
-                ctx.ChangeTracker.Clear();
-            }
+                var skippedDeleted = 0;
+                if (legacyIds.Count > 0)
+                {
+                    var blocked = await ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, token);
 
-            await tx.CommitAsync(ct);
+                    skippedDeleted = entities.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
+                    entities = entities
+                        .Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId))
+                        .ToList();
+                }
 
-            // Cross-connector deduplication: link saved records to canonical groups
-            try
-            {
-                var dedupInputs = entities.Select(e => new DeduplicationInput(
-                    RecordId: e.Id,
-                    Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
-                    DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
-                    Criteria: MatchCriteriaMapper.From(e)
-                )).ToList();
+                const int batchSize = 500;
+                foreach (var batch in entities.Chunk(batchSize))
+                {
+                    ctx.TempBasals.AddRange(batch);
+                    await ctx.SaveChangesAsync(token);
+                    ctx.ChangeTracker.Clear();
+                }
 
-                await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", entities.Count);
-            }
+                return (entities, skippedDeleted);
+            },
+            (attempt, token) => ctx.AnyLandedAsync(attempt.entities, token),
+            ct: ct);
 
-            var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
-            await RaiseBroadcastAsync(created, [], [], origin, ct);
-            return new BulkWrite<TempBasal>(created, skippedDeleted);
-        });
+        _logger.LogSkippedDeleted(nameof(TempBasal), skippedDeleted);
+        if (entities.Count == 0)
+            return new BulkWrite<TempBasal>([], skippedDeleted);
 
-        _logger.LogSkippedDeleted(nameof(TempBasal), written.SkippedDeleted);
-        return written;
+        // Cross-connector deduplication: link saved records to canonical groups
+        try
+        {
+            var dedupInputs = entities.Select(e => new DeduplicationInput(
+                RecordId: e.Id,
+                Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+                DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
+                Criteria: MatchCriteriaMapper.From(e)
+            )).ToList();
+
+            await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", entities.Count);
+        }
+
+        var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
+        await RaiseBroadcastAsync(created, [], [], origin, ct);
+        return new BulkWrite<TempBasal>(created, skippedDeleted);
     }
 
     /// <inheritdoc />

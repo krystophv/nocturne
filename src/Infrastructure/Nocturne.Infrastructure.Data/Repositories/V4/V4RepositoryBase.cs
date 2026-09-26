@@ -560,54 +560,53 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         var records = recordsParam.ToList();
         if (records.Count == 0) return [];
         await using var ctx = await ContextFactory.CreateAsync(ct);
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        var written = await strategy.ExecuteAsync(async () =>
+        var written = await ctx.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var entities = records.Select(ToEntity).ToList();
+
+                var split = await SplitUpsertsAsync(ctx, entities, token);
+                var toInsert = split.ToInsert;
+
+                // Batch-level LegacyId dedup
+                toInsert = toInsert.GroupBy(e => e.LegacyId ?? e.Id.ToString()).Select(g => g.First()).ToList();
+                var legacyIds = toInsert.Where(e => !string.IsNullOrEmpty(e.LegacyId)).Select(e => e.LegacyId!).ToHashSet();
+                var skippedDeleted = split.SkippedDeleted;
+                if (legacyIds.Count > 0)
+                {
+                    var blocked = await ctx.GetBlockingLegacyIdsAsync<TEntity>(legacyIds, token);
+                    skippedDeleted += toInsert.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
+                    toInsert = toInsert.Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId)).ToList();
+                }
+
+                const int batchSize = 500;
+                foreach (var batch in toInsert.Chunk(batchSize))
+                {
+                    ctx.Set<TEntity>().AddRange(batch);
+                    await ctx.SaveChangesAsync(token);
+                    ctx.ChangeTracker.Clear();
+                }
+
+                return (split, toInsert, skippedDeleted);
+            },
+            (attempt, token) => ctx.AnyLandedAsync(attempt.toInsert, token),
+            ct: ct);
+
+        var (split, inserted, skippedDeleted) = written;
+        if (inserted.Count > 0 || split.UpdatedInPlace.Count > 0)
         {
-            await using var tx = await ctx.Database.BeginTransactionAsync(ct);
-            var entities = records.Select(ToEntity).ToList();
-
-            var split = await SplitUpsertsAsync(ctx, entities, ct);
-            var toInsert = split.ToInsert;
-
-            // Batch-level LegacyId dedup
-            toInsert = toInsert.GroupBy(e => e.LegacyId ?? e.Id.ToString()).Select(g => g.First()).ToList();
-            var legacyIds = toInsert.Where(e => !string.IsNullOrEmpty(e.LegacyId)).Select(e => e.LegacyId!).ToHashSet();
-            var skippedDeleted = split.SkippedDeleted;
-            if (legacyIds.Count > 0)
-            {
-                var blocked = await ctx.GetBlockingLegacyIdsAsync<TEntity>(legacyIds, ct);
-                skippedDeleted += toInsert.Count(e => e.LegacyId is { } id && blocked.DeletedByUser.Contains(id));
-                toInsert = toInsert.Where(e => string.IsNullOrEmpty(e.LegacyId) || !blocked.Held.Contains(e.LegacyId)).ToList();
-            }
-
-            if (toInsert.Count == 0 && split.UpdatedInPlace.Count == 0)
-            {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TModel>([], skippedDeleted);
-            }
-
-            const int batchSize = 500;
-            foreach (var batch in toInsert.Chunk(batchSize))
-            {
-                ctx.Set<TEntity>().AddRange(batch);
-                await ctx.SaveChangesAsync(ct);
-                ctx.ChangeTracker.Clear();
-            }
-
-            await tx.CommitAsync(ct);
-            await PostCommitDedupAsync(ctx, toInsert, origin, ct);
+            await PostCommitDedupAsync(ctx, inserted, origin, ct);
             // Inserts broadcast as create; upserts broadcast as update only when materially changed
             // (a connector re-poll of byte-identical rows changes nothing, so it stays silent).
             await RaiseBroadcastAsync(
-                toInsert.Select(ToDomain).ToList(),
+                inserted.Select(ToDomain).ToList(),
                 split.MateriallyChanged.Select(ToDomain).ToList(),
                 [],
                 origin, ct);
-            return new BulkWrite<TModel>(
-                split.UpdatedInPlace.Concat(toInsert).Select(ToDomain).ToList(), skippedDeleted);
-        });
+        }
 
-        Logger.LogSkippedDeleted(typeof(TModel).Name, written.SkippedDeleted);
-        return written;
+        Logger.LogSkippedDeleted(typeof(TModel).Name, skippedDeleted);
+        return new BulkWrite<TModel>(
+            split.UpdatedInPlace.Concat(inserted).Select(ToDomain).ToList(), skippedDeleted);
     }
 }
