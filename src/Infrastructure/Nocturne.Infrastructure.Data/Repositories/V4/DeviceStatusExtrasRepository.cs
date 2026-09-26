@@ -100,39 +100,14 @@ public class DeviceStatusExtrasRepository : IDeviceStatusExtrasRepository
         if (entities.Count == 0)
             return [];
 
-        // Batch-level dedup: keep first occurrence per CorrelationId
-        entities = entities
-            .GroupBy(e => e.CorrelationId)
-            .Select(g => g.First())
-            .ToList();
-
-        // DB-level dedup: filter out records whose CorrelationId already exists
-        var correlationIds = entities
-            .Select(e => e.CorrelationId)
-            .ToHashSet();
-
         await using var ctx = await _contextFactory.CreateAsync(ct);
         var written = await ctx.ExecuteInTransactionAsync(async token =>
         {
-            var toInsert = entities;
-            var skippedDeleted = 0;
-            if (correlationIds.Count > 0)
-            {
-                var blocked = await ctx.GetBlockingCorrelationIdsAsync(correlationIds, token);
-
-                skippedDeleted = toInsert.Count(e => blocked.DeletedByUser.Contains(e.CorrelationId));
-                toInsert = toInsert
-                    .Where(e => !blocked.Held.Contains(e.CorrelationId))
-                    .ToList();
-            }
-
-            const int batchSize = 500;
-            foreach (var batch in toInsert.Chunk(batchSize))
-            {
-                ctx.DeviceStatusExtras.AddRange(batch);
-                await ctx.SaveChangesAsync(token);
-                ctx.ChangeTracker.Clear();
-            }
+            var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
+                entities,
+                e => e.CorrelationId,
+                (correlationIds, t) => ctx.GetBlockingCorrelationIdsAsync(correlationIds, t),
+                token);
 
             return new BulkWrite<DeviceStatusExtras>(
                 toInsert.Select(DeviceStatusExtrasMapper.ToDomainModel).ToList(), skippedDeleted);

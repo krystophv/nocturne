@@ -67,18 +67,19 @@ jobs:
             exit 1
           fi
 
+      # A solution of just the unit test projects, built from the directory so a new one cannot
+      # be left out, and so nocturne.sln's Windows-only projects (Desktop, Widgets) never build.
+      # One solution means one restore, a parallel build, and the assemblies tested concurrently.
       - name: Test
         run: |
-          # Build per-project to avoid Windows-only projects (Desktop, Widgets)
-          for proj in tests/Unit/*/; do
-            csproj=$(find "$proj" -maxdepth 1 -name "*.csproj" | head -1)
-            [ -z "$csproj" ] && continue
-            dotnet test "$csproj" \
-              --filter "Category!=Integration&Category!=E2E" \
-              --logger "trx;LogFileName=unit.trx" \
-              -p:GenerateNSwagClient=false \
-              || exit 1
-          done
+          set -euo pipefail
+          sln="$RUNNER_TEMP/unit/unit.slnx"
+          dotnet new sln -n unit -o "$RUNNER_TEMP/unit" --format slnx
+          dotnet sln "$sln" add tests/Unit/*/*.csproj
+          dotnet test "$sln" \
+            --filter "Category!=Integration&Category!=E2E" \
+            --logger "trx;LogFileName=unit.trx" \
+            -p:GenerateNSwagClient=false
       - uses: actions/upload-artifact@v6
         if: failure()
         with:
@@ -229,6 +230,8 @@ jobs:
       # E2E suite that would is opt-in, so this is the only gate on it.
       - name: App server-rendering tests
         run: pnpm --filter @nocturne/app run test:render
+      - name: App production translation tests
+        run: pnpm --filter @nocturne/app exec vitest --config vitest.config.ts --run tools/ehba1c-translations.test.js
       # The portal's `check` needs the generated client, but its vitest suites do not.
       - name: Portal unit tests
         run: pnpm --filter @nocturne/portal run test
@@ -320,6 +323,13 @@ jobs:
           dotnet test tests/Integration/Nocturne.Infrastructure.Data.Tests/Nocturne.Infrastructure.Data.Tests.csproj \
             --filter "Category!=E2E" \
             --logger "trx;LogFileName=integration-db.trx" \
+            -p:GenerateNSwagClient=false \
+            || exit 1
+      - name: Integration tests (API unit project, real Postgres)
+        run: |
+          dotnet test tests/Unit/Nocturne.API.Tests/Nocturne.API.Tests.csproj \
+            --filter "Category=Integration" \
+            --logger "trx;LogFileName=integration-api.trx" \
             -p:GenerateNSwagClient=false \
             || exit 1
       - uses: actions/upload-artifact@v6
