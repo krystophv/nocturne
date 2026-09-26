@@ -10,8 +10,12 @@ namespace Nocturne.Infrastructure.Data.Entities.V4;
 /// Maps to Nocturne.Core.Models.V4.Note
 /// </summary>
 [Table("notes")]
-public class NoteEntity : V4TimeSeriesEntityBase, ISyncDedupable
+public class NoteEntity : V4TimeSeriesEntityBase, ISyncDedupable, IUpstreamFingerprinted
 {
+    /// <inheritdoc />
+    [Column("upstream_fingerprint")]
+    public string? UpstreamFingerprint { get; set; }
+
     /// <summary>
     /// Note text content
     /// </summary>

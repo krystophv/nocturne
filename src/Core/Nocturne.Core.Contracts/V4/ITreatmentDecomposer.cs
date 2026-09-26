@@ -63,19 +63,9 @@ public interface ITreatmentDecomposer
     Task<IReadOnlyDictionary<string, DateTime>> GetLegacyIdsFromSourceAsync(
         string source, DateTime from, DateTime to, CancellationToken ct = default);
 
-    /// <summary>
-    /// Of treatments <paramref name="source"/> delivered again, the ones to decompose again, each
-    /// with the fingerprint to stamp once it is written.
-    /// </summary>
-    Task<IReadOnlyList<(Treatment Treatment, string Fingerprint)>> SelectForRepublishAsync(
+    /// <summary>Of treatments <paramref name="source"/> delivered again, the ones to decompose again.</summary>
+    Task<IReadOnlyList<Treatment>> SelectForRepublishAsync(
         string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default);
-
-    /// <summary>
-    /// Records, on <paramref name="source"/>'s rows under each legacy id, the fingerprint of the
-    /// upstream document they were written from.
-    /// </summary>
-    Task StampUpstreamFingerprintsAsync(
-        string source, IReadOnlyDictionary<string, string> fingerprints, CancellationToken ct = default);
 
     /// <summary>
     /// Bulk-deletes V4 treatment records matching the optional find filter (time range).

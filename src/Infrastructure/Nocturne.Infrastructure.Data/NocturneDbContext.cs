@@ -2611,6 +2611,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
             EnforceTenantOwnership(entry, isAdded);
             StripNulCharacters(entry, isAdded, isRelational);
+            ApplyUpstreamFingerprint(entry);
 
             // Update timestamps are stamped on insert and on real modifications only. An
             // unchanged tracked row is left alone rather than rewritten on every save, and a row
@@ -2640,6 +2641,21 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
             ApplyEntitySpecificTimestamps(entry, isAdded, stampUpdated, utcNow);
         }
+    }
+
+    /// <summary>
+    /// Writes the fingerprint <see cref="UpstreamFingerprintScope"/> names for a tracked row. It goes
+    /// through the change tracker, so a row the write otherwise left unchanged still gets it.
+    /// </summary>
+    private static void ApplyUpstreamFingerprint(EntityEntry entry)
+    {
+        if (entry.State is EntityState.Deleted or EntityState.Detached
+            || entry.Entity is not IUpstreamFingerprinted { LegacyId: { } legacyId } row
+            || !UpstreamFingerprintScope.TryGet(legacyId, out var fingerprint)
+            || row.UpstreamFingerprint == fingerprint)
+            return;
+
+        entry.Property(nameof(IUpstreamFingerprinted.UpstreamFingerprint)).CurrentValue = fingerprint;
     }
 
     /// <summary>

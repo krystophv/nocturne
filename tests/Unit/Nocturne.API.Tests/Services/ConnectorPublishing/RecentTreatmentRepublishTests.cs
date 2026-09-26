@@ -40,6 +40,7 @@ public class RecentTreatmentRepublishTests : IDisposable
     private readonly NocturneDbContext _context;
     private readonly PublishSkipTally _tally = new();
     private readonly TreatmentPublisher _publisher;
+    private CarbIntakeRepository _carbIntakes = null!;
 
     public RecentTreatmentRepublishTests()
     {
@@ -56,10 +57,21 @@ public class RecentTreatmentRepublishTests : IDisposable
     }
 
     [Fact]
+    public async Task An_in_place_edit_after_the_crawl_imported_the_record_is_applied()
+    {
+        await CrawlAsync(35);
+
+        var written = await PublishAsync(50);
+
+        written.Should().Be(1, "the crawl stamped what it wrote, so the source's edit shows as a change");
+        (await StoredCarbsAsync()).Should().Be(50);
+    }
+
+    [Fact]
     public async Task An_edit_made_in_nocturne_survives_repeated_syncs()
     {
-        await PublishAsync(35);
-        await SetStoredCarbsAsync(40);
+        await CrawlAsync(35);
+        await EditInNocturneAsync(40);
 
         await PublishAsync(35);
         await PublishAsync(35);
@@ -68,10 +80,24 @@ public class RecentTreatmentRepublishTests : IDisposable
     }
 
     [Fact]
+    public async Task The_fingerprint_never_reaches_a_record_nocturne_serves()
+    {
+        await CrawlAsync(35);
+        var fingerprint = TreatmentDecomposer.UpstreamFingerprint(Treatment(35));
+
+        var stored = await _context.CarbIntakes.AsNoTracking().SingleAsync(c => c.LegacyId == "t-1");
+        stored.UpstreamFingerprint.Should().Be(fingerprint);
+
+        // The record v4 reads, the MCP tools and the v4 broadcasts all serve.
+        var served = await _carbIntakes.GetByLegacyIdAsync("t-1");
+        System.Text.Json.JsonSerializer.Serialize(served).Should().NotContain(fingerprint);
+    }
+
+    [Fact]
     public async Task An_edit_made_at_the_source_is_applied()
     {
-        await PublishAsync(35);
-        await SetStoredCarbsAsync(40);
+        await CrawlAsync(35);
+        await EditInNocturneAsync(40);
 
         var written = await PublishAsync(50);
 
@@ -116,21 +142,24 @@ public class RecentTreatmentRepublishTests : IDisposable
         _context.CarbIntakes.Should().BeEmpty();
     }
 
-    private Task<int?> PublishAsync(double carbs) =>
-        _publisher.PublishRecentTreatmentsAsync(
-            [new Treatment
-            {
-                Id = "t-1", EventType = "Carb Correction", Carbs = carbs,
-                Created_at = "2026-03-01T12:00:00.000Z", DataSource = Source,
-            }],
-            Source, WriteOrigin.Live);
-
-    private async Task SetStoredCarbsAsync(double carbs)
+    private static Treatment Treatment(double carbs) => new()
     {
-        await _context.CarbIntakes.Where(c => c.LegacyId == "t-1")
-            .ForEachAsync(c => c.Carbs = carbs);
-        await _context.SaveChangesAsync();
-        _context.ChangeTracker.Clear();
+        Id = "t-1", EventType = "Carb Correction", Carbs = carbs,
+        Created_at = "2026-03-01T12:00:00.000Z", DataSource = Source,
+    };
+
+    private Task<bool> CrawlAsync(double carbs) =>
+        _publisher.PublishTreatmentsAsync([Treatment(carbs)], Source, WriteOrigin.Live);
+
+    private Task<int?> PublishAsync(double carbs) =>
+        _publisher.PublishRecentTreatmentsAsync([Treatment(carbs)], Source, WriteOrigin.Live);
+
+    /// <summary>The v4 update an edit in the app goes through.</summary>
+    private async Task EditInNocturneAsync(double carbs)
+    {
+        var stored = await _carbIntakes.GetByLegacyIdAsync("t-1");
+        stored!.Carbs = carbs;
+        await _carbIntakes.UpdateAsync(stored.Id, stored, WriteOrigin.Live);
     }
 
     private Task<double> StoredCarbsAsync() =>
@@ -142,7 +171,7 @@ public class RecentTreatmentRepublishTests : IDisposable
         var audit = Mock.Of<IAuditContext>();
         var dedup = Mock.Of<IDeduplicationService>();
         var bolus = new BolusRepository(ctxFactory, dedup, audit, NullLogger<BolusRepository>.Instance);
-        var carbs = new CarbIntakeRepository(ctxFactory, dedup, audit, NullLogger<CarbIntakeRepository>.Instance);
+        var carbs = _carbIntakes = new CarbIntakeRepository(ctxFactory, dedup, audit, NullLogger<CarbIntakeRepository>.Instance);
         var bgChecks = new BGCheckRepository(ctxFactory, dedup, audit, NullLogger<BGCheckRepository>.Instance);
         var notes = new NoteRepository(ctxFactory, dedup, audit, NullLogger<NoteRepository>.Instance);
         var deviceEvents = new DeviceEventRepository(ctxFactory, dedup, audit, NullLogger<DeviceEventRepository>.Instance);

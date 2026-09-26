@@ -161,7 +161,7 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
 
         var selected = await _decomposer.SelectForRepublishAsync(Connector, [Upstream("new", 20), Upstream("swept", 20)]);
 
-        selected.Select(s => s.Treatment.Id).Should().BeEquivalentTo(["new", "swept"]);
+        selected.Select(t => t.Id).Should().BeEquivalentTo(["new", "swept"]);
     }
 
     [Fact]
@@ -204,22 +204,49 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
         await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 35)]);
 
         (await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 35)])).Should().BeEmpty();
-        (await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 50)]))
-            .Should().ContainSingle().Which.Fingerprint.Should().Be(TreatmentDecomposer.UpstreamFingerprint(Upstream("t-1", 50)));
+        (await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 50)])).Should().ContainSingle();
     }
 
     [Fact]
-    public async Task Stamping_keeps_the_rows_other_properties()
+    public async Task A_row_left_on_an_old_fingerprint_marks_the_treatment_changed()
     {
-        var row = await AddCarbAsync("t-1", Connector);
-        await _context.CarbIntakes.Where(c => c.Id == row)
-            .ExecuteUpdateAsync(u => u.SetProperty(c => c.AdditionalPropertiesJson, """{"app":"trio"}"""));
+        // A meal bolus decomposes into a bolus and a carb row. The carb carries the current
+        // fingerprint, the bolus an older one: the treatment has not been fully written as it now is.
+        var current = TreatmentDecomposer.UpstreamFingerprint(Upstream("t-1", 35));
+        await AddCarbAsync("t-1", Connector, fingerprint: current);
+        var bolus = await AddBolusAsync("t-1", Connector);
+        await _context.Boluses.Where(b => b.Id == bolus)
+            .ExecuteUpdateAsync(u => u.SetProperty(b => b.UpstreamFingerprint, "an-older-fingerprint"));
 
-        await _decomposer.StampUpstreamFingerprintsAsync(Connector, new Dictionary<string, string> { ["t-1"] = "fp" });
+        var selected = await _decomposer.SelectForRepublishAsync(Connector, [Upstream("t-1", 35)]);
 
-        var json = await _context.CarbIntakes.AsNoTracking().Where(c => c.Id == row)
-            .Select(c => c.AdditionalPropertiesJson).SingleAsync();
-        json.Should().Contain("\"app\":\"trio\"").And.Contain("\"fp\"");
+        selected.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_treatment_decomposed_outside_a_connector_publish_loses_its_fingerprint()
+    {
+        var row = await AddCarbAsync("t-1", Connector, fingerprint: "a-connector-fingerprint");
+
+        _context.ChangeTracker.Clear();
+        var tracked = await _context.CarbIntakes.SingleAsync(c => c.Id == row);
+        tracked.Carbs = 40;
+        using (UpstreamFingerprintScope.Open(new Dictionary<string, string?> { ["t-1"] = null }))
+            await _context.SaveChangesAsync();
+
+        (await FingerprintOfAsync(row)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_write_outside_any_scope_keeps_the_fingerprint()
+    {
+        var row = await AddCarbAsync("t-1", Connector, fingerprint: "a-connector-fingerprint");
+
+        _context.ChangeTracker.Clear();
+        (await _context.CarbIntakes.SingleAsync(c => c.Id == row)).Carbs = 40;
+        await _context.SaveChangesAsync();
+
+        (await FingerprintOfAsync(row)).Should().Be("a-connector-fingerprint");
     }
 
     [Theory]
@@ -248,22 +275,16 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
         Created_at = "2026-03-01T12:00:00.000Z", DataSource = Connector,
     };
 
-    private async Task<string?> FingerprintOfAsync(Guid id)
-    {
-        var json = await _context.CarbIntakes.AsNoTracking().Where(c => c.Id == id)
-            .Select(c => c.AdditionalPropertiesJson).SingleAsync();
-        return json is null
-            ? null
-            : System.Text.Json.Nodes.JsonNode.Parse(json)?[TreatmentDecomposer.UpstreamFingerprintKey]?.GetValue<string>();
-    }
+    private Task<string?> FingerprintOfAsync(Guid id) =>
+        _context.CarbIntakes.AsNoTracking().Where(c => c.Id == id).Select(c => c.UpstreamFingerprint).SingleAsync();
 
-    private async Task<Guid> AddCarbAsync(string legacyId, string source, DateTime? at = null)
+    private async Task<Guid> AddCarbAsync(string legacyId, string source, DateTime? at = null, string? fingerprint = null)
     {
         var id = Guid.CreateVersion7();
         _context.CarbIntakes.Add(new CarbIntakeEntity
         {
             Id = id, TenantId = TenantId, LegacyId = legacyId, DataSource = source,
-            Carbs = 20, Timestamp = at ?? At,
+            Carbs = 20, Timestamp = at ?? At, UpstreamFingerprint = fingerprint,
         });
         await _context.SaveChangesAsync();
         return id;

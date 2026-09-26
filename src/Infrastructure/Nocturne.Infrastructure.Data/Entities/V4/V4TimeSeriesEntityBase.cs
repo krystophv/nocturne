@@ -22,8 +22,7 @@ public abstract class V4TimeSeriesEntityBase
         IAuditable,
         ISoftDeletable,
         IV4TimeSeriesEntity,
-        ISystemTimestamped,
-        IAdditionalPropertiesEntity
+        ISystemTimestamped
 {
     /// <summary>
     /// The unique identifier of the tenant this record belongs to.

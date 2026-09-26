@@ -359,13 +359,13 @@ public class TreatmentPublisherTests
     }
 
     [Fact]
-    public async Task PublishRecentTreatmentsAsync_WritesWhatTheDecomposerSelectsAndStampsIt()
+    public async Task PublishRecentTreatmentsAsync_WritesWhatTheDecomposerSelects()
     {
         var changed = new Treatment { Id = "changed" };
         _mockDecomposer
             .Setup(d => d.SelectForRepublishAsync(
                 "nightscout-connector", It.IsAny<IReadOnlyList<Treatment>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([(changed, "fp-changed")]);
+            .ReturnsAsync([changed]);
         _mockTreatmentService
             .Setup(s => s.CreateTreatmentsAsync(It.IsAny<IEnumerable<Treatment>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new BulkWrite<Treatment>([], 0));
@@ -376,10 +376,6 @@ public class TreatmentPublisherTests
         written.Should().Be(1);
         _mockTreatmentService.Verify(s => s.CreateTreatmentsAsync(
             It.Is<IEnumerable<Treatment>>(ts => ts.Single().Id == "changed"), It.IsAny<CancellationToken>()), Times.Once);
-        _mockDecomposer.Verify(d => d.StampUpstreamFingerprintsAsync(
-            "nightscout-connector",
-            It.Is<IReadOnlyDictionary<string, string>>(f => f.Count == 1 && f["changed"] == "fp-changed"),
-            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

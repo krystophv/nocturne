@@ -238,7 +238,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                     var reconciled = await ReconcileRecentTreatmentsAsync(recent, treatmentFrom!.Value, cancellationToken);
                     outcome = new PagedCrawlOutcome(outcome.Count + reconciled.Count, reconciled.Success);
                     if (reconciled.Success && recent.Full)
-                        await SetBackfillLowWaterMarkAsync(FullReconcileMark, now);
+                        await RecordFullReconcileAsync(now);
                 }
 
                 foreach (var treatmentType in treatmentTypes.Where(activeTypes.Contains))
@@ -675,10 +675,15 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     private static readonly TimeSpan FullReconcileEvery = TimeSpan.FromHours(1);
 
     /// <summary>
-    ///     The connector-metadata key the last full reconcile's time is kept under, beside the
-    ///     collections' backfill marks.
+    ///     The connector-metadata key the last full reconcile's time is kept under. It shares the
+    ///     per-collection timestamp map with the backfill low-water marks, the only durable
+    ///     per-connector timestamp store there is, and no collection is named this.
     /// </summary>
-    private const string FullReconcileMark = "TreatmentsFullReconcile";
+    private const string FullReconcileKey = "TreatmentsFullReconcile";
+
+    private Task<DateTime?> LastFullReconcileAsync() => GetBackfillLowWaterMarkAsync(FullReconcileKey);
+
+    private Task RecordFullReconcileAsync(DateTime at) => SetBackfillLowWaterMarkAsync(FullReconcileKey, at);
 
     /// <summary>
     ///     How much further back than the window the read reaches, and how far either side of a
@@ -727,7 +732,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     /// </summary>
     private async Task<RecentTreatments> RecentTreatmentsForAsync(DateTime crawlFrom, DateTime now)
     {
-        var lastFull = await GetBackfillLowWaterMarkAsync(FullReconcileMark);
+        var lastFull = await LastFullReconcileAsync();
         return lastFull is { } last && last <= now && now - last < FullReconcileEvery
             ? new RecentTreatments(crawlFrom - RecentReconcileWindow, Full: false)
             : new RecentTreatments(now - FullReconcileWindow, Full: true);

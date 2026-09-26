@@ -7,6 +7,7 @@ using Nocturne.Core.Contracts.Treatments;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models;
 using Nocturne.Core.Models.V4;
+using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Infrastructure.Data.Entities.V4;
 using Nocturne.Infrastructure.Data.Services;
 using Nocturne.Core.Contracts.V4;
@@ -79,6 +80,11 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
         _patientDeviceStamper = patientDeviceStamper ?? throw new ArgumentNullException(nameof(patientDeviceStamper));
     }
 
+    /// <remarks>
+    /// Every row written carries the fingerprint of the treatment it came from
+    /// (<see cref="UpstreamFingerprintScope"/>), which <see cref="PublishRecentTreatmentsAsync"/>
+    /// compares against.
+    /// </remarks>
     public async Task<bool> PublishTreatmentsAsync(
         IEnumerable<Treatment> treatments,
         string source,
@@ -86,7 +92,16 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
     {
         try
         {
-            var written = await _treatmentService.CreateTreatmentsAsync(treatments, cancellationToken);
+            var list = treatments.ToList();
+            var fingerprints = new Dictionary<string, string?>();
+            foreach (var treatment in list)
+            {
+                if (treatment.Id is { Length: > 0 } id)
+                    fingerprints[id] = TreatmentDecomposer.UpstreamFingerprint(treatment);
+            }
+
+            using var scope = UpstreamFingerprintScope.Open(fingerprints);
+            var written = await _treatmentService.CreateTreatmentsAsync(list, cancellationToken);
             RecordSkippedDeleted(written.SkippedDeleted);
             return true;
         }
@@ -254,7 +269,7 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
         string source,
         WriteOrigin origin, CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<(Treatment Treatment, string Fingerprint)> selected;
+        IReadOnlyList<Treatment> selected;
         try
         {
             using (PushSystemAudit())
@@ -270,23 +285,7 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
         if (selected.Count == 0)
             return 0;
 
-        if (!await PublishTreatmentsAsync(selected.Select(s => s.Treatment), source, origin, cancellationToken))
-            return null;
-
-        try
-        {
-            using (PushSystemAudit())
-                await _treatmentDecomposer.StampUpstreamFingerprintsAsync(
-                    source, selected.ToDictionary(s => s.Treatment.Id!, s => s.Fingerprint), cancellationToken);
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex)
-        {
-            // An unstamped row counts as unchanged next sync, so nothing is written twice.
-            Logger.LogWarning(ex, "Failed to stamp upstream fingerprints for {Source}", source);
-        }
-
-        return selected.Count;
+        return await PublishTreatmentsAsync(selected, source, origin, cancellationToken) ? selected.Count : null;
     }
 
     /// <inheritdoc />
