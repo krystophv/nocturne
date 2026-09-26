@@ -331,6 +331,7 @@ internal static class LegacyTreatmentTables
         new()
         {
             Id = bolus.Id.ToString(),
+            AdditionalProperties = TreatmentClientId.ToTreatment(bolus.AdditionalProperties),
             EventType = TreatmentTypes.MealBolus,
             Mills = bolus.Mills,
             Insulin = bolus.Insulin,
@@ -352,6 +353,7 @@ internal static class LegacyTreatmentTables
         new()
         {
             Id = bolus.Id.ToString(),
+            AdditionalProperties = TreatmentClientId.ToTreatment(bolus.AdditionalProperties),
             EventType = TreatmentTypes.CorrectionBolus,
             Mills = bolus.Mills,
             Insulin = bolus.Insulin,
@@ -371,6 +373,7 @@ internal static class LegacyTreatmentTables
         new()
         {
             Id = carb.Id.ToString(),
+            AdditionalProperties = TreatmentClientId.ToTreatment(carb.AdditionalProperties),
             EventType = TreatmentTypes.CarbCorrection,
             Mills = carb.Mills,
             Carbs = carb.Carbs,
@@ -417,6 +420,7 @@ internal static class LegacyTreatmentTables
         new()
         {
             Id = bgCheck.Id.ToString(),
+            AdditionalProperties = TreatmentClientId.ToTreatment(bgCheck.AdditionalProperties),
             EventType = TreatmentTypes.BgCheck,
             Mills = bgCheck.Mills,
             Glucose = bgCheck.Glucose,
@@ -434,6 +438,7 @@ internal static class LegacyTreatmentTables
         new()
         {
             Id = note.Id.ToString(),
+            AdditionalProperties = TreatmentClientId.ToTreatment(note.AdditionalProperties),
             EventType = note.EventType ?? "Note",
             Mills = note.Mills,
             Notes = note.Text,
@@ -450,6 +455,7 @@ internal static class LegacyTreatmentTables
         return new Treatment
         {
             Id = deviceEvent.Id.ToString(),
+            AdditionalProperties = TreatmentClientId.ToTreatment(deviceEvent.AdditionalProperties),
             EventType = eventTypeString ?? deviceEvent.EventType.ToString(),
             Mills = deviceEvent.Mills,
             Notes = deviceEvent.Notes,
@@ -464,6 +470,7 @@ internal static class LegacyTreatmentTables
         new()
         {
             Id = bc.Id.ToString(),
+            AdditionalProperties = TreatmentClientId.ToTreatment(bc.AdditionalProperties),
             EventType = "Bolus Wizard",
             Mills = bc.Mills,
             BloodGlucoseInput = bc.BloodGlucoseInput,

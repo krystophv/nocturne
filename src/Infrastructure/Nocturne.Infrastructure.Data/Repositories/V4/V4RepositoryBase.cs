@@ -256,13 +256,13 @@ public abstract class V4RepositoryBase<TModel, TEntity>
     /// </summary>
     /// <exception cref="RecreationBlockedException">
     /// The LegacyId is held by a stored row, per
-    /// <see cref="SoftDeleteDedupExtensions.GetBlockingLegacyIdsAsync{TEntity}"/>.
+    /// <see cref="SoftDeleteDedupExtensions.GetBlockingLegacyIdsAsync{TEntity}(NocturneDbContext, IEnumerable{TEntity}, CancellationToken)"/>.
     /// </exception>
     protected async Task<TModel> InsertAsync(
         NocturneDbContext ctx, TEntity entity, WriteOrigin origin, CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(entity.LegacyId)
-            && (await ctx.GetBlockingLegacyIdsAsync<TEntity>([entity.LegacyId], ct)).Held.Count > 0)
+            && (await ctx.GetBlockingLegacyIdsAsync<TEntity>([entity], ct)).Held.Count > 0)
         {
             throw new RecreationBlockedException(typeof(TModel).Name, $"legacy id '{entity.LegacyId}'");
         }
@@ -365,8 +365,7 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         var skippedDeleted = 0;
         if (inserted.Count > 0)
         {
-            var blocked = await ctx.GetBlockingLegacyIdsAsync<TEntity>(
-                inserted.Select(i => i.LegacyId).ToHashSet(StringComparer.Ordinal), ct);
+            var blocked = await ctx.GetBlockingLegacyIdsAsync(inserted.Select(i => i.Entity), ct);
             skippedDeleted = inserted.Count(i => blocked.DeletedByUser.Contains(i.LegacyId));
             inserted.RemoveAll(i => blocked.Held.Contains(i.LegacyId));
             ctx.Set<TEntity>().AddRange(inserted.Select(i => i.Entity));
@@ -568,10 +567,12 @@ public abstract class V4RepositoryBase<TModel, TEntity>
 
             var split = await SplitUpsertsAsync(ctx, entities, ct);
 
+            // The entity overload, not the key set: each legacy id's first candidate is both the one
+            // InsertUnblockedAsync keeps and the one whose client id the tombstone exemption reads.
             var (toInsert, blockedSkipped) = await ctx.InsertUnblockedAsync(
                 split.ToInsert,
                 e => e.LegacyId,
-                (legacyIds, token) => ctx.GetBlockingLegacyIdsAsync<TEntity>(legacyIds, token),
+                (_, token) => ctx.GetBlockingLegacyIdsAsync(split.ToInsert, token),
                 ct);
             var skippedDeleted = split.SkippedDeleted + blockedSkipped;
 

@@ -124,6 +124,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     /// while genuinely distinct events (e.g. two boluses seconds apart) keep separate ids and are
     /// never merged. Requires a resolved <see cref="Treatment.Mills"/> (see the Treatment timestamp
     /// fallback); without one the treatment is left unidentified rather than risk a wrong key.
+    /// A lowercase <c>id</c> is deliberately not an identity; see <see cref="TreatmentClientId"/>.
     /// </summary>
     private static void NormalizeIdentity(Treatment treatment)
     {
@@ -167,8 +168,8 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
         var hash = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(canonical));
-        // "syn-" marker + 60 hex chars keeps the synthetic id compact (64 chars).
-        return "syn-" + Convert.ToHexStringLower(hash)[..60];
+        // Marker + 60 hex chars keeps the synthetic id compact (64 chars).
+        return TreatmentClientId.SyntheticIdPrefix + Convert.ToHexStringLower(hash)[..60];
 
         static string Fmt(double? value) =>
             value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
@@ -807,6 +808,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         {
             Id = Guid.CreateVersion7(),
             LegacyId = treatment.Id,
+            AdditionalProperties = TreatmentClientId.ToRecord(treatment),
             StartTimestamp = startTimestamp,
             EndTimestamp = durationMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(treatment.Mills + durationMs).UtcDateTime : null,
             UtcOffset = treatment.UtcOffset,
@@ -826,6 +828,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         return new V4Models.Bolus
         {
             LegacyId = treatment.Id,
+            AdditionalProperties = TreatmentClientId.ToRecord(treatment),
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(treatment.Mills).UtcDateTime,
             Insulin = treatment.Insulin ?? 0,
             Programmed = treatment.Programmed,
@@ -851,6 +854,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         return new V4Models.CarbIntake
         {
             LegacyId = treatment.Id,
+            AdditionalProperties = TreatmentClientId.ToRecord(treatment),
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(treatment.Mills).UtcDateTime,
             Carbs = treatment.Carbs ?? 0,
             Device = treatment.EnteredBy,
@@ -868,6 +872,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         return new V4Models.BGCheck
         {
             LegacyId = treatment.Id,
+            AdditionalProperties = TreatmentClientId.ToRecord(treatment),
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(treatment.Mills).UtcDateTime,
             Glucose = treatment.Glucose ?? 0,
             GlucoseType = ParseGlucoseType(treatment.GlucoseType),
@@ -885,6 +890,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         return new V4Models.Note
         {
             LegacyId = treatment.Id,
+            AdditionalProperties = TreatmentClientId.ToRecord(treatment),
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(treatment.Mills).UtcDateTime,
             Text = treatment.Notes ?? string.Empty,
             EventType = treatment.EventType,
@@ -902,6 +908,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         return new V4Models.DeviceEvent
         {
             LegacyId = treatment.Id,
+            AdditionalProperties = TreatmentClientId.ToRecord(treatment),
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(treatment.Mills).UtcDateTime,
             EventType = deviceEventType,
             Notes = treatment.Notes,
@@ -918,6 +925,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         return new V4Models.BolusCalculation
         {
             LegacyId = treatment.Id,
+            AdditionalProperties = TreatmentClientId.ToRecord(treatment),
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(treatment.Mills).UtcDateTime,
             BloodGlucoseInput = treatment.BloodGlucoseInput,
             BloodGlucoseInputSource = treatment.BloodGlucoseInputSource,
