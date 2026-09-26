@@ -799,23 +799,23 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
     private static V4Models.TempBasalOrigin MapTempBasalOrigin(Treatment treatment)
     {
-        // TempBasalToTreatmentMapper writes basalOrigin, so a PATCH re-decomposition keeps the stored origin
+        if (string.Equals(treatment.Reason, "suspend", StringComparison.OrdinalIgnoreCase))
+            return V4Models.TempBasalOrigin.Suspended;
+
+        if (treatment.Automatic is { } automatic)
+            return automatic ? V4Models.TempBasalOrigin.Algorithm : V4Models.TempBasalOrigin.Manual;
+
+        // Below reason and automatic: an edit echoes the stored basalOrigin
+        // back next to the field it changes
         if (treatment.AdditionalProperties is { } props
             && TryGetString(props, "basalOrigin", out var stored)
             && Enum.TryParse<V4Models.TempBasalOrigin>(stored, ignoreCase: true, out var origin)
             && Enum.IsDefined(origin))
             return origin;
 
-        if (string.Equals(treatment.Reason, "suspend", StringComparison.OrdinalIgnoreCase))
-            return V4Models.TempBasalOrigin.Suspended;
-
-        return treatment.Automatic switch
-        {
-            true => V4Models.TempBasalOrigin.Algorithm,
-            false => V4Models.TempBasalOrigin.Manual,
-            null when IsLoopUpload(treatment) => V4Models.TempBasalOrigin.Algorithm, // Loop 2.x omits the flag; Loop reads a missing flag as automatic
-            null => V4Models.TempBasalOrigin.Manual,
-        };
+        return IsLoopUpload(treatment)
+            ? V4Models.TempBasalOrigin.Algorithm // Loop 2.x omits the flag, which Loop reads as automatic
+            : V4Models.TempBasalOrigin.Manual;
     }
 
     internal static V4Models.Bolus MapToBolus(Treatment treatment, Guid? correlationId)
