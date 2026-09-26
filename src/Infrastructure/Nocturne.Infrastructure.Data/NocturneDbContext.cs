@@ -37,6 +37,14 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
     public const string SoftDeleteFilterKey = "soft_delete";
 
     /// <summary>
+    /// The most rows of one entity type a single save will stamp with the same
+    /// <see cref="ISystemTimestamped.SysUpdatedAt"/> millisecond. A bulk import of one type wider
+    /// than this spreads onto successive milliseconds, so one tie group can never drag a
+    /// <see cref="HistoryPage"/> page past roughly twice its limit.
+    /// </summary>
+    public const int SystemTimestampGroupSize = 1000;
+
+    /// <summary>
     /// Initializes a new instance of the NocturneDbContext class
     /// </summary>
     /// <param name="options">The options for this context</param>
@@ -2604,6 +2612,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         var utcNow = DateTime.UtcNow;
         // Column types are a relational concept: asking the InMemory provider for one throws.
         var isRelational = Database.IsRelational();
+        var stampedUpdated = new Dictionary<Type, int>();
 
         foreach (var entry in ChangeTracker.Entries())
         {
@@ -2626,7 +2635,14 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             }
             if (stampUpdated && entry.Entity is ISystemTimestamped)
             {
-                Stamp(entry, nameof(ISystemTimestamped.SysUpdatedAt), utcNow);
+                var entityType = entry.Metadata.ClrType;
+                var index = stampedUpdated.GetValueOrDefault(entityType);
+                stampedUpdated[entityType] = index + 1;
+
+                Stamp(
+                    entry,
+                    nameof(ISystemTimestamped.SysUpdatedAt),
+                    utcNow.AddMilliseconds(index / SystemTimestampGroupSize));
             }
 
             // Auth/identity tables use the created_at / updated_at convention instead.
