@@ -485,15 +485,17 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     private static StateSpan BuildOverrideSpan(DeviceStatus ds, string? legacyId)
     {
         var timestamp = ResolveTimestamp(ds);
+        DateTime? end = ds.Override!.Duration is > 0
+            ? (ParseTimestampToDateTime(ds.Override.Timestamp) ?? timestamp)
+                .AddSeconds(ds.Override.Duration.Value)
+            : null;
         return new StateSpan
         {
             Category = StateSpanCategory.Override,
             State = OverrideState.Custom.ToString(),
             StartTimestamp = timestamp,
-            EndTimestamp = ds.Override!.Duration is > 0
-                ? (ParseTimestampToDateTime(ds.Override.Timestamp) ?? timestamp)
-                    .AddSeconds(ds.Override.Duration.Value)
-                : null,
+            // The span starts at the status time, so an end already past it cannot be stored as-is.
+            EndTimestamp = end > timestamp ? end : null,
             Source = ds.Device,
             OriginalId = legacyId,
             Metadata = BuildOverrideMetadata(ds.Override),

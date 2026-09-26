@@ -314,7 +314,8 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
                 It.Is<StateSpan>(ss =>
                     ss.Category == StateSpanCategory.Override
                     && ss.State == "Custom"
-                    && ss.OriginalId == "ds-override"),
+                    && ss.OriginalId == "ds-override"
+                    && ss.EndTimestamp == DateTimeOffset.FromUnixTimeMilliseconds(1700000000000).UtcDateTime.AddHours(1)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 

@@ -1070,6 +1070,61 @@ public class DeviceStatusDecomposerTests : IDisposable
     }
 
     [Fact]
+    public async Task DecomposeAsync_OverrideEndingBeforeTheStatus_LeavesTheSpanOpen()
+    {
+        var statusAt = new DateTime(2026, 5, 28, 21, 5, 0, DateTimeKind.Utc);
+        var ds = new DeviceStatus
+        {
+            Id = "override-stale-timestamp",
+            Mills = new DateTimeOffset(statusAt).ToUnixTimeMilliseconds(),
+            Device = "Loop/3.0",
+            Override = new OverrideStatus
+            {
+                Active = true,
+                Name = "Pre-Meal",
+                Timestamp = "2026-05-28T19:05:00Z",
+                Duration = 3600
+            }
+        };
+
+        _stateSpanServiceMock
+            .Setup(s => s.UpsertStateSpanAsync(It.IsAny<StateSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StateSpan { Id = "ss-1", Category = StateSpanCategory.Override });
+
+        await _decomposer.DecomposeAsync(ds, WriteOrigin.Live);
+
+        _stateSpanServiceMock.Verify(
+            s => s.UpsertStateSpanAsync(
+                It.Is<StateSpan>(ss => ss.StartTimestamp == statusAt && ss.EndTimestamp == null),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DecomposeAsync_OverrideWithoutDuration_IsIndefinite()
+    {
+        var ds = new DeviceStatus
+        {
+            Id = "override-no-duration",
+            Mills = 1700000000000,
+            Device = "Loop/3.0",
+            Override = new OverrideStatus { Active = true, Name = "Indefinite", Duration = null }
+        };
+
+        _stateSpanServiceMock
+            .Setup(s => s.UpsertStateSpanAsync(It.IsAny<StateSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StateSpan { Id = "ss-1", Category = StateSpanCategory.Override });
+
+        await _decomposer.DecomposeAsync(ds, WriteOrigin.Live);
+
+        _stateSpanServiceMock.Verify(
+            s => s.UpsertStateSpanAsync(
+                It.Is<StateSpan>(ss => ss.EndTimestamp == null),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task DecomposeAsync_OverrideWithZeroDuration_HasNullEndMills()
     {
         var ds = new DeviceStatus
