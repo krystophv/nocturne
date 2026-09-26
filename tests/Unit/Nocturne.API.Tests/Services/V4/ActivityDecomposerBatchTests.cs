@@ -205,7 +205,39 @@ public class ActivityDecomposerBatchTests : IDisposable
         activity.Mills.Should().Be(1_780_000_000_000);
     }
 
+    [Fact]
+    public void NormalizeMills_TimestampAndTimeStamp_PrefersTimestamp()
+    {
+        var activity = System.Text.Json.JsonSerializer.Deserialize<Activity>(
+            """{"type":"steps-total","timestamp":1780000000111,"timeStamp":1780000000999,"steps":10}""")!;
+
+        ActivityDecomposer.NormalizeMills(activity);
+
+        activity.Mills.Should().Be(1_780_000_000_111);
+        activity.UtcOffset.Should().Be(0);
+    }
+
+    [Fact]
+    public void NormalizeMills_TimeStampNumericString_UsesTimeStamp()
+    {
+        var activity = System.Text.Json.JsonSerializer.Deserialize<Activity>(
+            """{"type":"steps-total","timeStamp":"1780000000123","created_at":"2026-05-28T20:26:40Z","steps":10}""")!;
+
+        ActivityDecomposer.NormalizeMills(activity);
+
+        activity.Mills.Should().Be(1_780_000_000_123);
+    }
+
     #endregion
+
+    [Fact]
+    public void MapToStepCount_NonIntegerJsonNumber_Truncates()
+    {
+        var activity = System.Text.Json.JsonSerializer.Deserialize<Activity>(
+            """{"type":"steps-total","steps":12.0}""")!;
+
+        ActivityDecomposer.MapToStepCount(activity).Metric.Should().Be(12);
+    }
 
     #region IsStepCount
 
@@ -239,6 +271,13 @@ public class ActivityDecomposerBatchTests : IDisposable
     public void RequiredWriteScope_StepCount_ReturnsStepCountReadWrite()
     {
         _decomposer.RequiredWriteScope(CreateStepCountActivity("sc", 1500))
+            .Should().Be(Scope.StepCountReadWrite);
+    }
+
+    [Fact]
+    public void RequiredWriteScope_XDripStepsTotal_ReturnsStepCountReadWrite()
+    {
+        _decomposer.RequiredWriteScope(CreateXDripStepsActivity())
             .Should().Be(Scope.StepCountReadWrite);
     }
 
@@ -279,6 +318,13 @@ public class ActivityDecomposerBatchTests : IDisposable
     public void RequiredReadScope_StepCount_ReturnsStepCountRead()
     {
         _decomposer.RequiredReadScope(CreateStepCountActivity("sc", 1500))
+            .Should().Be(Scope.StepCountRead);
+    }
+
+    [Fact]
+    public void RequiredReadScope_XDripStepsTotal_ReturnsStepCountRead()
+    {
+        _decomposer.RequiredReadScope(CreateXDripStepsActivity())
             .Should().Be(Scope.StepCountRead);
     }
 
@@ -362,6 +408,12 @@ public class ActivityDecomposerBatchTests : IDisposable
             },
         };
     }
+
+    private static Activity CreateXDripStepsActivity() => new()
+    {
+        Type = "steps-total",
+        AdditionalProperties = new Dictionary<string, object> { ["steps"] = 1000 },
+    };
 
     private static Activity CreateRegularActivity(string id, string type)
     {

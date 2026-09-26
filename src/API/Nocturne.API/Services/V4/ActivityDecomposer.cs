@@ -61,18 +61,22 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
     }
 
     /// <summary>
-    /// xDrip sends no mills, and its <c>timeStamp</c> misses the case-sensitive <c>timestamp</c>
-    /// binding. It goes before <c>created_at</c>, which xDrip writes with whole seconds.
+    /// Precedence is mills, <c>timestamp</c>, <c>timeStamp</c>, <c>created_at</c>. xDrip's
+    /// <c>timeStamp</c> is read from extension data because binding is case-sensitive, and it ranks
+    /// above <c>created_at</c>, which xDrip truncates to whole seconds.
     /// </summary>
     internal static void NormalizeMills(Activity activity)
     {
         if (activity.Mills > 0)
             return;
 
-        if (activity.Timestamp is > 0)
-            activity.Mills = activity.Timestamp.Value;
-        else if (activity.AdditionalProperties is { } props && GetLongValue(props, "timeStamp") is > 0 and var timeStamp)
-            activity.Mills = timeStamp;
+        var mills = activity.Timestamp is > 0 ? activity.Timestamp.Value
+            : activity.AdditionalProperties is { } props ? GetLongValue(props, "timeStamp") : 0;
+        if (mills > 0)
+        {
+            activity.Mills = mills;
+            activity.UtcOffset ??= 0;
+        }
         else if (DateTimeOffset.TryParse(activity.CreatedAt, System.Globalization.CultureInfo.InvariantCulture,
                      System.Globalization.DateTimeStyles.AssumeUniversal, out var createdAt))
             activity.Mills = createdAt.ToUnixTimeMilliseconds();
@@ -429,23 +433,8 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
         };
     }
 
-    private static int GetIntValue(Dictionary<string, object> props, string key)
-    {
-        if (!props.TryGetValue(key, out var value))
-            return 0;
-
-        return value switch
-        {
-            int i => i,
-            long l => (int)l,
-            double d => (int)d,
-            System.Text.Json.JsonElement je
-                when je.ValueKind == System.Text.Json.JsonValueKind.Number
-                => je.GetInt32(),
-            string s when int.TryParse(s, out var parsed) => parsed,
-            _ => 0,
-        };
-    }
+    private static int GetIntValue(Dictionary<string, object> props, string key) =>
+        GetLongValue(props, key) is var l and >= int.MinValue and <= int.MaxValue ? (int)l : 0;
 
     private static long GetLongValue(Dictionary<string, object> props, string key)
     {
@@ -457,9 +446,10 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
             long l => l,
             int i => i,
             double d => (long)d,
-            System.Text.Json.JsonElement je
-                when je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetInt64(out var n)
-                => n,
+            System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.Number } je
+                => je.TryGetInt64(out var n) ? n : (long)je.GetDouble(),
+            System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.String } je
+                when long.TryParse(je.GetString(), out var parsed) => parsed,
             string s when long.TryParse(s, out var parsed) => parsed,
             _ => 0,
         };
