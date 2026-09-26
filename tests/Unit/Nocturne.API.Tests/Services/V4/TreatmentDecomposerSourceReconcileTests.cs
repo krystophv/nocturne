@@ -231,7 +231,7 @@ public class TreatmentDecomposerSourceReconcileTests : IDisposable
         _context.ChangeTracker.Clear();
         var tracked = await _context.CarbIntakes.SingleAsync(c => c.Id == row);
         tracked.Carbs = 40;
-        using (UpstreamFingerprintScope.Open(new Dictionary<string, string?> { ["t-1"] = null }))
+        using (UpstreamFingerprintScope.Open(new Dictionary<(string?, string), string?> { [(Connector, "t-1")] = null }))
             await _context.SaveChangesAsync();
 
         (await FingerprintOfAsync(row)).Should().BeNull();

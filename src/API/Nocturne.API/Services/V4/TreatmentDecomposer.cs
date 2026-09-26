@@ -354,11 +354,11 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         if (UpstreamFingerprintScope.IsOpen)
             return null;
 
-        var cleared = new Dictionary<string, string?>();
+        var cleared = new Dictionary<(string? Source, string LegacyId), string?>();
         foreach (var treatment in treatments)
         {
             if (treatment.Id is { Length: > 0 } id)
-                cleared[id] = null;
+                cleared[(treatment.DataSource, id)] = null;
         }
 
         return UpstreamFingerprintScope.Open(cleared);

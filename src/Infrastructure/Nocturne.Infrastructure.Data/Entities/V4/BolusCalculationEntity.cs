@@ -11,6 +11,7 @@ namespace Nocturne.Infrastructure.Data.Entities.V4;
 public class BolusCalculationEntity : V4TimeSeriesEntityBase, IUpstreamFingerprinted
 {
     /// <inheritdoc />
+    [AuditIgnored]
     [Column("upstream_fingerprint")]
     public string? UpstreamFingerprint { get; set; }
 

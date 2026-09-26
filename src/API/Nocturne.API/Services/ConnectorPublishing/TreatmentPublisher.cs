@@ -93,11 +93,11 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
         try
         {
             var list = treatments.ToList();
-            var fingerprints = new Dictionary<string, string?>();
+            var fingerprints = new Dictionary<(string? Source, string LegacyId), string?>();
             foreach (var treatment in list)
             {
                 if (treatment.Id is { Length: > 0 } id)
-                    fingerprints[id] = TreatmentDecomposer.UpstreamFingerprint(treatment);
+                    fingerprints[(treatment.DataSource ?? source, id)] = TreatmentDecomposer.UpstreamFingerprint(treatment);
             }
 
             using var scope = UpstreamFingerprintScope.Open(fingerprints);

@@ -13,6 +13,7 @@ namespace Nocturne.Infrastructure.Data.Entities.V4;
 public class TempBasalEntity : ITenantScoped, IAuditable, ISoftDeletable, IV4Entity, ISourcedEntity, IDeviceAttributedEntity, ISystemTimestamped, IUpstreamFingerprinted
 {
     /// <inheritdoc />
+    [AuditIgnored]
     [Column("upstream_fingerprint")]
     public string? UpstreamFingerprint { get; set; }
 

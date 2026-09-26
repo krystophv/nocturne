@@ -13,6 +13,7 @@ namespace Nocturne.Infrastructure.Data.Entities.V4;
 public class DeviceEventEntity : V4TimeSeriesEntityBase, ISyncDedupable, IDeviceAttributedEntity, IUpstreamFingerprinted
 {
     /// <inheritdoc />
+    [AuditIgnored]
     [Column("upstream_fingerprint")]
     public string? UpstreamFingerprint { get; set; }
 

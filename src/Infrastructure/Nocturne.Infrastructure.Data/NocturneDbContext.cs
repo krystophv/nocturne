@@ -2651,7 +2651,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
     {
         if (entry.State is EntityState.Deleted or EntityState.Detached
             || entry.Entity is not IUpstreamFingerprinted { LegacyId: { } legacyId } row
-            || !UpstreamFingerprintScope.TryGet(legacyId, out var fingerprint)
+            || !UpstreamFingerprintScope.TryGet(row.DataSource, legacyId, out var fingerprint)
             || row.UpstreamFingerprint == fingerprint)
             return;
 
@@ -2669,14 +2669,17 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
     /// <summary>
     /// True if the entry has a modified property other than the update-timestamp bookkeeping
-    /// columns managed by <see cref="UpdateTimestamps"/>.
+    /// columns managed by <see cref="UpdateTimestamps"/>. An upstream fingerprint is bookkeeping
+    /// too: v3 history clients page on the update stamp, and a fingerprint-only write must not send
+    /// them every row again.
     /// </summary>
     private static bool HasNonTimestampModification(EntityEntry entry)
         => entry.State == EntityState.Modified
             && entry.Properties.Any(p =>
                 p.IsModified
                 && p.Metadata.Name != nameof(ISystemTimestamped.SysUpdatedAt)
-                && p.Metadata.Name != nameof(IEntityTimestamped.UpdatedAt));
+                && p.Metadata.Name != nameof(IEntityTimestamped.UpdatedAt)
+                && p.Metadata.Name != nameof(IUpstreamFingerprinted.UpstreamFingerprint));
 
     /// <summary>
     /// Enforces tenant ownership on a tracked entity: stamps the resolved tenant on new
