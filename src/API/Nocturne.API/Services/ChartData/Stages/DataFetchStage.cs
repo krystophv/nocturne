@@ -35,7 +35,7 @@ namespace Nocturne.API.Services.ChartData.Stages;
 /// <para>
 /// All <see cref="StateSpanCategory"/> variants are fetched in one call to
 /// <c>IStateSpanRepository.GetByCategories</c>, which runs one query for the window and one per
-/// category for open spans that started before it.
+/// category for spans that started before it.
 /// </para>
 /// </remarks>
 /// <seealso cref="IChartDataStage"/>

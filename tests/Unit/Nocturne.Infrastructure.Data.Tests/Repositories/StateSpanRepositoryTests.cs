@@ -632,8 +632,6 @@ public class StateSpanRepositoryTests : IDisposable
         result.Should().BeNull();
     }
 
-    // --- GetByCategories carry-in ---
-
     [Fact]
     public async Task GetByCategories_OpenSpansBeforeTheWindow_ExclusiveCategoriesCarryInOnlyTheOneInEffect()
     {
@@ -643,7 +641,8 @@ public class StateSpanRepositoryTests : IDisposable
                 TestTenantId, StateSpanCategory.Override, "Custom", from.AddHours(-i), end: null));
         _context.StateSpans.Add(SpanEntity(
             TestTenantId, StateSpanCategory.Override, "Custom", from.AddHours(1), end: null));
-        foreach (var (state, days) in new[] { ("Automatic", 30), ("Automatic", 20), ("Suspended", 40), ("Suspended", 2) })
+        foreach (var (state, days) in new[]
+                 { ("Automatic", 30), ("Automatic", 20), ("Suspended", 40), ("Suspended", 2) })
             _context.StateSpans.Add(SpanEntity(
                 TestTenantId, StateSpanCategory.PumpMode, state, from.AddDays(-days), end: null));
         foreach (var (state, days) in new[] { ("Default", 5), ("Weekend", 3) })
@@ -740,9 +739,8 @@ public class StateSpanRepositoryTests : IDisposable
         var exercise = (await _repository.GetByCategories(
             [StateSpanCategory.Exercise], from, from.AddDays(1)))[StateSpanCategory.Exercise];
 
-        exercise.Should().HaveCount(10);
-        exercise.Should().Contain(s => s.StartTimestamp == from.AddHours(-1))
-            .And.NotContain(s => s.StartTimestamp == from.AddHours(-11));
+        exercise.Select(s => s.StartTimestamp)
+            .Should().BeEquivalentTo(Enumerable.Range(1, 10).Select(i => from.AddHours(-i)));
         _logger.Verify(
             l => l.Log(
                 LogLevel.Debug,

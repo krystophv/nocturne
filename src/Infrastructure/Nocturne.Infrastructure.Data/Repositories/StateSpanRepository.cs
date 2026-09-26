@@ -565,36 +565,33 @@ public class StateSpanRepository : IStateSpanRepository
                             || (s.EndTimestamp == null && s.StartTimestamp >= from.Value))
                 .ToListAsync(cancellationToken);
 
-            // A store with never-closed spans can hold any number of open spans from before the window.
+            // A store with never-closed spans can hold any number of open spans from before
+            // the window.
             foreach (var category in categoryStrings)
             {
                 var before = query.Where(s => s.Category == category && s.StartTimestamp < from.Value);
 
-                // The newest span before the window is the one in effect, closed or not, so an
-                // older open span behind a newer closed one stays out.
+                // An exclusive span older than a newer closed one is not in effect, even if open.
                 if (CarryInPartitions.TryGetValue(category, out var partition))
                 {
                     var newest = await before
                         .GroupBy(partition)
-                        .Select(g => g.OrderByDescending(s => s.StartTimestamp).ThenByDescending(s => s.Id).First())
+                        .Select(g => g
+                            .OrderByDescending(s => s.StartTimestamp)
+                            .ThenByDescending(s => s.Id)
+                            .First())
                         .ToListAsync(cancellationToken);
                     entities.AddRange(newest.Where(s => s.EndTimestamp == null));
                 }
                 else if (ExclusiveCategories.Contains(category))
                 {
-                    var newest = await before
-                        .OrderByDescending(s => s.StartTimestamp)
-                        .ThenByDescending(s => s.Id)
-                        .FirstOrDefaultAsync(cancellationToken);
+                    var newest = await NewestFirst(before).FirstOrDefaultAsync(cancellationToken);
                     if (newest is { EndTimestamp: null })
                         entities.Add(newest);
                 }
                 else
                 {
-                    var open = await before
-                        .Where(s => s.EndTimestamp == null)
-                        .OrderByDescending(s => s.StartTimestamp)
-                        .ThenByDescending(s => s.Id)
+                    var open = await NewestFirst(before.Where(s => s.EndTimestamp == null))
                         .Take(OpenCarryInLimit + 1)
                         .ToListAsync(cancellationToken);
 
@@ -635,6 +632,9 @@ public class StateSpanRepository : IStateSpanRepository
 
         return result;
     }
+
+    private static IQueryable<StateSpanEntity> NewestFirst(IQueryable<StateSpanEntity> spans) =>
+        spans.OrderByDescending(s => s.StartTimestamp).ThenByDescending(s => s.Id);
 
     #region Activity Compatibility Methods
 
