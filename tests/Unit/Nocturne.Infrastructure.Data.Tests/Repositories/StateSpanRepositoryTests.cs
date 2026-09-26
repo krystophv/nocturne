@@ -664,6 +664,30 @@ public class StateSpanRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByCategories_OpenSpanBehindANewerClosedSpan_IsNotCarriedIn()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        _context.StateSpans.Add(SpanEntity(
+            TestTenantId, StateSpanCategory.PumpMode, "Suspended", from.AddDays(-40), end: null));
+        _context.StateSpans.Add(SpanEntity(
+            TestTenantId, StateSpanCategory.PumpMode, "Suspended", from.AddDays(-2), from.AddHours(1)));
+        _context.StateSpans.Add(SpanEntity(
+            TestTenantId, StateSpanCategory.PumpMode, "Automatic", from.AddDays(-30), end: null));
+        _context.StateSpans.Add(SpanEntity(
+            TestTenantId, StateSpanCategory.Profile, "Default", from.AddDays(-5), end: null));
+        _context.StateSpans.Add(SpanEntity(
+            TestTenantId, StateSpanCategory.Profile, "Weekend", from.AddDays(-3), from.AddDays(-2)));
+        await _context.SaveChangesAsync();
+
+        var result = await _repository.GetByCategories(
+            [StateSpanCategory.PumpMode, StateSpanCategory.Profile], from, from.AddDays(1));
+
+        result[StateSpanCategory.PumpMode].Select(s => (s.State, s.StartTimestamp))
+            .Should().BeEquivalentTo([("Suspended", from.AddDays(-2)), ("Automatic", from.AddDays(-30))]);
+        result[StateSpanCategory.Profile].Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetByCategories_OpenSpansBeforeTheWindowWithTheSameStart_CarryInTheHigherId()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);

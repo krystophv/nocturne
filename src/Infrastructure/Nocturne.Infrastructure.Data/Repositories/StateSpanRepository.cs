@@ -536,7 +536,7 @@ public class StateSpanRepository : IStateSpanRepository
 
     /// <summary>
     /// Get state spans for multiple categories. With <paramref name="from"/> set, runs one query
-    /// for the window and one per category for open spans that started before it.
+    /// for the window and one per category for spans that started before it.
     /// </summary>
     /// <param name="categories">The collection of categories to filter by.</param>
     /// <param name="from">Optional start date filter.</param>
@@ -568,28 +568,31 @@ public class StateSpanRepository : IStateSpanRepository
             // A store with never-closed spans can hold any number of open spans from before the window.
             foreach (var category in categoryStrings)
             {
-                var carried = query.Where(s => s.Category == category
-                                               && s.EndTimestamp == null
-                                               && s.StartTimestamp < from.Value);
+                var before = query.Where(s => s.Category == category && s.StartTimestamp < from.Value);
 
+                // The newest span before the window is the one in effect, closed or not, so an
+                // older open span behind a newer closed one stays out.
                 if (CarryInPartitions.TryGetValue(category, out var partition))
                 {
-                    entities.AddRange(await carried
+                    var newest = await before
                         .GroupBy(partition)
                         .Select(g => g.OrderByDescending(s => s.StartTimestamp).ThenByDescending(s => s.Id).First())
-                        .ToListAsync(cancellationToken));
+                        .ToListAsync(cancellationToken);
+                    entities.AddRange(newest.Where(s => s.EndTimestamp == null));
                 }
                 else if (ExclusiveCategories.Contains(category))
                 {
-                    entities.AddRange(await carried
+                    var newest = await before
                         .OrderByDescending(s => s.StartTimestamp)
                         .ThenByDescending(s => s.Id)
-                        .Take(1)
-                        .ToListAsync(cancellationToken));
+                        .FirstOrDefaultAsync(cancellationToken);
+                    if (newest is { EndTimestamp: null })
+                        entities.Add(newest);
                 }
                 else
                 {
-                    var open = await carried
+                    var open = await before
+                        .Where(s => s.EndTimestamp == null)
                         .OrderByDescending(s => s.StartTimestamp)
                         .ThenByDescending(s => s.Id)
                         .Take(OpenCarryInLimit + 1)
