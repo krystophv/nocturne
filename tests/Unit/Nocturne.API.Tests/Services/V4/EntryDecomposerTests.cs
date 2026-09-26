@@ -916,10 +916,21 @@ public class EntryDecomposerTests : IDisposable
     [InlineData("NONE", 4, GlucoseDirection.Flat)]
     [InlineData(null, 6, GlucoseDirection.SingleDown)]
     [InlineData("TripleUp", 1, GlucoseDirection.DoubleUp)]
+    public void ResolveDirection_NoModelledDirection_FallsBackToTrend(
+        string? direction, int? trend, GlucoseDirection? expected)
+    {
+        EntryDecomposer.ResolveDirection(new Entry { Direction = direction, Trend = trend })
+            .Should().Be(expected);
+    }
+
+    [Theory]
     [InlineData("SingleUp", 4, GlucoseDirection.SingleUp)]
+    [InlineData("NOT COMPUTABLE", 4, GlucoseDirection.NotComputable)]
     [InlineData("NONE", 0, GlucoseDirection.None)]
     [InlineData("NONE", null, GlucoseDirection.None)]
-    public void ResolveDirection_NoModelledDirection_FallsBackToTrend(
+    [InlineData("NONE", 10, GlucoseDirection.None)]
+    [InlineData("NONE", -1, GlucoseDirection.None)]
+    public void ResolveDirection_ModelledDirectionOrNoUsableTrend_DoesNotFallBack(
         string? direction, int? trend, GlucoseDirection? expected)
     {
         EntryDecomposer.ResolveDirection(new Entry { Direction = direction, Trend = trend })

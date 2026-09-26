@@ -4,7 +4,8 @@ namespace Nocturne.Core.Models.Serializers;
 
 /// <summary>
 /// Reads <c>trend</c> from a number, a numeric string or a direction name. Older
-/// share2nightscout-bridge versions stored the direction name, such as <c>"Flat"</c>.
+/// share2nightscout-bridge versions stored the direction name, such as <c>"Flat"</c>. A name is
+/// normalised to its trend number on purpose, so every stored trend is numeric.
 /// </summary>
 /// <seealso cref="Entry.Trend"/>
 public class FlexibleTrendConverter : FlexibleNullableIntConverter

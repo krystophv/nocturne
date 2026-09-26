@@ -377,8 +377,10 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
     internal static GlucoseDirection? ResolveDirection(Entry entry)
     {
         var direction = MapDirection(entry.Direction);
-        return direction is null or GlucoseDirection.None && entry.Trend is >= 1 and <= 9
-            ? (GlucoseDirection)entry.Trend.Value
+        return direction is null or GlucoseDirection.None
+            && entry.Trend is { } trend
+            && DirectionExtensions.TryFromTrendNumber(trend, out var fromTrend)
+            ? fromTrend.ToGlucoseDirection()
             : direction;
     }
 
