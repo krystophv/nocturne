@@ -19018,9 +19018,8 @@ msgstr "Don't have Prelude installed?"
 msgid "<0/> Download Prelude"
 msgstr "<0/> Download Prelude"
 
-#: src/lib/components/dashboard/glucose-chart/chart-context.svelte.ts
-msgid "GlucoseChartContext"
-msgstr "GlucoseChartContext"
+#~ msgid "GlucoseChartContext"
+#~ msgstr "GlucoseChartContext"
 
 #~ msgid "Glucose dial"
 #~ msgstr "Glucose dial"
@@ -22105,26 +22104,17 @@ msgstr "A consistent rise in the hours before site changes is a pattern worth di
 msgid "<0/> What the Averages Show"
 msgstr "<0/> What the Averages Show"
 
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "Average glucose after a site change"
-msgstr "Average glucose after a site change"
+#~ msgid "Average glucose after a site change"
+#~ msgstr "Average glucose after a site change"
 
-#. 0: percentImprovement.toFixed(1)
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "{0}% lower than in the hours before."
-msgstr "{0}% lower than in the hours before."
+#~ msgid "{0}% lower than in the hours before."
+#~ msgstr "{0}% lower than in the hours before."
 
-#. 0: Math.abs(percentImprovement).toFixed(1)
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "{0}% higher than in the hours before. This can reflect insertion or site-location factors."
-msgstr "{0}% higher than in the hours before. This can reflect insertion or site-location factors."
+#~ msgid "{0}% higher than in the hours before. This can reflect insertion or site-location factors."
+#~ msgstr "{0}% higher than in the hours before. This can reflect insertion or site-location factors."
 
-#. 0: Math.abs(percentImprovement).toFixed(1)
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "Differs by {0}% from the hours before; differences under 5% are counted as no material change."
-msgstr "Differs by {0}% from the hours before; differences under 5% are counted as no material change."
+#~ msgid "Differs by {0}% from the hours before; differences under 5% are counted as no material change."
+#~ msgstr "Differs by {0}% from the hours before; differences under 5% are counted as no material change."
 
 #: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
 msgid "Time in range around a site change"
@@ -24375,12 +24365,12 @@ msgstr "TIR before"
 msgid "TIR after"
 msgstr "TIR after"
 
-#. 0: bolusCount; 1: dailyAvgBoluses.toFixed(1); 2: avgInsulinPerBolus.toFixed(1)
+#. 0: treatmentSummary.bolusCount ?? 0; 1: (treatmentSummary.dailyBoluses ?? 0).toFixed(1); 2: (treatmentSummary.averagePerBolus ?? 0).toFixed(1)
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "{0} boluses · {1}/day · {2}U avg"
 msgstr "{0} boluses · {1}/day · {2}U avg"
 
-#. 0: carbEntriesCount; 1: dailyAvgCarbs.toFixed(0); 2: avgCarbsPerEntry.toFixed(0)
+#. 0: treatmentSummary.carbEntryCount ?? 0; 1: (treatmentSummary.dailyCarbs ?? 0).toFixed(0); 2: (treatmentSummary.averageCarbsPerEntry ?? 0).toFixed(0)
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "{0} meals · {1}g/day · {2}g avg/meal"
 msgstr "{0} meals · {1}g/day · {2}g avg/meal"
@@ -25471,3 +25461,7 @@ msgstr "This report describes what happened in your data. It does not say why, o
 #: src/routes/(authenticated)/reports/hourly-stats/+page.svelte
 msgid "See the full daily curve in the Glucose Profile <0/>"
 msgstr "See the full daily curve in the Glucose Profile <0/>"
+
+#: src/routes/(authenticated)/settings/account/+page.svelte
+msgid "Your old recovery codes stopped working after a Nocturne update. Generate new codes to keep a backup way to sign in."
+msgstr "Your old recovery codes stopped working after a Nocturne update. Generate new codes to keep a backup way to sign in."
