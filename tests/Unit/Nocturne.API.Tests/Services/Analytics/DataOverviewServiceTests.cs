@@ -26,7 +26,8 @@ public class DataOverviewServiceTests : IDisposable
 {
     private readonly NocturneDbContext _dbContext;
     private readonly DataOverviewService _service;
-    private readonly Mock<ICacheService> _mockCacheService = new();
+    private readonly Mock<ICacheService> _cacheService = new();
+    private readonly CategoryReadContext _categoryReadContext = new();
     private IInterceptor[] _interceptors = [];
     private readonly string _dbName = $"data_overview_{Guid.NewGuid()}";
     private static readonly Guid TenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -71,8 +72,9 @@ public class DataOverviewServiceTests : IDisposable
             mockFactory.Object,
             mockTherapySettingsResolver.Object,
             mockStatisticsService.Object,
-            _mockCacheService.Object,
+            _cacheService.Object,
             mockTenantAccessor.Object,
+            _categoryReadContext,
             NullLogger<DataOverviewService>.Instance
         );
     }
@@ -1501,7 +1503,42 @@ public class DataOverviewServiceTests : IDisposable
 
     #endregion
 
-    #region GetEHbA1cTimelineAsync Caching Tests
+    #region eHbA1c timeline cache
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetEHbA1cTimelineAsync_Unclamped_ServesTheTenantCache()
+    {
+        var cached = new EHbA1cTimelineResponse { Year = 2024 };
+        _cacheService
+            .Setup(c => c.GetAsync<EHbA1cTimelineResponse>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cached);
+
+        var result = await _service.GetEHbA1cTimelineAsync(2024);
+
+        result.Should().BeSameAs(cached);
+    }
+
+    [Theory]
+    [Trait("Category", "Unit")]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetEHbA1cTimelineAsync_HistoryClamped_NeitherReadsNorWritesTheCache(bool share)
+    {
+        // The cache holds a full-history timeline an unclamped reader loaded; a clamped reader
+        // must not be served it, nor leave its own narrowed timeline for the next reader.
+        _cacheService
+            .Setup(c => c.GetAsync<EHbA1cTimelineResponse>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EHbA1cTimelineResponse { Year = 2024 });
+        if (share)
+            _categoryReadContext.MarkShare();
+        else
+            _categoryReadContext.ClampMemberHistory();
+
+        await _service.GetEHbA1cTimelineAsync(2024);
+
+        _cacheService.Invocations.Should().BeEmpty();
+    }
 
     [Fact]
     [Trait("Category", "Unit")]
@@ -1511,7 +1548,7 @@ public class DataOverviewServiceTests : IDisposable
 
         await _service.GetEHbA1cTimelineAsync(2025);
 
-        _mockCacheService.Verify(
+        _cacheService.Verify(
             c => c.SetAsync(
                 It.IsAny<string>(),
                 It.IsAny<EHbA1cTimelineResponse>(),
@@ -1530,7 +1567,7 @@ public class DataOverviewServiceTests : IDisposable
         var cancelled = () => _service.GetEHbA1cTimelineAsync(2025, cancellationToken: cts.Token);
 
         await cancelled.Should().ThrowAsync<OperationCanceledException>();
-        _mockCacheService.Verify(
+        _cacheService.Verify(
             c => c.SetAsync(
                 It.IsAny<string>(),
                 It.IsAny<EHbA1cTimelineResponse>(),
