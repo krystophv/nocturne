@@ -53,7 +53,6 @@ public class StateSpanRepository : IStateSpanRepository
         CarryInPartitions = new(StringComparer.OrdinalIgnoreCase)
         {
             [nameof(StateSpanCategory.PumpMode)] = s => s.State,
-            [nameof(StateSpanCategory.Override)] = s => s.Source,
         };
 
     /// <summary>

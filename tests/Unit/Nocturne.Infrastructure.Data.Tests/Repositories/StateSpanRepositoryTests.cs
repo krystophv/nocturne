@@ -682,12 +682,17 @@ public class StateSpanRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GetByCategories_OpenOverridesBeforeTheWindow_CarryInTheNewestPerSource()
+    public async Task GetByCategories_OpenOverridesFromSeveralSourcesBeforeTheWindow_CarryInOnlyTheNewest()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
-        foreach (var (source, days) in new[] { ("Loop", 4), ("Loop", 3), ("loop://iPhone", 2) })
+        foreach (var (source, state, days) in new[]
+                 {
+                     ("Loop", "Exercise", 10),
+                     ("loop://iPhone", "Exercise", 10),
+                     ("Loop (via remote command)", "Pre-Meal", 1),
+                 })
         {
-            var span = SpanEntity(TestTenantId, StateSpanCategory.Override, "Custom", from.AddDays(-days), end: null);
+            var span = SpanEntity(TestTenantId, StateSpanCategory.Override, state, from.AddDays(-days), end: null);
             span.Source = source;
             _context.StateSpans.Add(span);
         }
@@ -696,8 +701,7 @@ public class StateSpanRepositoryTests : IDisposable
         var overrides = (await _repository.GetByCategories(
             [StateSpanCategory.Override], from, from.AddDays(1)))[StateSpanCategory.Override];
 
-        overrides.Select(s => (s.Source, s.StartTimestamp)).Should().BeEquivalentTo(
-            [("Loop", from.AddDays(-3)), ("loop://iPhone", from.AddDays(-2))]);
+        overrides.Select(s => (s.Source, s.State)).Should().Equal(("Loop (via remote command)", "Pre-Meal"));
     }
 
     [Fact]
