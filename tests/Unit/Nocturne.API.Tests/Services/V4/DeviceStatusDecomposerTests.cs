@@ -1866,28 +1866,38 @@ public class DeviceStatusDecomposerTests : IDisposable
     }
 
     [Theory]
-    [InlineData("2026-04-12T09:35:00Z", 35)]
-    [InlineData(null, 30)]
+    [InlineData("2026-04-12T09:35:00Z", "2026-04-12T09:33:00Z", "2026-04-12T09:36:00.000Z", 35)]
+    [InlineData(null, "2026-04-12T09:33:00Z", "2026-04-12T09:36:00.000Z", 33)]
+    [InlineData(null, null, "2026-04-12T09:36:00.000Z", 36)]
+    [InlineData(null, null, null, 30)]
     public async Task DecomposeAsync_LoopWithMillsZero_PrefersTheLoopCycleTimeToThePredictionStart(
-        string? loopTimestamp, int expectedMinute)
+        string? loopTimestamp, string? pumpClock, string? createdAt, int expectedMinute)
     {
         var ds = new DeviceStatus
         {
             Id = "loop-cycle-time",
             Mills = 0,
-            CreatedAt = "2026-04-12T09:36:00.000Z",
+            CreatedAt = createdAt,
             Device = "loop://iPhone",
             Loop = new LoopStatus
             {
                 Timestamp = loopTimestamp,
                 Predicted = new LoopPredicted { StartDate = "2026-04-12T09:30:00Z" },
             },
+            Pump = new PumpStatus { Clock = pumpClock },
+            Override = new OverrideStatus { Active = true, Duration = 30.0 },
         };
+        _stateSpanServiceMock
+            .Setup(s => s.UpsertStateSpanAsync(It.IsAny<StateSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((StateSpan span, CancellationToken _) => span);
+        var expected = new DateTime(2026, 4, 12, 9, expectedMinute, 0, DateTimeKind.Utc);
 
         var result = await _decomposer.DecomposeAsync(ds, WriteOrigin.Live);
 
-        result.CreatedRecords[0].Should().BeOfType<V4Models.ApsSnapshot>()
-            .Which.Timestamp.Should().Be(new DateTime(2026, 4, 12, 9, expectedMinute, 0, DateTimeKind.Utc));
+        result.CreatedRecords.OfType<V4Models.ApsSnapshot>().Single().Timestamp.Should().Be(expected);
+        result.CreatedRecords.OfType<V4Models.PumpSnapshot>().Single().Timestamp.Should().Be(expected);
+        result.CreatedRecords.OfType<StateSpan>().Single(s => s.Category == StateSpanCategory.Override)
+            .StartTimestamp.Should().Be(expected);
     }
 
     #endregion
