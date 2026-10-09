@@ -394,4 +394,129 @@ public class DeviceStatusDecomposerOverrideSpanTests : IDisposable
             .Select(s => (s.StartTimestamp, s.EndTimestamp))
             .Should().Equal((At(1), At(3)), (At(3), At(4)), (At(4), (DateTime?)null));
     }
+
+    [Fact]
+    public async Task DecomposeBatchAsync_PageOfStatusesAtOneInstant_StillEndsAtLaterInactive()
+    {
+        var statuses = Enumerable.Range(0, 12).Select(i =>
+        {
+            var ds = Snapshot(0, "Exercise");
+            ds.Id = $"same-instant-{i}";
+            return ds;
+        }).Append(Snapshot(1, null)).ToList();
+
+        await _decomposer.DecomposeBatchAsync(statuses, source: null, WriteOrigin.Live);
+
+        var span = (await OverrideSpansAsync()).Should().ContainSingle().Subject;
+        span.EndTimestamp.Should().Be(At(1));
+    }
+
+    [Fact]
+    public async Task DeleteStoredAsync_StatusThatOpenedSpan_StartsSpanAtNextStatus()
+    {
+        await DecomposeEachAsync(Enumerable.Range(0, 4).Select(i => Snapshot(i, "Exercise")));
+
+        await _decomposer.DeleteStoredAsync("ds-0", WriteOrigin.Live);
+
+        var span = (await OverrideSpansAsync()).Should().ContainSingle().Subject;
+        span.StartTimestamp.Should().Be(At(1));
+        span.EndTimestamp.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteStoredAsync_StatusInsideSpan_LeavesSpan()
+    {
+        await DecomposeEachAsync(Enumerable.Range(0, 4).Select(i => Snapshot(i, "Exercise")));
+
+        await _decomposer.DeleteStoredAsync("ds-2", WriteOrigin.Live);
+
+        var span = (await OverrideSpansAsync()).Should().ContainSingle().Subject;
+        span.StartTimestamp.Should().Be(At(0));
+        span.EndTimestamp.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteStoredAsync_OnlyStatusOfSpan_DeletesSpan()
+    {
+        await DecomposeEachAsync([Snapshot(0, "Exercise"), Snapshot(1, null)]);
+
+        await _decomposer.DeleteStoredAsync("ds-0", WriteOrigin.Live);
+
+        (await OverrideSpansAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_OpenerWithDifferentOverride_SplitsSpan()
+    {
+        await DecomposeEachAsync(Enumerable.Range(0, 4).Select(i => Snapshot(i, "Exercise")));
+
+        await _decomposer.ReplaceAsync("ds-0", Snapshot(0, "Sleep"), WriteOrigin.Live);
+
+        (await OverrideSpansAsync())
+            .Select(s => (s.Metadata.TryReadString("name"), s.StartTimestamp, s.EndTimestamp))
+            .Should().Equal(("Sleep", At(0), At(1)), ("Exercise", At(1), (DateTime?)null));
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_OpenerWithInactive_StartsSpanAtNextStatus()
+    {
+        await DecomposeEachAsync(Enumerable.Range(0, 4).Select(i => Snapshot(i, "Exercise")));
+
+        await _decomposer.ReplaceAsync("ds-0", Snapshot(0, null), WriteOrigin.Live);
+
+        (await OverrideSpansAsync()).Should().ContainSingle().Which.StartTimestamp.Should().Be(At(1));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task ReplaceAsync_SameOverride_ChangesNothing(int slot)
+    {
+        await DecomposeEachAsync(Enumerable.Range(0, 4).Select(i => Snapshot(i, "Exercise")));
+        var before = (await OverrideSpansAsync()).Should().ContainSingle().Subject;
+
+        await _decomposer.ReplaceAsync($"ds-{slot}", Snapshot(slot, "Exercise"), WriteOrigin.Live);
+
+        var after = (await OverrideSpansAsync()).Should().ContainSingle().Subject;
+        (after.StartTimestamp, after.EndTimestamp).Should().Be((before.StartTimestamp, before.EndTimestamp));
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_StatusThatExtendedSpanBack_KeepsEarlierPeriod()
+    {
+        await DecomposeEachAsync(Ordered(
+            Enumerable.Range(0, 4).Select(i => Snapshot(i, "Exercise")).ToList(), newestFirst: true));
+
+        await _decomposer.ReplaceAsync("ds-3", Snapshot(3, "Sleep"), WriteOrigin.Live);
+
+        (await OverrideSpansAsync())
+            .Select(s => (s.Metadata.TryReadString("name"), s.StartTimestamp, s.EndTimestamp))
+            .Should().Equal(("Exercise", At(0), At(3)), ("Sleep", At(3), (DateTime?)null));
+    }
+
+    [Fact]
+    public async Task DecomposeAsync_TreatmentSourceEqualToDevice_StillMatchedAsTreatment()
+    {
+        await TreatmentOverrideAsync(0, "N Night", 0.9);
+        var status = Snapshot(1, "Night", multiplier: 0.9);
+        status.Device = "Loop";
+
+        await _decomposer.DecomposeAsync(status, WriteOrigin.Live);
+
+        (await OverrideSpansAsync()).Should().HaveCount(2).And.OnlyContain(s => s.EndTimestamp == null);
+    }
+
+    [Fact]
+    public async Task DeleteStoredAsync_StatusAtTreatmentStartWithSameSource_LeavesTreatment()
+    {
+        await TreatmentOverrideAsync(0, "N Night", 0.9);
+        var status = Snapshot(0, "Night", multiplier: 0.9);
+        status.Device = "Loop";
+        status.Override = null;
+        await _decomposer.DecomposeAsync(status, WriteOrigin.Live);
+
+        await _decomposer.DeleteStoredAsync("ds-0", WriteOrigin.Live);
+
+        (await OverrideSpansAsync()).Should().ContainSingle().Which.OriginalId.Should().Be("treatment-0");
+    }
 }

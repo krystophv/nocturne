@@ -106,9 +106,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             if (group.Uploader is { } uploader && ds.Uploader == null && !ds.UploaderBattery.HasValue)
                 await _uploaderRepo.DeleteAsync(uploader.Id, origin, ct);
             await _extrasRepo.DeleteByCorrelationIdAsync(group.CorrelationId, ct);
-
-            if (ds.Override is not { Active: true })
-                await DeleteOverrideAsync(group, ct);
+            await RetractOverrideAsync(group, ct);
         }
 
         return await DecomposeCoreAsync(ds, source: null, group.CorrelationId, group, origin, ct);
@@ -547,8 +545,6 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
 
     #region Override Decomposition
 
-    // Stores written before one span per period can hold hundreds of open spans at one
-    // instant, so the containing query pages by this.
     private const int OverrideQueryLimit = 10;
 
     private static StateSpan BuildOverrideSpan(DeviceStatus ds, string? legacyId)
@@ -572,8 +568,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     }
 
     /// <summary>
-    /// Folds one override observation into <see cref="StateSpanCategory.Override"/> spans. A span
-    /// stays open until a contrary observation or its declared end.
+    /// A span stays open until a contrary observation or its declared end.
     /// </summary>
     private async Task DecomposeOverrideAsync(
         DeviceStatus ds, string? legacyId, V4Models.DecompositionResult result, CancellationToken ct)
@@ -585,7 +580,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
 
         bool Unchanged(StateSpan span) =>
             observed is not null
-            && (span.Source != ds.Device
+            && (!IsUploaderSpan(span, ds.Device)
                 ? span.Metadata.IsSameOverrideAs(observed)
                 : span.Metadata is { } metadata
                   && metadata.TryReadString("name") == observed.TryReadString("name")
@@ -608,7 +603,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
                 // Of two conflicting observations at one instant, the first decomposed wins.
                 if (Unchanged(span) || span.StartTimestamp >= at)
                 {
-                    covered |= span.Source == ds.Device;
+                    covered |= IsUploaderSpan(span, ds.Device);
                     continue;
                 }
 
@@ -628,23 +623,12 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         if (observed is null || covered)
             return;
 
-        // Strict bounds in memory: Npgsql truncates to microseconds, so `at` + 1 tick matches `at`.
+        // Strict bound in memory, as in FirstApsBetweenAsync.
         var next = (await _stateSpanService.GetStateSpansStartingFromAsync(
             StateSpanCategory.Override, ds.Device, at, OverrideQueryLimit, ct))
-            .FirstOrDefault(s => s.StartTimestamp > at);
+            .FirstOrDefault(s => s.StartTimestamp > at && IsUploaderSpan(s, ds.Device));
 
-        var contraryAt = (await _apsRepo.GetAsync(
-            from: at,
-            to: next?.StartTimestamp,
-            device: ds.Device,
-            source: null,
-            limit: OverrideQueryLimit,
-            descending: false,
-            ct: ct))
-            .FirstOrDefault(a => a.Timestamp > at
-                                 && a.Timestamp < (next?.StartTimestamp ?? DateTime.MaxValue)
-                                 && StoredKey(a) != legacyId)
-            ?.Timestamp;
+        var contraryAt = (await FirstApsBetweenAsync(ds.Device, at, next?.StartTimestamp, legacyId, ct))?.Timestamp;
 
         var opened = BuildOverrideSpan(ds, legacyId);
 
@@ -653,7 +637,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             && Unchanged(next)
             && !(opened.EndTimestamp < next.StartTimestamp))
         {
-            next.StartTimestamp = at;
+            StartAt(next, at, legacyId);
             if (await _stateSpanService.UpdateStateSpanAsync(next.Id!, next, ct) is { } extended)
                 result.UpdatedRecords.Add(extended);
             return;
@@ -666,6 +650,49 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         var upserted = await _stateSpanService.UpsertStateSpanAsync(opened, ct);
         result.CreatedRecords.Add(upserted);
         Logger.LogDebug("Opened Override StateSpan from device status {LegacyId}", legacyId);
+    }
+
+    private async Task<V4Models.ApsSnapshot?> FirstApsBetweenAsync(
+        string? device, DateTime after, DateTime? before, string? excludedKey, CancellationToken ct)
+    {
+        for (var offset = 0; ; offset += OverrideQueryLimit)
+        {
+            // Strict bounds in memory: Npgsql truncates to microseconds, so `after` + 1 tick matches `after`.
+            var page = (await _apsRepo.GetAsync(
+                from: after,
+                to: before,
+                device: device,
+                source: null,
+                limit: OverrideQueryLimit,
+                offset: offset,
+                descending: false,
+                ct: ct)).ToList();
+            var found = page.FirstOrDefault(a => a.Timestamp > after
+                                                 && a.Timestamp < (before ?? DateTime.MaxValue)
+                                                 && StoredKey(a) != excludedKey);
+            if (found is not null || page.Count < OverrideQueryLimit)
+                return found;
+        }
+    }
+
+    /// <summary>
+    /// Whether the span is the uploader's own devicestatus span rather than a treatment override
+    /// whose source happens to equal the device.
+    /// </summary>
+    private static bool IsUploaderSpan(StateSpan span, string? device) =>
+        span.Source == device
+        && span.Metadata.TryReadString(StateSpanMetadataExtensions.CollectionKey)
+            != StateSpanMetadataExtensions.TreatmentsCollection;
+
+    /// <summary>
+    /// Moves a span's start to a status and keys the span to that status. Upserts match on
+    /// OriginalId, so a span keyed to a status inside it would be overwritten when that status's
+    /// replacement opens a span of its own.
+    /// </summary>
+    private static void StartAt(StateSpan span, DateTime start, string? key)
+    {
+        span.StartTimestamp = start;
+        span.OriginalId = key ?? span.OriginalId;
     }
 
     #endregion
@@ -828,24 +855,33 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     }
 
     /// <summary>
-    /// Removes the override span stored under the group's key. Overrides uploaded with an id-less
-    /// status before they were keyed carry none, so the projection matches them by time alone and
-    /// nothing here can reach them.
+    /// Withdraws the group's override observation. A span the status opened starts at its device's
+    /// next status instead, or is deleted when there is none. A span it ended stays ended.
     /// </summary>
-    private async Task<int> DeleteOverrideAsync(StoredGroup group, CancellationToken ct)
+    private async Task<int> RetractOverrideAsync(StoredGroup group, CancellationToken ct)
     {
-        var spans = await _stateSpanService.GetStateSpansAsync(
-            category: StateSpanCategory.Override,
-            from: group.Timestamp.AddMinutes(-1),
-            to: group.Timestamp.AddMinutes(1),
-            count: int.MaxValue,
-            cancellationToken: ct);
+        var device = group.Aps?.Device ?? group.Pump?.Device ?? group.Uploader?.Device;
+        var opened = (await _stateSpanService.GetStateSpansAsync(
+                category: StateSpanCategory.Override,
+                from: group.Timestamp,
+                to: group.Timestamp,
+                count: int.MaxValue,
+                cancellationToken: ct))
+            .Where(s => IsUploaderSpan(s, device) && s.StartTimestamp == group.Timestamp && s.Id is not null)
+            .ToList();
 
         var deleted = 0;
-        foreach (var span in spans.Where(s => s.OriginalId == group.LegacyId && s.Id is not null))
+        foreach (var span in opened)
         {
-            if (await _stateSpanService.DeleteStateSpanAsync(span.Id!, ct))
+            if (await FirstApsBetweenAsync(device, group.Timestamp, span.EndTimestamp, group.LegacyId, ct) is { } next)
+            {
+                StartAt(span, next.Timestamp, StoredKey(next));
+                await _stateSpanService.UpdateStateSpanAsync(span.Id!, span, ct);
+            }
+            else if (await _stateSpanService.DeleteStateSpanAsync(span.Id!, ct))
+            {
                 deleted++;
+            }
         }
 
         return deleted;
@@ -1298,7 +1334,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         deleted += await DeleteUnkeyedAsync(_pumpRepo, group.Pump, group.LegacyId, origin, ct);
         deleted += await DeleteUnkeyedAsync(_uploaderRepo, group.Uploader, group.LegacyId, origin, ct);
         deleted += await _extrasRepo.DeleteByCorrelationIdAsync(group.CorrelationId, ct);
-        deleted += await DeleteOverrideAsync(group, ct);
+        deleted += await RetractOverrideAsync(group, ct);
 
         if (deleted > 0)
             Logger.LogDebug("Deleted {Count} v4 records for device status {StoredId}", deleted, storedId);
