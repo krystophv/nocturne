@@ -68,6 +68,7 @@ const pageData: HarnessProps["data"] = {
   dashboardSlugs: [],
   effectivePermissions: [],
   limitTo24Hours: false,
+  refusedAsDemoSubject: false,
   displayPreferences: [],
   displayLanguage: "en",
   serverPreferences: null,
@@ -80,6 +81,7 @@ const pageData: HarnessProps["data"] = {
   initialChartData: transformChartData({
     glucoseData: [{ time: Date.now(), sgv: 120 }],
   }),
+  initialWindowStart: Date.now() - 6 * 60 * 60 * 1000,
   streamed: { historicalChartData: Promise.resolve(null) },
 };
 

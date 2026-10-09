@@ -1,6 +1,7 @@
 using Nocturne.Core.Contracts.Profiles;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models;
+using Nocturne.Core.Models.Queries;
 using Nocturne.Core.Models.V4;
 
 namespace Nocturne.API.Services.Profiles;
@@ -81,6 +82,167 @@ public class ProfileProjectionService : IProfileProjectionService
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A profile is stamped by the newest of its rows, so it is found through whichever row moved:
+    /// each of the five tables pages through its own history page, and every schedule row leads back
+    /// to the settings it can be assembled into (<see cref="OwnersAsync"/>). Past the horizon — the
+    /// earliest last millisecond among the tables whose page filled — a table holds rows not yet
+    /// read, so only profiles stamped at or before it are known to be complete. When none are, no
+    /// profile is stamped in (cursor, horizon] and the read resumes from the horizon. A deleted
+    /// settings row is a deleted profile, delivered with <c>isValid: false</c>, unless another store
+    /// of the same document is still live (<see cref="LiveSiblingAsync"/>): the client knows the
+    /// document by one identifier, so that store is re-sent live at the delete's stamp instead. A
+    /// schedule row, live or deleted, only leads to the live settings that own it.
+    /// </remarks>
+    public async Task<ModifiedSincePage<Profile>> GetProfilesModifiedSinceAsync(
+        long cursorMills, int limit, CancellationToken ct = default)
+    {
+        var cursor = cursorMills;
+
+        while (true)
+        {
+            var settingsPage = await _therapyRepo.GetModifiedSinceAsync(cursor, limit, ct);
+            var basal = await _basalRepo.GetModifiedSinceAsync(cursor, limit, ct);
+            var carbRatio = await _carbRatioRepo.GetModifiedSinceAsync(cursor, limit, ct);
+            var sensitivity = await _sensitivityRepo.GetModifiedSinceAsync(cursor, limit, ct);
+            var targetRange = await _targetRangeRepo.GetModifiedSinceAsync(cursor, limit, ct);
+
+            var horizon = Horizon(
+                limit,
+                Records(settingsPage),
+                Records(basal),
+                Records(carbRatio),
+                Records(sensitivity),
+                Records(targetRange));
+            List<IV4Record> schedules =
+            [
+                .. Records(basal), .. Records(carbRatio), .. Records(sensitivity), .. Records(targetRange),
+            ];
+
+            var candidates = new Dictionary<Guid, HistoryRecord<TherapySettings>>();
+            foreach (var settings in settingsPage)
+                candidates.TryAdd(settings.Record.Id, settings);
+            foreach (var settings in await OwnersAsync(schedules, ct))
+                candidates.TryAdd(settings.Id, new HistoryRecord<TherapySettings>(settings, Deleted: false));
+
+            var stamped = new Dictionary<Guid, Profile>();
+            foreach (var (settings, deleted) in candidates.Values)
+            {
+                var profile = await AssembleProfileAsync(settings, ct);
+                var settingsId = settings.Id;
+                if (deleted)
+                {
+                    if (await LiveSiblingAsync(settings, ct) is { } sibling)
+                    {
+                        var deletedAt = profile.SrvModified;
+                        profile = await AssembleProfileAsync(sibling, ct);
+                        profile.SrvModified = Math.Max(profile.SrvModified ?? 0, deletedAt ?? 0);
+                        settingsId = sibling.Id;
+                    }
+                    else
+                    {
+                        profile.IsValid = false;
+                    }
+                }
+
+                if (profile.SrvModified > cursor
+                    && (horizon is null || profile.SrvModified <= horizon)
+                    && (!stamped.TryGetValue(settingsId, out var held) || held.SrvModified < profile.SrvModified))
+                {
+                    stamped[settingsId] = profile;
+                }
+            }
+
+            if (stamped.Count == 0)
+            {
+                if (horizon is null)
+                    return new ModifiedSincePage<Profile>([], null);
+
+                cursor = horizon.Value;
+                continue;
+            }
+
+            var ordered = stamped
+                .OrderBy(p => p.Value.SrvModified)
+                .ThenBy(p => p.Key)
+                .Select(p => p.Value)
+                .ToList();
+
+            var page = ordered.Count <= limit
+                ? ordered
+                : ordered.TakeWhile((p, i) => i < limit || p.SrvModified == ordered[limit - 1].SrvModified).ToList();
+
+            return new ModifiedSincePage<Profile>(page, page[^1].SrvModified);
+        }
+    }
+
+    /// <summary>
+    /// The earliest last millisecond among the <paramref name="pages"/> that came back full, or
+    /// <c>null</c> when every table was read to its end.
+    /// </summary>
+    private static IReadOnlyList<IV4Record> Records<T>(IReadOnlyList<HistoryRecord<T>> page)
+        where T : IV4Record =>
+        page.Select(r => (IV4Record)r.Record).ToList();
+
+    private static long? Horizon(int limit, params IReadOnlyList<IV4Record>[] pages) =>
+        pages
+            .Where(page => page.Count >= limit)
+            .Select(page => (long?)new DateTimeOffset(page[^1].ModifiedAt, TimeSpan.Zero).ToUnixTimeMilliseconds())
+            .Min();
+
+    /// <summary>
+    /// Every settings record <see cref="ScheduleForProfileAsync{TRecord}"/> could pair with one of
+    /// <paramref name="schedules"/>: the same correlation and store name, the same legacy id, or —
+    /// for settings without a correlation id — the same store name. A superset is harmless, since
+    /// each candidate is assembled and judged by its own stamp.
+    /// </summary>
+    private async Task<List<TherapySettings>> OwnersAsync(
+        IReadOnlyList<IV4Record> schedules, CancellationToken ct)
+    {
+        var owners = new List<TherapySettings>();
+
+        foreach (var group in schedules
+                     .Where(s => s.CorrelationId is not null)
+                     .GroupBy(s => s.CorrelationId!.Value))
+        {
+            var names = group.Select(s => ((IProfileScoped)s).ProfileName).ToHashSet();
+            owners.AddRange((await _therapyRepo.GetByCorrelationIdAsync(group.Key, ct))
+                .Where(t => names.Contains(t.ProfileName)));
+        }
+
+        foreach (var legacyId in schedules
+                     .Select(s => s.LegacyId)
+                     .Where(id => !string.IsNullOrEmpty(id))
+                     .Distinct())
+        {
+            if (await _therapyRepo.GetByLegacyIdAsync(legacyId!, ct) is { } settings)
+                owners.Add(settings);
+        }
+
+        foreach (var name in schedules.Select(s => ((IProfileScoped)s).ProfileName).Distinct())
+        {
+            owners.AddRange((await _therapyRepo.GetByProfileNameAsync(name, ct))
+                .Where(t => t.CorrelationId is null));
+        }
+
+        return owners;
+    }
+
+    /// <summary>
+    /// The newest live row stored from the same profile document as the deleted
+    /// <paramref name="settings"/>, which decomposition keys <c>"{profileId}:{storeName}"</c>, or
+    /// <c>null</c> when the whole document is gone.
+    /// </summary>
+    private async Task<TherapySettings?> LiveSiblingAsync(TherapySettings settings, CancellationToken ct)
+    {
+        if (settings.LegacyId?.Contains(':') != true)
+            return null;
+
+        return (await _therapyRepo.GetByLegacyIdPrefixAsync($"{TherapySettings.DocumentIdOf(settings)}:", ct))
+            .FirstOrDefault(s => s.Id != settings.Id);
+    }
+
+    /// <inheritdoc />
     public async Task<long> CountProfilesAsync(string? find = null, CancellationToken ct = default)
     {
         return await _therapyRepo.CountAsync(from: null, to: null, ct: ct);
@@ -120,18 +282,18 @@ public class ProfileProjectionService : IProfileProjectionService
             TargetHigh = MapTargetHigh(targetRange.Result?.Entries),
         };
 
-        // Extract the profile record-level ID from the legacy ID prefix (before the colon)
-        var profileId = settings.LegacyId?.Contains(':') == true
-            ? settings.LegacyId.Split(':')[0]
-            : settings.LegacyId ?? settings.Id.ToString();
-
         return new Profile
         {
-            Id = profileId,
+            Id = TherapySettings.DocumentIdOf(settings),
             DefaultProfile = settings.ProfileName,
             StartDate = settings.StartDate ?? settings.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
             Mills = settings.Mills,
             CreatedAt = settings.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+            SrvModified = new DateTimeOffset(
+                    new IV4Record?[] { settings, basal.Result, carbRatio.Result, sensitivity.Result, targetRange.Result }
+                        .Max(r => r?.ModifiedAt ?? DateTime.MinValue),
+                    TimeSpan.Zero)
+                .ToUnixTimeMilliseconds(),
             Units = settings.Units ?? "mg/dL",
             EnteredBy = settings.EnteredBy,
             LoopSettings = settings.LoopSettings,

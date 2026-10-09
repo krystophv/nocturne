@@ -40,7 +40,9 @@ public interface ITreatmentDecomposer
         IReadOnlyList<Treatment> treatments, WriteOrigin origin, CancellationToken ct = default);
 
     /// <summary>
-    /// Deletes all v4 records that were decomposed from a legacy Treatment with the given ID.
+    /// Deletes all v4 records that were decomposed from a legacy Treatment with the given ID, and
+    /// every other source's copy deduplication linked them to: a user deleting a treatment deletes
+    /// the event, not one source's report of it.
     /// </summary>
     /// <param name="legacyId">The legacy Treatment ID</param>
     /// <param name="ct">Cancellation token</param>
@@ -62,6 +64,17 @@ public interface ITreatmentDecomposer
     /// </summary>
     Task<IReadOnlyDictionary<string, DateTime>> GetLegacyIdsFromSourceAsync(
         string source, DateTime from, DateTime to, CancellationToken ct = default);
+
+    /// <summary>
+    /// Moves <paramref name="source"/>'s records stored under a treatment's client id
+    /// (<see cref="TreatmentClientId"/>) onto the treatment's own id, when nothing is stored under that
+    /// id yet. Of treatments sharing a client id, the one at the records' time takes them (the first when
+    /// none is). Records the user deleted stay under the client id and are copied onto every one of
+    /// them, so they keep blocking equivalents delivered in a later call too.
+    /// </summary>
+    /// <returns>Total number of v4 records moved.</returns>
+    Task<int> RekeyClientIdRecordsAsync(
+        string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default);
 
     /// <summary>Of treatments <paramref name="source"/> delivered again, the ones to decompose again.</summary>
     Task<IReadOnlyList<Treatment>> SelectForRepublishAsync(

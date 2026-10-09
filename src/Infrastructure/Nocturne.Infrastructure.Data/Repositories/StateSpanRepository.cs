@@ -244,10 +244,14 @@ public class StateSpanRepository : IStateSpanRepository
     /// afterwards so a long connector sync does not pay change detection over every earlier batch; only
     /// those rows, since the scoped context may also track entities the caller still holds.
     /// </summary>
+    /// <param name="stateSpans">The spans to write.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="omitBlocked">Leave out the spans a soft-deleted row blocked instead of returning that row.</param>
     /// <returns>Per input span, the row it wrote or the soft-deleted row that blocked it.</returns>
     private async Task<List<StateSpan>> UpsertBatchAsync(
         IReadOnlyList<StateSpan> stateSpans,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool omitBlocked = false)
     {
         if (stateSpans.Count == 0)
             return [];
@@ -268,6 +272,8 @@ public class StateSpanRepository : IStateSpanRepository
             {
                 if (governing.DeletedAt == null)
                     StateSpanMapper.UpdateEntity(governing, stateSpan);
+                else if (omitBlocked)
+                    continue;
                 written.Add(governing);
                 continue;
             }
@@ -533,8 +539,8 @@ public class StateSpanRepository : IStateSpanRepository
     /// </summary>
     /// <param name="id">The unique identifier of the span to delete.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>True if the span was deleted, otherwise false.</returns>
-    public async Task<bool> DeleteStateSpanAsync(
+    /// <returns>The spans deleted, the requested one first, with the other copies in its duplicate group.</returns>
+    public async Task<IReadOnlyList<StateSpan>> DeleteStateSpanAsync(
         string id,
         CancellationToken cancellationToken = default
     )
@@ -552,12 +558,17 @@ public class StateSpanRepository : IStateSpanRepository
             );
         }
 
-        if (entity == null)
-            return false;
+        return entity == null ? [] : await SoftDeleteWithCopiesAsync(entity, cancellationToken);
+    }
 
-        entity.DeletedAt = DateTime.UtcNow;
-        var result = await _context.SaveChangesAsync(cancellationToken);
-        return result > 0;
+    private async Task<IReadOnlyList<StateSpan>> SoftDeleteWithCopiesAsync(
+        StateSpanEntity entity, CancellationToken cancellationToken)
+    {
+        var (saved, copies) = await DuplicateGroupPrimaries.SoftDeleteAsync(
+            _context, entity, RecordType.StateSpan, cancellationToken);
+        return saved > 0
+            ? [StateSpanMapper.ToDomainModel(entity), .. copies.Select(StateSpanMapper.ToDomainModel)]
+            : [];
     }
 
     /// <summary>
@@ -765,6 +776,8 @@ public class StateSpanRepository : IStateSpanRepository
         if (!string.IsNullOrEmpty(type))
             query = query.Where(s => s.State == type);
 
+        query = query.ExcludeNonPrimary(_context, RecordType.StateSpan);
+
         var entities = await query
             .OrderByDescending(s => s.StartTimestamp)
             .Skip(skip)
@@ -782,6 +795,16 @@ public class StateSpanRepository : IStateSpanRepository
         await _context.StateSpans
             .AsNoTracking()
             .Where(s => ActivityCategories.Contains(s.Category) && s.Source == source)
+            .MaxAsync(s => (DateTime?)s.StartTimestamp, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<DateTime?> GetLatestNonActivityTimestampAsync(
+        string source,
+        CancellationToken cancellationToken = default
+    ) =>
+        await _context.StateSpans
+            .AsNoTracking()
+            .Where(s => !ActivityCategories.Contains(s.Category) && s.Source == source)
             .MaxAsync(s => (DateTime?)s.StartTimestamp, cancellationToken);
 
     /// <summary>
@@ -820,7 +843,7 @@ public class StateSpanRepository : IStateSpanRepository
     public async Task<IEnumerable<StateSpan>> CreateActivitiesAsStateSpansAsync(
         IEnumerable<StateSpan> stateSpans,
         CancellationToken cancellationToken = default
-    ) => await UpsertBatchAsync(stateSpans.ToList(), cancellationToken);
+    ) => await UpsertBatchAsync(stateSpans.ToList(), cancellationToken, omitBlocked: true);
 
     /// <summary>
     /// Update an existing Activity state span
@@ -861,8 +884,8 @@ public class StateSpanRepository : IStateSpanRepository
     /// </summary>
     /// <param name="id">The unique identifier of the activity to delete.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>True if the activity was deleted, otherwise false.</returns>
-    public async Task<bool> DeleteActivityStateSpanAsync(
+    /// <returns>The spans deleted, the requested one first, with the other copies in its duplicate group.</returns>
+    public async Task<IReadOnlyList<StateSpan>> DeleteActivityStateSpanAsync(
         string id,
         CancellationToken cancellationToken = default
     )
@@ -880,12 +903,7 @@ public class StateSpanRepository : IStateSpanRepository
             );
         }
 
-        if (entity == null)
-            return false;
-
-        entity.DeletedAt = DateTime.UtcNow;
-        var result = await _context.SaveChangesAsync(cancellationToken);
-        return result > 0;
+        return entity == null ? [] : await SoftDeleteWithCopiesAsync(entity, cancellationToken);
     }
 
     #endregion

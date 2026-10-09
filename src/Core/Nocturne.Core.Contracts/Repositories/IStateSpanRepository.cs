@@ -111,12 +111,12 @@ public interface IStateSpanRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes a state span by ID.
+    /// Deletes a state span by ID, with every other copy in its duplicate group.
     /// </summary>
     /// <param name="id">The state span identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns><c>true</c> if deleted; <c>false</c> if not found.</returns>
-    Task<bool> DeleteStateSpanAsync(
+    /// <returns>The spans deleted, the requested one first; empty if not found.</returns>
+    Task<IReadOnlyList<StateSpan>> DeleteStateSpanAsync(
         string id,
         CancellationToken cancellationToken = default);
 
@@ -215,6 +215,18 @@ public interface IStateSpanRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the latest <c>StartTimestamp</c> across the state spans written by
+    /// <paramref name="source"/> outside the activity categories, or <c>null</c> when that source
+    /// has written none. Activity spans are left out because they carry their own watermark
+    /// (<see cref="GetLatestActivityTimestampAsync"/>) and would otherwise advance this one.
+    /// </summary>
+    /// <param name="source">The data source to scope to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<DateTime?> GetLatestNonActivityTimestampAsync(
+        string source,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns a single activity state span by its identifier.
     /// </summary>
     /// <param name="id">The state span identifier.</param>
@@ -229,7 +241,10 @@ public interface IStateSpanRepository
     /// </summary>
     /// <param name="stateSpans">The state spans representing activities to create.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of the created <see cref="StateSpan"/> records.</returns>
+    /// <returns>
+    /// The created or updated <see cref="StateSpan"/> records. A span whose original id the user
+    /// deleted is not written and not returned.
+    /// </returns>
     Task<IEnumerable<StateSpan>> CreateActivitiesAsStateSpansAsync(
         IEnumerable<StateSpan> stateSpans,
         CancellationToken cancellationToken = default);
@@ -247,12 +262,12 @@ public interface IStateSpanRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes an activity state span by ID.
+    /// Deletes an activity state span by ID, with every other copy in its duplicate group.
     /// </summary>
     /// <param name="id">The state span identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns><c>true</c> if deleted; <c>false</c> if not found.</returns>
-    Task<bool> DeleteActivityStateSpanAsync(
+    /// <returns>The spans deleted, the requested one first; empty if not found.</returns>
+    Task<IReadOnlyList<StateSpan>> DeleteActivityStateSpanAsync(
         string id,
         CancellationToken cancellationToken = default);
 }

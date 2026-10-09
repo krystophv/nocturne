@@ -25,6 +25,7 @@ public class DeviceStatus : ProcessableDocumentBase
     /// Gets or sets the MongoDB ObjectId
     /// </summary>
     [JsonPropertyName("_id")]
+    [JsonConverter(typeof(ObjectIdJsonConverter))]
     public override string? Id { get; set; }
 
     /// <summary>
@@ -83,6 +84,14 @@ public class DeviceStatus : ProcessableDocumentBase
         get => _srvCreated ?? FallbackTimestampMills();
         set => _srvCreated = value;
     }
+
+    /// <summary>
+    /// <c>false</c> on a deleted document, which a v3 history read still returns so a syncing client
+    /// learns of the delete; unset on a live one, as Nightscout leaves it.
+    /// </summary>
+    [JsonPropertyName("isValid")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsValid { get; set; }
 
     /// <summary>
     /// Resolves the V3 compatibility timestamps: Mills, then <c>date</c>, then <c>created_at</c>.
@@ -424,6 +433,7 @@ public class OpenApsStatus
     /// Gets or sets the enacted action (confirmed delivered to pump)
     /// </summary>
     [JsonPropertyName("enacted")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public OpenApsEnacted? Enacted { get; set; }
 
     /// <summary>

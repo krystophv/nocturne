@@ -11,6 +11,7 @@ using Nocturne.Core.Contracts.Multitenancy;
 using Nocturne.Core.Models;
 using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Infrastructure.Data.Entities.V4;
+using Nocturne.Infrastructure.Data.Extensions;
 using Nocturne.Infrastructure.Data.Mappers;
 
 namespace Nocturne.Infrastructure.Data.Services;
@@ -95,6 +96,12 @@ public class DeduplicationService : IDeduplicationService
     /// millions of <c>linked_records</c> for a high-volume tenant.
     /// </summary>
     private const int DedupChunkSize = 500;
+
+    /// <summary>
+    /// How far apart the first and last run of one candidate-bounded neighbour load may start. A run
+    /// longer than this still loads whole, so a load spans at most this plus one run.
+    /// </summary>
+    private static readonly long NeighbourSliceMillis = (long)TimeSpan.FromHours(1).TotalMilliseconds;
 
     /// <summary>
     /// How far behind the present <see cref="ReconcileNewLinksAsync"/> reads. A link's
@@ -391,22 +398,28 @@ public class DeduplicationService : IDeduplicationService
     /// <summary>
     /// Orders <paramref name="items"/> by event time and slices them into chunks of at most
     /// <see cref="DedupChunkSize"/>, also starting a new chunk wherever two consecutive items sit
-    /// more than <paramref name="maxGapMillis"/> apart.
+    /// more than <paramref name="maxGapMillis"/> apart, or an item sits more than
+    /// <paramref name="maxSpanMillis"/> after its chunk's first.
     /// </summary>
     private static IEnumerable<List<T>> TimeOrderedChunks<T>(
-        IEnumerable<T> items, Func<T, long> mills, long maxGapMillis = long.MaxValue)
+        IEnumerable<T> items, Func<T, long> mills, long maxGapMillis = long.MaxValue,
+        long maxSpanMillis = long.MaxValue)
     {
         var chunk = new List<T>();
+        var first = 0L;
         var previous = 0L;
         foreach (var item in items.OrderBy(mills))
         {
             var at = mills(item);
-            if (chunk.Count == DedupChunkSize || (chunk.Count > 0 && at - previous > maxGapMillis))
+            if (chunk.Count == DedupChunkSize
+                || (chunk.Count > 0 && (at - previous > maxGapMillis || at - first > maxSpanMillis)))
             {
                 yield return chunk;
                 chunk = [];
             }
 
+            if (chunk.Count == 0)
+                first = at;
             chunk.Add(item);
             previous = at;
         }
@@ -688,59 +701,9 @@ public class DeduplicationService : IDeduplicationService
             DuplicateGroups: duplicateGroups);
     }
 
-    /// <inheritdoc />
-    public async Task RepointPrimariesAwayFromAsync(
-        RecordType recordType, IReadOnlyCollection<Guid> recordIds, CancellationToken ct = default)
-    {
-        if (recordIds.Count == 0)
-            return;
-
-        var recordTypeStr = RecordTypeKeys.Key(recordType);
-        var ids = recordIds.ToArray();
-        var canonicals = await _context.LinkedRecords
-            .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary && ids.Contains(lr.RecordId))
-            .Select(lr => lr.CanonicalId)
-            .Distinct()
-            .ToArrayAsync(ct);
-
-        if (canonicals.Length > 0)
-            await RepickPrimariesAsync(recordType, canonicals, ct);
-    }
-
-    /// <summary>
-    /// Moves each group's <see cref="LinkedRecordEntity.IsPrimary"/> onto its
-    /// <see cref="PickSurvivor"/>. A group with no primary at all renders as nothing, so it is
-    /// given one here too.
-    /// </summary>
-    private async Task RepickPrimariesAsync(RecordType recordType, Guid[] canonicalIds, CancellationToken ct)
-    {
-        var recordTypeStr = RecordTypeKeys.Key(recordType);
-        var rows = await _context.LinkedRecords
-            .Where(lr => lr.RecordType == recordTypeStr && canonicalIds.Contains(lr.CanonicalId))
-            .ToListAsync(ct);
-
-        var rowInfo = await LoadRecordInfoAsync(recordType, rows.Select(r => r.RecordId).ToHashSet(), ct);
-
-        var repointed = false;
-        foreach (var group in rows.GroupBy(r => r.CanonicalId))
-        {
-            var survivor = PickSurvivor(group, rowInfo);
-            var currentPrimary = group.FirstOrDefault(r => r.IsPrimary);
-            if (ReferenceEquals(survivor, currentPrimary))
-                continue;
-
-            if (currentPrimary is not null)
-                currentPrimary.IsPrimary = false;
-            survivor.IsPrimary = true;
-            repointed = true;
-        }
-
-        if (repointed)
-        {
-            await _context.SaveChangesAsync(ct);
-            _context.ChangeTracker.Clear();
-        }
-    }
+    /// <inheritdoc cref="DuplicateGroupPrimaries.RepickAsync"/>
+    private Task RepickPrimariesAsync(RecordType recordType, Guid[] canonicalIds, CancellationToken ct)
+        => DuplicateGroupPrimaries.RepickAsync(_context, recordType, canonicalIds, ct);
 
     /// <summary>
     /// The link a canonical group's <see cref="LinkedRecordEntity.IsPrimary"/> belongs on: the
@@ -754,11 +717,18 @@ public class DeduplicationService : IDeduplicationService
     internal static LinkedRecordEntity PickSurvivor(
         IEnumerable<LinkedRecordEntity> rows,
         IReadOnlyDictionary<Guid, RecordInfo> rowInfo)
+        => PickSurvivor(rows, id => rowInfo.TryGetValue(id, out var ri) && !ri.IsDeleted);
+
+    /// <inheritdoc cref="PickSurvivor(IEnumerable{LinkedRecordEntity}, IReadOnlyDictionary{Guid, RecordInfo})"/>
+    /// <param name="rows">The group's links.</param>
+    /// <param name="isPromotable">Whether a record id names a live record.</param>
+    internal static LinkedRecordEntity PickSurvivor(
+        IEnumerable<LinkedRecordEntity> rows,
+        Func<Guid, bool> isPromotable)
     {
         var ordered = rows.OrderBy(r => r.SourceTimestamp).ThenBy(r => r.RecordId).ToList();
 
-        return ordered.FirstOrDefault(r => rowInfo.TryGetValue(r.RecordId, out var ri) && !ri.IsDeleted)
-               ?? ordered[0];
+        return ordered.FirstOrDefault(r => isPromotable(r.RecordId)) ?? ordered[0];
     }
 
     /// <summary>
@@ -802,8 +772,9 @@ public class DeduplicationService : IDeduplicationService
 
         // Candidate-bounded reconcile: never load all primaries. Load only the candidate
         // canonicals' primary links to learn their event timestamps, then DB-bound each neighbour
-        // query to a run of candidates plus the window either side. This keeps the candidate path
-        // O(candidates + window-slice) rather than O(all primaries).
+        // query to a slice of runs of candidates plus the window either side. This keeps the
+        // candidate path bounded by the primaries in the slices around the candidates rather than
+        // by all primaries.
         var candidatePrimaries = await PrimariesOf(recordTypeStr, candidateCanonicalIds).ToListAsync(ct);
 
         if (candidatePrimaries.Count == 0)
@@ -814,20 +785,43 @@ public class DeduplicationService : IDeduplicationService
         // than one: deciding a pair needs to see any third same-value group that would make it
         // ambiguous, and such a group can sit a full window beyond the pair's own edge. At one
         // window the same three groups merge or refuse depending on which one is the candidate.
-        var neighbourWindowMillis = WideMatchableTypes.Contains(recordType)
+        var wideEligible = WideMatchableTypes.Contains(recordType);
+        var neighbourWindowMillis = wideEligible
             ? 2 * WideMatchingWindowMillis
             : MatchingWindowMillis;
 
         // Links are paged in creation order, so one batch can hold candidates years apart in event
         // time. A single range over them would load every primary in between. Runs split where two
-        // candidates' neighbour ranges cannot meet, so each load stays a window slice.
+        // candidates' neighbour ranges cannot meet, so each run is decided over its own neighbour range.
+        var runs = TimeOrderedChunks(candidatePrimaries, p => p.SourceTimestamp, 2 * neighbourWindowMillis);
+
+        // A wide load selects whole groups by their links, so its primaries cannot be cut back to one
+        // run's range in memory; a wide type loads per run.
+        var slices = wideEligible
+            ? runs.Select(run => new List<List<LinkedRecordEntity>> { run })
+            : TimeOrderedChunks(runs, run => run[0].SourceTimestamp, maxSpanMillis: NeighbourSliceMillis);
+
         var merged = 0;
-        foreach (var run in TimeOrderedChunks(candidatePrimaries, p => p.SourceTimestamp, 2 * neighbourWindowMillis))
+        foreach (var slice in slices)
         {
-            var minTs = run[0].SourceTimestamp - neighbourWindowMillis;
-            var maxTs = run[^1].SourceTimestamp + neighbourWindowMillis;
-            var primaries = await LoadNeighbourPrimariesAsync(recordType, minTs, maxTs, ct);
-            merged += await MergePrimariesAsync(recordType, primaries, candidateCanonicalIds, minTs, maxTs, ct);
+            List<LinkedRecordEntity>? loaded = null;
+            foreach (var run in slice)
+            {
+                var minTs = run[0].SourceTimestamp - neighbourWindowMillis;
+                var maxTs = run[^1].SourceTimestamp + neighbourWindowMillis;
+                loaded ??= await LoadNeighbourPrimariesAsync(
+                    recordType, minTs, slice[^1][^1].SourceTimestamp + neighbourWindowMillis, ct);
+
+                var primaries = wideEligible
+                    ? loaded
+                    : loaded.Where(p => p.SourceTimestamp >= minTs && p.SourceTimestamp <= maxTs).ToList();
+                var runMerged = await MergePrimariesAsync(recordType, primaries, candidateCanonicalIds, minTs, maxTs, ct);
+
+                // A merge re-points links, possibly promoting one inside a later run's range.
+                if (runMerged > 0)
+                    loaded = null;
+                merged += runMerged;
+            }
         }
 
         return merged;
@@ -1698,7 +1692,7 @@ public class DeduplicationService : IDeduplicationService
             static c => c.BolusCalculations, static bc => bc.Timestamp,
             static bc => bc.Id, static bc => bc.DataSource, MatchCriteriaMapper.From),
         Phase(RecordType.TempBasal, "TempBasals",
-            static c => c.TempBasals, static t => t.StartTimestamp,
+            static c => c.TempBasals, static t => t.Timestamp,
             static t => t.Id, static t => t.DataSource, MatchCriteriaMapper.From),
         Phase(RecordType.StateSpan, "StateSpans",
             static c => c.StateSpans, static s => s.StartTimestamp,

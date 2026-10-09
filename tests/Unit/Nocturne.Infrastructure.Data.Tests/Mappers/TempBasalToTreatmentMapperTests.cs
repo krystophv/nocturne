@@ -1,3 +1,4 @@
+using Nocturne.Core.Models;
 using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Mappers;
 
@@ -45,6 +46,20 @@ public class TempBasalToTreatmentMapperTests
         result.EnteredBy.Should().Be("openaps");
         result.DataSource.Should().Be("openaps-connector");
         result.UtcOffset.Should().Be(-300);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void ToTreatment_ReportsServerClockNotEventTime()
+    {
+        var tempBasal = CreateTempBasal(TempBasalOrigin.Algorithm, 1.2);
+        tempBasal.CreatedAt = tempBasal.StartTimestamp.AddDays(2);
+        tempBasal.ModifiedAt = tempBasal.StartTimestamp.AddDays(3);
+
+        var result = TempBasalToTreatmentMapper.ToTreatment(tempBasal);
+
+        result.SrvCreated.Should().Be(new DateTimeOffset(tempBasal.CreatedAt, TimeSpan.Zero).ToUnixTimeMilliseconds());
+        result.SrvModified.Should().Be(new DateTimeOffset(tempBasal.ModifiedAt, TimeSpan.Zero).ToUnixTimeMilliseconds());
     }
 
     [Fact]
@@ -110,6 +125,38 @@ public class TempBasalToTreatmentMapperTests
         // Assert
         result.AdditionalProperties.Should().NotBeNull();
         result.AdditionalProperties!["basalOrigin"].Should().Be("Algorithm");
+    }
+
+    [Theory]
+    [Trait("Category", "Unit")]
+    [InlineData(TempBasalOrigin.Algorithm)]
+    [InlineData(TempBasalOrigin.Manual)]
+    [InlineData(TempBasalOrigin.Scheduled)]
+    [InlineData(TempBasalOrigin.Suspended)]
+    [InlineData(TempBasalOrigin.Inferred)]
+    public void ToTreatment_WithoutAnUploadedFlag_LeavesAutomaticUnset(TempBasalOrigin origin)
+    {
+        var result = TempBasalToTreatmentMapper.ToTreatment(CreateTempBasal(origin, 1.0));
+
+        result.Automatic.Should().BeNull();
+    }
+
+    [Theory]
+    [Trait("Category", "Unit")]
+    [InlineData(TempBasalOrigin.Manual, true)]
+    [InlineData(TempBasalOrigin.Algorithm, false)]
+    [InlineData(TempBasalOrigin.Suspended, true)]
+    public void ToTreatment_ReturnsTheUploadedFlagAfterStorage(TempBasalOrigin origin, bool uploaded)
+    {
+        var tempBasal = CreateTempBasal(origin, 1.0);
+        var stored = TempBasalAutomaticFlag.Keep(new Dictionary<string, object?> { ["id"] = "client-1" }, uploaded);
+        tempBasal.AdditionalProperties = System.Text.Json.JsonSerializer
+            .Deserialize<Dictionary<string, object?>>(System.Text.Json.JsonSerializer.Serialize(stored));
+
+        var result = TempBasalToTreatmentMapper.ToTreatment(tempBasal);
+
+        result.Automatic.Should().Be(uploaded);
+        result.AdditionalProperties.Should().NotContainKey(TempBasalAutomaticFlag.Field);
     }
 
     [Fact]

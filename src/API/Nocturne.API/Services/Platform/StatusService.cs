@@ -592,6 +592,10 @@ public class StatusService : IStatusService
     /// <summary>
     /// Get last modified timestamps for all collections
     /// </summary>
+    /// <remarks>
+    /// Deleted rows count, as Nightscout counts its <c>isValid: false</c> documents: a delete moves
+    /// the stamp, and a client only reads the history once the collection's stamp has moved.
+    /// </remarks>
     public async Task<LastModifiedResponse> GetLastModifiedAsync()
     {
         _logger.LogDebug("Generating last modified timestamps response");
@@ -600,37 +604,51 @@ public class StatusService : IStatusService
 
         // Each query gets its own short-lived DbContext via the factory so they can
         // run concurrently — a single DbContext is not thread-safe.
-        var entriesTask = LastModifiedAsync(ctx => ctx.SensorGlucose.AsNoTracking()
-            .OrderByDescending(e => e.SysUpdatedAt)
-            .Select(e => (DateTime?)e.SysUpdatedAt)
-            .FirstOrDefaultAsync());
+        var entriesTask = LastModifiedAsync(async ctx =>
+        {
+            var timestamps = new[]
+            {
+                await ctx.SensorGlucose.IncludingDeleted().AsNoTracking().OrderByDescending(e => e.SysUpdatedAt).Select(e => (DateTime?)e.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.MeterGlucose.IncludingDeleted().AsNoTracking().OrderByDescending(m => m.SysUpdatedAt).Select(m => (DateTime?)m.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.Calibrations.IncludingDeleted().AsNoTracking().OrderByDescending(c => c.SysUpdatedAt).Select(c => (DateTime?)c.SysUpdatedAt).FirstOrDefaultAsync(),
+            };
+            return timestamps.Where(d => d.HasValue).Max();
+        });
 
         var treatmentsTask = LastModifiedAsync(async ctx =>
         {
             var timestamps = new[]
             {
-                await ctx.Boluses.AsNoTracking().OrderByDescending(b => b.SysUpdatedAt).Select(b => (DateTime?)b.SysUpdatedAt).FirstOrDefaultAsync(),
-                await ctx.CarbIntakes.AsNoTracking().OrderByDescending(c => c.SysUpdatedAt).Select(c => (DateTime?)c.SysUpdatedAt).FirstOrDefaultAsync(),
-                await ctx.BGChecks.AsNoTracking().OrderByDescending(b => b.SysUpdatedAt).Select(b => (DateTime?)b.SysUpdatedAt).FirstOrDefaultAsync(),
-                await ctx.Notes.AsNoTracking().OrderByDescending(n => n.SysUpdatedAt).Select(n => (DateTime?)n.SysUpdatedAt).FirstOrDefaultAsync(),
-                await ctx.DeviceEvents.AsNoTracking().OrderByDescending(d => d.SysUpdatedAt).Select(d => (DateTime?)d.SysUpdatedAt).FirstOrDefaultAsync(),
-                await ctx.TempBasals.AsNoTracking().OrderByDescending(t => t.SysUpdatedAt).Select(t => (DateTime?)t.SysUpdatedAt).FirstOrDefaultAsync(),
-                await ctx.BolusCalculations.AsNoTracking().OrderByDescending(b => b.SysUpdatedAt).Select(b => (DateTime?)b.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.Boluses.IncludingDeleted().AsNoTracking().OrderByDescending(b => b.SysUpdatedAt).Select(b => (DateTime?)b.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.CarbIntakes.IncludingDeleted().AsNoTracking().OrderByDescending(c => c.SysUpdatedAt).Select(c => (DateTime?)c.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.BGChecks.IncludingDeleted().AsNoTracking().OrderByDescending(b => b.SysUpdatedAt).Select(b => (DateTime?)b.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.Notes.IncludingDeleted().AsNoTracking().OrderByDescending(n => n.SysUpdatedAt).Select(n => (DateTime?)n.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.DeviceEvents.IncludingDeleted().AsNoTracking().OrderByDescending(d => d.SysUpdatedAt).Select(d => (DateTime?)d.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.TempBasals.IncludingDeleted().AsNoTracking().OrderByDescending(t => t.SysUpdatedAt).Select(t => (DateTime?)t.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.BolusCalculations.IncludingDeleted().AsNoTracking().OrderByDescending(b => b.SysUpdatedAt).Select(b => (DateTime?)b.SysUpdatedAt).FirstOrDefaultAsync(),
             };
             return timestamps.Where(d => d.HasValue).Max();
         });
 
-        var profileTask = LastModifiedAsync(ctx => ctx.TherapySettings.AsNoTracking()
-            .OrderByDescending(t => t.SysUpdatedAt)
-            .Select(t => (DateTime?)t.SysUpdatedAt)
-            .FirstOrDefaultAsync());
+        var profileTask = LastModifiedAsync(async ctx =>
+        {
+            var timestamps = new[]
+            {
+                await ctx.TherapySettings.IncludingDeleted().AsNoTracking().OrderByDescending(t => t.SysUpdatedAt).Select(t => (DateTime?)t.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.BasalSchedules.IncludingDeleted().AsNoTracking().OrderByDescending(b => b.SysUpdatedAt).Select(b => (DateTime?)b.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.CarbRatioSchedules.IncludingDeleted().AsNoTracking().OrderByDescending(c => c.SysUpdatedAt).Select(c => (DateTime?)c.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.SensitivitySchedules.IncludingDeleted().AsNoTracking().OrderByDescending(s => s.SysUpdatedAt).Select(s => (DateTime?)s.SysUpdatedAt).FirstOrDefaultAsync(),
+                await ctx.TargetRangeSchedules.IncludingDeleted().AsNoTracking().OrderByDescending(t => t.SysUpdatedAt).Select(t => (DateTime?)t.SysUpdatedAt).FirstOrDefaultAsync(),
+            };
+            return timestamps.Where(d => d.HasValue).Max();
+        });
 
-        var deviceStatusTask = LastModifiedAsync(ctx => ctx.ApsSnapshots.AsNoTracking()
+        var deviceStatusTask = LastModifiedAsync(ctx => ctx.ApsSnapshots.IncludingDeleted().AsNoTracking()
             .OrderByDescending(d => d.SysUpdatedAt)
             .Select(d => (DateTime?)d.SysUpdatedAt)
             .FirstOrDefaultAsync());
 
-        var foodTask = LastModifiedAsync(ctx => ctx.Foods.AsNoTracking()
+        var foodTask = LastModifiedAsync(ctx => ctx.Foods.IncludingDeleted().AsNoTracking()
             .OrderByDescending(f => f.SysUpdatedAt)
             .Select(f => (DateTime?)f.SysUpdatedAt)
             .FirstOrDefaultAsync());

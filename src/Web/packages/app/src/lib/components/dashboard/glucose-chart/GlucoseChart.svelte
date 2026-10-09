@@ -35,6 +35,7 @@
   import BgCheckMarkers from "./markers/BgCheckMarkers.svelte";
   import ChartHighlight from "./tracks/ChartHighlight.svelte";
   import ChartTooltip from "./ChartTooltip.svelte";
+  import { openDayInReview } from "./day-in-review";
 
   // Dialogs
   import { EntryEditDialog } from "$lib/components/entries";
@@ -48,6 +49,7 @@
     dateRange?: { from: Date | string; to: Date | string };
     focusHours?: number;
     initialChartData?: TransformedChartData | null;
+    initialWindowStart?: number;
     streamedHistoricalData?: Promise<TransformedChartData | null>;
     externalPredictionData?: PredictionData | null;
     enablePredictions?: boolean;
@@ -66,6 +68,7 @@
     dateRange,
     focusHours,
     initialChartData,
+    initialWindowStart,
     streamedHistoricalData,
     externalPredictionData,
     enablePredictions,
@@ -85,6 +88,7 @@
     get dateRange() { return dateRange; },
     get focusHours() { return focusHours; },
     get initialChartData() { return initialChartData; },
+    get initialWindowStart() { return initialWindowStart; },
     get streamedHistoricalData() { return streamedHistoricalData; },
     get externalPredictionData() { return externalPredictionData; },
     get enablePredictions() { return enablePredictions; },
@@ -225,7 +229,7 @@
     <ChartHighlight />
   {/snippet}
   {#snippet overlays()}
-    <ChartTooltip {tooltipExtras} />
+    <ChartTooltip {tooltipExtras} onTimeClick={openDayInReview} />
   {/snippet}
 </GlucoseChartShell>
 

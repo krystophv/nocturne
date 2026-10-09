@@ -50,6 +50,7 @@
   import TrackerMarkers from "./markers/TrackerMarkers.svelte";
   import ChartHighlight from "./tracks/ChartHighlight.svelte";
   import ChartTooltip from "./ChartTooltip.svelte";
+  import { openDayInReview } from "./day-in-review";
 
   // Dialogs
   import TreatmentDisambiguationDialog from "./dialogs/TreatmentDisambiguationDialog.svelte";
@@ -63,6 +64,7 @@
   interface Props {
     dateRange?: { from: Date | string; to: Date | string };
     initialChartData?: TransformedChartData | null;
+    initialWindowStart?: number;
     streamedHistoricalData?: Promise<TransformedChartData | null>;
     externalPredictionData?: PredictionData | null;
     showPredictions?: boolean;
@@ -74,6 +76,7 @@
   let {
     dateRange,
     initialChartData,
+    initialWindowStart,
     streamedHistoricalData,
     externalPredictionData,
     showPredictions = true,
@@ -108,6 +111,7 @@
     get dateRange() { return dateRange; },
     get focusHours() { return defaultFocusHours; },
     get initialChartData() { return initialChartData; },
+    get initialWindowStart() { return initialWindowStart; },
     get streamedHistoricalData() { return streamedHistoricalData; },
     get externalPredictionData() { return externalPredictionData; },
     get enablePredictions() { return showPredictions; },
@@ -382,7 +386,7 @@
           <ChartHighlight />
         {/snippet}
         {#snippet overlays()}
-          <ChartTooltip />
+          <ChartTooltip onTimeClick={openDayInReview} />
         {/snippet}
       </GlucoseChartShell>
     </div>
